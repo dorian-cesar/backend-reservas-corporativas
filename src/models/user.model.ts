@@ -33,7 +33,7 @@ export class User extends Model<IUser> {
     @Column({ type: DataType.STRING(255), allowNull: false })
     password!: string;
 
-    @Column({ type: DataType.ENUM('admin', 'admin', 'empresa', 'subusuario', 'auditoria', 'contralor'), defaultValue: 'empresa' })
+    @Column({ type: DataType.ENUM('superuser', 'admin', 'empresa', 'subusuario', 'auditoria', 'contralor'), defaultValue: 'empresa' })
     rol!: Rol;
 
     @ForeignKey(() => Empresa)
