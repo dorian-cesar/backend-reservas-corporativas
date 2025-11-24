@@ -40,7 +40,7 @@ export const create = async (
         if ((req.user as any).rol === "admin") targetEmpresaId = (req.user as any).empresa_id;
 
         const hashed = await bcrypt.hash(password, 10);
-
+        console.log("hashedz", hashed);
         const user = await User.create({
             nombre,
             rut,
