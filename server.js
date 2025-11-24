@@ -5,6 +5,7 @@ import helmet from "helmet";
 
 import authRoutes from "./routes/auth.routes.js";
 import usersRoutes from "./routes/users.routes.js";
+import empresaRoutes from "./routes/empresa.routes.js";
 
 dotenv.config();
 const app = express();
@@ -13,8 +14,17 @@ app.use(cors());
 app.use(helmet());
 app.use(express.json());
 
+app.get("/status", (req, res) => {
+  res.json({
+    status: "OK",
+    message: "Servidor activo",
+    timestamp: new Date(),
+  });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/empresas", empresaRoutes);
 
 app.get("/", (req, res) => res.json({ message: "Backend multi-empresa OK" }));
 
