@@ -18,7 +18,7 @@ app.use("/api/cuenta-corriente", cuentaCorrienteRoutes);
 
 connectDB().then(() => {
     app.listen(4000, () => {
-        console.log("Servidor corriendo en puerto 3000");
+        console.log("Servidor corriendo en puerto 4000");
     });
 });
 
