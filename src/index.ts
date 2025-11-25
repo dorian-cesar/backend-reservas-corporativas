@@ -4,8 +4,10 @@ import empresaRoutes from "./routes/empresa.routes";
 import usersRoutes from "./routes/users.routes";
 import centroCostoRoutes from "./routes/centro_costo.routes";
 import cuentaCorrienteRoutes from "./routes/cuenta_corriente.routes";
-import {connectDB} from "./database";
+import { connectDB } from "./database";
 import * as dotenv from "dotenv";
+import swaggerUi from "swagger-ui-express";
+import swaggerDocument from "../swagger.json";
 
 dotenv.config();
 
@@ -19,6 +21,8 @@ app.use("/api/users", usersRoutes);
 app.use("/api/centros-costo", centroCostoRoutes);
 app.use("/api/cuenta-corriente", cuentaCorrienteRoutes);
 
+// Documentación Swagger
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 connectDB().then(() => {
     app.listen(PORT, () => {
