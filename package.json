@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "tsc && node dist/index.js",
     "lint": "eslint . --ext .ts",
-    "seed:superuser": "ts-node script/seedSuperUser.ts",
+    "seed:superuser": "ts-node src/script/seedSuperUser.ts",
     "syncDB": "ts-node src/script/syncDB.ts",
     "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles",
     "test:watch": "cross-env NODE_ENV=test jest --watch"
