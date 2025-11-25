@@ -62,6 +62,13 @@
           "centro_costo_id": { "type": "integer", "description": "Nuevo ID del centro de costo asociado al usuario" }
         }
       },
+      "UserSetEstado": {
+        "type": "object",
+        "properties": {
+            "estado": { "type": "boolean", "description": "Nuevo estado del usuario (true para activo, false para inactivo)" }
+        },
+        "required": ["estado"]
+      },
       "Empresa": {
         "type": "object",
         "properties": {
@@ -497,6 +504,87 @@
           }
         }
       }
+    },
+    "/users/{id}/estado": {
+        "patch": {
+            "tags": ["Users"],
+            "summary": "Activar/desactivar un usuario",
+            "description": "Actualiza el estado de un usuario por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+            "security": [{ "bearerAuth": [] }],
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    },
+                    "description": "ID del usuario a actualizar"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/UserSetEstado"
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "Estado del usuario actualizado exitosamente",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/User"
+                            }
+                        }
+                    }
+                },
+                "401": {
+                    "description": "No autorizado",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ErrorResponse"
+                            }
+                        }
+                    }
+                },
+                "403": {
+                    "description": "Acceso denegado (rol insuficiente)",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ErrorResponse"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "Usuario no existe",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ErrorResponse"
+                            }
+                        }
+                    }
+                },
+                "500": {
+                    "description": "Error en servidor",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ErrorResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        }
     },
     "/users/superuser-only": {
       "post": {

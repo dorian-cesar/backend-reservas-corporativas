@@ -1,3 +1,4 @@
+// src/interfaces/user.interface.ts
 import { Rol } from "../models/user.model";
 
 export interface IUserCreate {
@@ -8,6 +9,7 @@ export interface IUserCreate {
     rol?: Rol;
     empresa_id?: number;
     centro_costo_id?: number;
+    estado?: boolean;
 }
 
 export interface IUserUpdate {
@@ -18,4 +20,5 @@ export interface IUserUpdate {
     rol?: Rol;
     empresa_id?: number;
     centro_costo_id?: number;
+    estado?: boolean;
 }

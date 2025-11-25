@@ -1,3 +1,4 @@
+// src/models/user.model.ts
 import { Table, Column, Model, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
 import { Empresa } from './empresa.model';
 import { CentroCosto } from './centro_costo.model';
@@ -12,6 +13,7 @@ export interface IUser {
     rol?: Rol;
     empresa_id?: number;
     centro_costo_id?: number;
+    estado?: boolean;
     created_at?: Date;
     updated_at?: Date;
 }
@@ -39,6 +41,9 @@ export class User extends Model<IUser> {
     @ForeignKey(() => Empresa)
     @Column({ type: DataType.INTEGER, allowNull: true })
     empresa_id?: number;
+
+    @Column({ type: DataType.BOOLEAN, defaultValue: true })
+    estado!: boolean;
 
     @ForeignKey(() => CentroCosto)
     @Column({ type: DataType.INTEGER, allowNull: true })

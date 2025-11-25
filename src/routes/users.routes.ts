@@ -1,9 +1,11 @@
+// src/routes/users.routes.ts
 import { Router } from "express";
 import {
     getUsers,
     create,
     update,
     remove,
+    setEstado,
 } from "../controllers/users.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 import { onlySuperUser } from "../middleware/role.middleware";
@@ -21,6 +23,9 @@ router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), update
 
 // Eliminar usuario
 router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), remove);
+
+// Activar/desactivar usuario
+router.patch("/:id/estado", authenticateJWT, authorizeRoles("superuser", "admin"), setEstado);
 
 // Ejemplo de ruta solo para superuser
 router.post("/superuser-only", authenticateJWT, onlySuperUser, (req, res) => {

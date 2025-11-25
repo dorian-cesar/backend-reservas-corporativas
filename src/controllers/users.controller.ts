@@ -1,3 +1,4 @@
+// src/controllers/users.controller.ts
 import { Request, Response } from "express";
 import * as bcrypt from "bcrypt";
 import { User } from "../models/user.model";
@@ -29,7 +30,7 @@ export const create = async (
     res: Response
 ) => {
     try {
-        const { nombre, rut, email, password, rol, empresa_id, centro_costo_id } = req.body;
+        const { nombre, rut, email, password, rol, empresa_id, centro_costo_id, estado } = req.body;
 
         // Solo superuser puede crear superusers
         if (rol === "superuser" && (req.user as any).rol !== "superuser")
@@ -40,7 +41,6 @@ export const create = async (
         if ((req.user as any).rol === "admin") targetEmpresaId = (req.user as any).empresa_id;
 
         const hashed = await bcrypt.hash(password, 10);
-        console.log("hashedz", hashed);
         const user = await User.create({
             nombre,
             rut,
@@ -49,6 +49,7 @@ export const create = async (
             rol,
             empresa_id: targetEmpresaId,
             centro_costo_id,
+            estado: estado !== undefined ? estado : true,
         });
 
         const userData = user.toJSON();
@@ -109,6 +110,29 @@ export const remove = async (req: Request, res: Response) => {
 
         await user.destroy();
         res.json({ message: "Eliminado" });
+    } catch (err) {
+        res.status(500).json({ message: "Error en servidor" });
+    }
+};
+
+export const setEstado = async (req: Request<{ id: string }, {}, { estado: boolean }>, res: Response) => {
+    try {
+        const id = req.params.id;
+        const { estado } = req.body;
+
+        const user = await User.findByPk(id);
+        if (!user) return res.status(404).json({ message: "Usuario no existe" });
+
+        if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
+            return res.status(403).json({ message: "No autorizado" });
+
+        user.estado = estado;
+        await user.save();
+
+        const userData = user.toJSON();
+        delete userData.password;
+
+        res.json(userData);
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
     }
