@@ -17,10 +17,13 @@ export const login = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "Email y contraseña son requeridos" });
         }
 
-        const user = await User.findOne({ where: { email } });
-        if (!user)
+        // Busca el usuario y obtén los datos planos directamente
+        const user = await User.findOne({ where: { email }, raw: true });
+        if (!user || !user.password) {
             return res.status(401).json({ message: "Credenciales inválidas" });
+        }
 
+        // Verifica el password usando bcrypt
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return res.status(401).json({ message: "Credenciales inválidas" });
 
@@ -32,26 +35,18 @@ export const login = async (req: Request, res: Response) => {
             centro_costo_id: user.centro_costo_id,
         };
 
-        const token = signJwt(payload);
-
         // Busca centro de costo si corresponde, y devuelve null si no tiene
         let centroCostoData = null;
-        if (user.centro_costo_id) {
+        if (user?.centro_costo_id) {
             const centroCosto = await CentroCosto.findByPk(user.centro_costo_id);
             centroCostoData = centroCosto ? centroCosto.toJSON() : null;
         }
+        const token = signJwt(payload);
 
-        // Prepara el usuario para respuesta, eliminando password
-        const { password: _, ...userData } = user.toJSON();
-
-        // Incluye los datos de centroCosto dentro del usuario (null si no tiene)
-        res.json({
-            token,
-            user: {
-                ...userData,
-                centroCosto: centroCostoData
-            }
-        });
+        // Elimina la propiedad password del objeto retornado
+        const { password: _, ...userData } = user;
+        console.log(centroCostoData)
+        res.json({ token, user: userData, centroCosto: centroCostoData });
     } catch (err) {
         console.log(err);
         res.status(500).json({ message: "Error en servidor" });
