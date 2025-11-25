@@ -8,6 +8,7 @@ import { connectDB } from "./database";
 import * as dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "../swagger.json";
+import ticketRoutes from "./routes/ticket.routes";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use("/api/empresas", empresaRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/centros-costo", centroCostoRoutes);
 app.use("/api/cuenta-corriente", cuentaCorrienteRoutes);
+app.use("/api/tickets", ticketRoutes);
 
 // Documentación Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));

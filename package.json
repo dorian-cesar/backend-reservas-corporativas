@@ -9,7 +9,9 @@
     "start": "tsc && node dist/index.js",
     "lint": "eslint . --ext .ts",
     "seed:superuser": "ts-node script/seedSuperUser.ts",
-    "syncDB": "ts-node src/script/syncDB.ts"
+    "syncDB": "ts-node src/script/syncDB.ts",
+    "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles",
+    "test:watch": "cross-env NODE_ENV=test jest --watch"
   },
   "author": "Tu Nombre",
   "license": "MIT",
@@ -24,6 +26,12 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "jest": "^29.0.0",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.0.0",
+    "@types/jest": "^29.0.0",
+    "@types/supertest": "^2.0.12",
+    "cross-env": "^7.0.3",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.5",
     "@types/jsonwebtoken": "^9.0.10",

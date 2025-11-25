@@ -21,165 +21,701 @@
       }
     },
     "schemas": {
+      "Ticket": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "ID único del ticket"
+          },
+          "ticketNumber": {
+            "type": "string",
+            "description": "Número único del ticket"
+          },
+          "ticketStatus": {
+            "type": "string",
+            "enum": [
+              "Confirmed",
+              "Anulado"
+            ],
+            "description": "Estado del ticket"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Ciudad de origen"
+          },
+          "destination": {
+            "type": "string",
+            "description": "Ciudad de destino"
+          },
+          "travelDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha del viaje"
+          },
+          "departureTime": {
+            "type": "string",
+            "description": "Hora de salida"
+          },
+          "seatNumbers": {
+            "type": "string",
+            "description": "Números de asiento asignados"
+          },
+          "fare": {
+            "type": "integer",
+            "description": "Tarifa base del ticket"
+          },
+          "monto_boleto": {
+            "type": "integer",
+            "description": "Monto total del boleto"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de confirmación del ticket"
+          },
+          "id_User": {
+            "type": "integer",
+            "description": "ID del usuario asociado al ticket"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Fecha de creación del ticket"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Fecha de última actualización del ticket"
+          }
+        },
+        "required": [
+          "ticketNumber",
+          "ticketStatus",
+          "origin",
+          "destination",
+          "travelDate",
+          "departureTime",
+          "seatNumbers",
+          "fare",
+          "monto_boleto",
+          "confirmedAt",
+          "id_User"
+        ]
+      },
+      "TicketCreate": {
+        "type": "object",
+        "properties": {
+          "ticketNumber": {
+            "type": "string",
+            "description": "Número único del ticket"
+          },
+          "ticketStatus": {
+            "type": "string",
+            "enum": [
+              "Confirmed",
+              "Anulado"
+            ],
+            "description": "Estado del ticket"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Ciudad de origen"
+          },
+          "destination": {
+            "type": "string",
+            "description": "Ciudad de destino"
+          },
+          "travelDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha del viaje"
+          },
+          "departureTime": {
+            "type": "string",
+            "description": "Hora de salida"
+          },
+          "seatNumbers": {
+            "type": "string",
+            "description": "Números de asiento asignados"
+          },
+          "fare": {
+            "type": "integer",
+            "description": "Tarifa base del ticket"
+          },
+          "monto_boleto": {
+            "type": "integer",
+            "description": "Monto total del boleto"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de confirmación del ticket"
+          },
+          "id_User": {
+            "type": "integer",
+            "description": "ID del usuario asociado al ticket"
+          }
+        },
+        "required": [
+          "ticketNumber",
+          "ticketStatus",
+          "origin",
+          "destination",
+          "travelDate",
+          "departureTime",
+          "seatNumbers",
+          "fare",
+          "monto_boleto",
+          "confirmedAt",
+          "id_User"
+        ]
+      },
+      "TicketUpdate": {
+        "type": "object",
+        "properties": {
+          "ticketNumber": {
+            "type": "string",
+            "description": "Número único del ticket"
+          },
+          "ticketStatus": {
+            "type": "string",
+            "enum": [
+              "Confirmed",
+              "Anulado"
+            ],
+            "description": "Estado del ticket"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Ciudad de origen"
+          },
+          "destination": {
+            "type": "string",
+            "description": "Ciudad de destino"
+          },
+          "travelDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha del viaje"
+          },
+          "departureTime": {
+            "type": "string",
+            "description": "Hora de salida"
+          },
+          "seatNumbers": {
+            "type": "string",
+            "description": "Números de asiento asignados"
+          },
+          "fare": {
+            "type": "integer",
+            "description": "Tarifa base del ticket"
+          },
+          "monto_boleto": {
+            "type": "integer",
+            "description": "Monto total del boleto"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de confirmación del ticket"
+          },
+          "id_User": {
+            "type": "integer",
+            "description": "ID del usuario asociado al ticket"
+          }
+        }
+      },
+      "TicketSetStatus": {
+        "type": "object",
+        "properties": {
+          "ticketStatus": {
+            "type": "string",
+            "enum": [
+              "Confirmed",
+              "Anulado"
+            ],
+            "description": "Nuevo estado del ticket"
+          }
+        },
+        "required": [
+          "ticketStatus"
+        ]
+      },
       "User": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer", "readOnly": true, "description": "ID único del usuario" },
-          "nombre": { "type": "string", "description": "Nombre completo del usuario" },
-          "rut": { "type": "string", "description": "RUT del usuario" },
-          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario (único)" },
-          "password": { "type": "string", "writeOnly": true, "description": "Contraseña del usuario (hash)" },
-          "rol": { "type": "string", "enum": ["superuser", "admin", "empresa", "subusuario", "auditoria", "contralor"], "default": "empresa", "description": "Rol del usuario en el sistema" },
-          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al usuario" },
-          "centro_costo_id": { "type": "integer", "description": "ID del centro de costo asociado al usuario" },
-          "created_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de creación del usuario" },
-          "updated_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de última actualización del usuario" }
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "ID único del usuario"
+          },
+          "nombre": {
+            "type": "string",
+            "description": "Nombre completo del usuario"
+          },
+          "rut": {
+            "type": "string",
+            "description": "RUT del usuario"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario (único)"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true,
+            "description": "Contraseña del usuario (hash)"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "superuser",
+              "admin",
+              "empresa",
+              "subusuario",
+              "auditoria",
+              "contralor"
+            ],
+            "default": "empresa",
+            "description": "Rol del usuario en el sistema"
+          },
+          "empresa_id": {
+            "type": "integer",
+            "description": "ID de la empresa asociada al usuario"
+          },
+          "centro_costo_id": {
+            "type": "integer",
+            "description": "ID del centro de costo asociado al usuario"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Fecha de creación del usuario"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Fecha de última actualización del usuario"
+          }
         },
-        "required": ["nombre", "email", "password"]
+        "required": [
+          "nombre",
+          "email",
+          "password"
+        ]
       },
       "UserCreate": {
         "type": "object",
         "properties": {
-          "nombre": { "type": "string", "description": "Nombre completo del usuario" },
-          "rut": { "type": "string", "description": "RUT del usuario" },
-          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario (único)" },
-          "password": { "type": "string", "description": "Contraseña del usuario" },
-          "rol": { "type": "string", "enum": ["superuser", "admin", "empresa", "subusuario", "auditoria", "contralor"], "default": "empresa", "description": "Rol del usuario en el sistema" },
-          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al usuario" },
-          "centro_costo_id": { "type": "integer", "description": "ID del centro de costo asociado al usuario" }
+          "nombre": {
+            "type": "string",
+            "description": "Nombre completo del usuario"
+          },
+          "rut": {
+            "type": "string",
+            "description": "RUT del usuario"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario (único)"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña del usuario"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "superuser",
+              "admin",
+              "empresa",
+              "subusuario",
+              "auditoria",
+              "contralor"
+            ],
+            "default": "empresa",
+            "description": "Rol del usuario en el sistema"
+          },
+          "empresa_id": {
+            "type": "integer",
+            "description": "ID de la empresa asociada al usuario"
+          },
+          "centro_costo_id": {
+            "type": "integer",
+            "description": "ID del centro de costo asociado al usuario"
+          }
         },
-        "required": ["nombre", "email", "password"]
+        "required": [
+          "nombre",
+          "email",
+          "password"
+        ]
       },
       "UserUpdate": {
         "type": "object",
         "properties": {
-          "nombre": { "type": "string", "description": "Nombre completo del usuario" },
-          "rut": { "type": "string", "description": "RUT del usuario" },
-          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario (único)" },
-          "password": { "type": "string", "description": "Nueva contraseña del usuario" },
-          "rol": { "type": "string", "enum": ["superuser", "admin", "empresa", "subusuario", "auditoria", "contralor"], "description": "Nuevo rol del usuario" },
-          "empresa_id": { "type": "integer", "description": "Nuevo ID de la empresa asociada al usuario" },
-          "centro_costo_id": { "type": "integer", "description": "Nuevo ID del centro de costo asociado al usuario" }
+          "nombre": {
+            "type": "string",
+            "description": "Nombre completo del usuario"
+          },
+          "rut": {
+            "type": "string",
+            "description": "RUT del usuario"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario (único)"
+          },
+          "password": {
+            "type": "string",
+            "description": "Nueva contraseña del usuario"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "superuser",
+              "admin",
+              "empresa",
+              "subusuario",
+              "auditoria",
+              "contralor"
+            ],
+            "description": "Nuevo rol del usuario"
+          },
+          "empresa_id": {
+            "type": "integer",
+            "description": "Nuevo ID de la empresa asociada al usuario"
+          },
+          "centro_costo_id": {
+            "type": "integer",
+            "description": "Nuevo ID del centro de costo asociado al usuario"
+          }
         }
       },
       "UserSetEstado": {
         "type": "object",
         "properties": {
-            "estado": { "type": "boolean", "description": "Nuevo estado del usuario (true para activo, false para inactivo)" }
+          "estado": {
+            "type": "boolean",
+            "description": "Nuevo estado del usuario (true para activo, false para inactivo)"
+          }
         },
-        "required": ["estado"]
+        "required": [
+          "estado"
+        ]
       },
       "Empresa": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer", "readOnly": true, "description": "ID único de la empresa" },
-          "nombre": { "type": "string", "description": "Nombre de la empresa" },
-          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo de la empresa" },
-          "recargo": { "type": "integer", "default": 0, "description": "Porcentaje de recargo aplicado a la empresa" },
-          "porcentaje_devolucion": { "type": "number", "format": "float", "default": 0.00, "description": "Porcentaje de devolución aplicado a la empresa" }
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "ID único de la empresa"
+          },
+          "nombre": {
+            "type": "string",
+            "description": "Nombre de la empresa"
+          },
+          "estado": {
+            "type": "boolean",
+            "default": true,
+            "description": "Estado activo/inactivo de la empresa"
+          },
+          "recargo": {
+            "type": "integer",
+            "default": 0,
+            "description": "Porcentaje de recargo aplicado a la empresa"
+          },
+          "porcentaje_devolucion": {
+            "type": "number",
+            "format": "float",
+            "default": 0.00,
+            "description": "Porcentaje de devolución aplicado a la empresa"
+          }
         },
-        "required": ["nombre"]
+        "required": [
+          "nombre"
+        ]
       },
       "EmpresaCreate": {
         "type": "object",
         "properties": {
-          "nombre": { "type": "string", "description": "Nombre de la empresa" },
-          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo de la empresa" },
-          "recargo": { "type": "integer", "default": 0, "description": "Porcentaje de recargo aplicado a la empresa" },
-          "porcentaje_devolucion": { "type": "number", "format": "float", "default": 0.00, "description": "Porcentaje de devolución aplicado a la empresa" }
+          "nombre": {
+            "type": "string",
+            "description": "Nombre de la empresa"
+          },
+          "estado": {
+            "type": "boolean",
+            "default": true,
+            "description": "Estado activo/inactivo de la empresa"
+          },
+          "recargo": {
+            "type": "integer",
+            "default": 0,
+            "description": "Porcentaje de recargo aplicado a la empresa"
+          },
+          "porcentaje_devolucion": {
+            "type": "number",
+            "format": "float",
+            "default": 0.00,
+            "description": "Porcentaje de devolución aplicado a la empresa"
+          }
         },
-        "required": ["nombre"]
+        "required": [
+          "nombre"
+        ]
       },
       "EmpresaUpdate": {
         "type": "object",
         "properties": {
-          "nombre": { "type": "string", "description": "Nombre de la empresa" },
-          "estado": { "type": "boolean", "description": "Estado activo/inactivo de la empresa" },
-          "recargo": { "type": "integer", "description": "Porcentaje de recargo aplicado a la empresa" },
-          "porcentaje_devolucion": { "type": "number", "format": "float", "description": "Porcentaje de devolución aplicado a la empresa" }
+          "nombre": {
+            "type": "string",
+            "description": "Nombre de la empresa"
+          },
+          "estado": {
+            "type": "boolean",
+            "description": "Estado activo/inactivo de la empresa"
+          },
+          "recargo": {
+            "type": "integer",
+            "description": "Porcentaje de recargo aplicado a la empresa"
+          },
+          "porcentaje_devolucion": {
+            "type": "number",
+            "format": "float",
+            "description": "Porcentaje de devolución aplicado a la empresa"
+          }
         }
       },
       "CentroCosto": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer", "readOnly": true, "description": "ID único del centro de costo" },
-          "nombre": { "type": "string", "description": "Nombre del centro de costo" },
-          "empresa_id": { "type": "integer", "description": "ID de la empresa a la que pertenece el centro de costo" },
-          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo del centro de costo" },
-          "created_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de creación del centro de costo" },
-          "updated_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de última actualización del centro de costo" }
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "ID único del centro de costo"
+          },
+          "nombre": {
+            "type": "string",
+            "description": "Nombre del centro de costo"
+          },
+          "empresa_id": {
+            "type": "integer",
+            "description": "ID de la empresa a la que pertenece el centro de costo"
+          },
+          "estado": {
+            "type": "boolean",
+            "default": true,
+            "description": "Estado activo/inactivo del centro de costo"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Fecha de creación del centro de costo"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Fecha de última actualización del centro de costo"
+          }
         },
-        "required": ["nombre", "empresa_id"]
+        "required": [
+          "nombre",
+          "empresa_id"
+        ]
       },
       "CentroCostoCreate": {
         "type": "object",
         "properties": {
-          "nombre": { "type": "string", "description": "Nombre del centro de costo" },
-          "empresa_id": { "type": "integer", "description": "ID de la empresa a la que pertenece el centro de costo" },
-          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo del centro de costo" }
+          "nombre": {
+            "type": "string",
+            "description": "Nombre del centro de costo"
+          },
+          "empresa_id": {
+            "type": "integer",
+            "description": "ID de la empresa a la que pertenece el centro de costo"
+          },
+          "estado": {
+            "type": "boolean",
+            "default": true,
+            "description": "Estado activo/inactivo del centro de costo"
+          }
         },
-        "required": ["nombre", "empresa_id"]
+        "required": [
+          "nombre",
+          "empresa_id"
+        ]
       },
       "CentroCostoUpdate": {
         "type": "object",
         "properties": {
-          "nombre": { "type": "string", "description": "Nombre del centro de costo" },
-          "empresa_id": { "type": "integer", "description": "ID de la empresa a la que pertenece el centro de costo" },
-          "estado": { "type": "boolean", "description": "Estado activo/inactivo del centro de costo" }
+          "nombre": {
+            "type": "string",
+            "description": "Nombre del centro de costo"
+          },
+          "empresa_id": {
+            "type": "integer",
+            "description": "ID de la empresa a la que pertenece el centro de costo"
+          },
+          "estado": {
+            "type": "boolean",
+            "description": "Estado activo/inactivo del centro de costo"
+          }
         }
       },
       "CuentaCorriente": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer", "readOnly": true, "description": "ID único del movimiento de cuenta corriente" },
-          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al movimiento" },
-          "fecha_movimiento": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha y hora del movimiento" },
-          "tipo_movimiento": { "type": "string", "enum": ["abono", "cargo"], "description": "Tipo de movimiento (abono o cargo)" },
-          "monto": { "type": "number", "format": "float", "description": "Monto del movimiento" },
-          "descripcion": { "type": "string", "description": "Descripción del movimiento" },
-          "saldo": { "type": "number", "format": "float", "readOnly": true, "description": "Saldo resultante después del movimiento" },
-          "referencia": { "type": "string", "description": "Referencia del movimiento" }
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "ID único del movimiento de cuenta corriente"
+          },
+          "empresa_id": {
+            "type": "integer",
+            "description": "ID de la empresa asociada al movimiento"
+          },
+          "fecha_movimiento": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Fecha y hora del movimiento"
+          },
+          "tipo_movimiento": {
+            "type": "string",
+            "enum": [
+              "abono",
+              "cargo"
+            ],
+            "description": "Tipo de movimiento (abono o cargo)"
+          },
+          "monto": {
+            "type": "number",
+            "format": "float",
+            "description": "Monto del movimiento"
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción del movimiento"
+          },
+          "saldo": {
+            "type": "number",
+            "format": "float",
+            "readOnly": true,
+            "description": "Saldo resultante después del movimiento"
+          },
+          "referencia": {
+            "type": "string",
+            "description": "Referencia del movimiento"
+          }
         },
-        "required": ["empresa_id", "tipo_movimiento", "monto"]
+        "required": [
+          "empresa_id",
+          "tipo_movimiento",
+          "monto"
+        ]
       },
       "CuentaCorrienteCreate": {
         "type": "object",
         "properties": {
-          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al movimiento" },
-          "tipo_movimiento": { "type": "string", "enum": ["abono", "cargo"], "description": "Tipo de movimiento (abono o cargo)" },
-          "monto": { "type": "number", "format": "float", "description": "Monto del movimiento" },
-          "descripcion": { "type": "string", "description": "Descripción del movimiento" },
-          "referencia": { "type": "string", "description": "Referencia del movimiento" }
+          "empresa_id": {
+            "type": "integer",
+            "description": "ID de la empresa asociada al movimiento"
+          },
+          "tipo_movimiento": {
+            "type": "string",
+            "enum": [
+              "abono",
+              "cargo"
+            ],
+            "description": "Tipo de movimiento (abono o cargo)"
+          },
+          "monto": {
+            "type": "number",
+            "format": "float",
+            "description": "Monto del movimiento"
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción del movimiento"
+          },
+          "referencia": {
+            "type": "string",
+            "description": "Referencia del movimiento"
+          }
         },
-        "required": ["empresa_id", "tipo_movimiento", "monto"]
+        "required": [
+          "empresa_id",
+          "tipo_movimiento",
+          "monto"
+        ]
       },
       "LoginRequest": {
         "type": "object",
         "properties": {
-          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario" },
-          "password": { "type": "string", "description": "Contraseña del usuario" }
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña del usuario"
+          }
         },
-        "required": ["email", "password"]
+        "required": [
+          "email",
+          "password"
+        ]
       },
       "LoginResponse": {
         "type": "object",
         "properties": {
-          "token": { "type": "string", "description": "Token de autenticación JWT" },
-          "user": { "$ref": "#/components/schemas/User", "description": "Datos del usuario autenticado" },
-          "centroCosto": { "$ref": "#/components/schemas/CentroCosto", "description": "Datos del centro de costo asociado al usuario (si aplica)" },
-          "empresa": { "$ref": "#/components/schemas/Empresa", "description": "Datos de la empresa asociada al usuario (si aplica)" }
+          "token": {
+            "type": "string",
+            "description": "Token de autenticación JWT"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User",
+            "description": "Datos del usuario autenticado"
+          },
+          "centroCosto": {
+            "$ref": "#/components/schemas/CentroCosto",
+            "description": "Datos del centro de costo asociado al usuario (si aplica)"
+          },
+          "empresa": {
+            "$ref": "#/components/schemas/Empresa",
+            "description": "Datos de la empresa asociada al usuario (si aplica)"
+          }
         }
       },
       "MessageResponse": {
         "type": "object",
         "properties": {
-          "message": { "type": "string", "description": "Mensaje de respuesta" }
+          "message": {
+            "type": "string",
+            "description": "Mensaje de respuesta"
+          }
         }
       },
       "ErrorResponse": {
         "type": "object",
         "properties": {
-          "message": { "type": "string", "description": "Mensaje de error" }
+          "message": {
+            "type": "string",
+            "description": "Mensaje de error"
+          }
         }
       }
     }
@@ -187,7 +723,9 @@
   "paths": {
     "/auth/login": {
       "post": {
-        "tags": ["Auth"],
+        "tags": [
+          "Auth"
+        ],
         "summary": "Iniciar sesión de usuario",
         "description": "Autentica a un usuario con su email y contraseña, devolviendo un token JWT y los datos del usuario.",
         "requestBody": {
@@ -244,12 +782,400 @@
         }
       }
     },
+    "/tickets": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Listar tickets",
+        "description": "Obtiene una lista de todos los tickets. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ticket"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado (token inválido o ausente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Crear un nuevo ticket",
+        "description": "Crea un nuevo ticket en el sistema. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ticket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente o intento de crear ticket para usuario fuera de la empresa)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tickets/{id}": {
+      "put": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Actualizar un ticket existente",
+        "description": "Actualiza los datos de un ticket por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del ticket a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ticket actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ticket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente o intento de modificar ticket de otra empresa)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket o usuario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Eliminar un ticket",
+        "description": "Elimina un ticket por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del ticket a eliminar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket eliminado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente o intento de eliminar ticket de otra empresa)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket o usuario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tickets/{id}/status": {
+      "patch": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Cambiar estado de un ticket",
+        "description": "Actualiza el estado de un ticket por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del ticket a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketSetStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado del ticket actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ticket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente o intento de modificar ticket de otra empresa)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket o usuario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/users": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Listar usuarios",
         "description": "Obtiene una lista de todos los usuarios. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Lista de usuarios",
@@ -297,10 +1223,16 @@
         }
       },
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Crear un nuevo usuario",
         "description": "Crea un nuevo usuario en el sistema. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -357,10 +1289,16 @@
     },
     "/users/{id}": {
       "put": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Actualizar un usuario existente",
         "description": "Actualiza los datos de un usuario por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -436,10 +1374,16 @@
         }
       },
       "delete": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Eliminar un usuario",
         "description": "Elimina un usuario por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -506,92 +1450,104 @@
       }
     },
     "/users/{id}/estado": {
-        "patch": {
-            "tags": ["Users"],
-            "summary": "Activar/desactivar un usuario",
-            "description": "Actualiza el estado de un usuario por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-            "security": [{ "bearerAuth": [] }],
-            "parameters": [
-                {
-                    "name": "id",
-                    "in": "path",
-                    "required": true,
-                    "schema": {
-                        "type": "string"
-                    },
-                    "description": "ID del usuario a actualizar"
-                }
-            ],
-            "requestBody": {
-                "required": true,
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "$ref": "#/components/schemas/UserSetEstado"
-                        }
-                    }
-                }
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Activar/desactivar un usuario",
+        "description": "Actualiza el estado de un usuario por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             },
-            "responses": {
-                "200": {
-                    "description": "Estado del usuario actualizado exitosamente",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/User"
-                            }
-                        }
-                    }
-                },
-                "401": {
-                    "description": "No autorizado",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ErrorResponse"
-                            }
-                        }
-                    }
-                },
-                "403": {
-                    "description": "Acceso denegado (rol insuficiente)",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ErrorResponse"
-                            }
-                        }
-                    }
-                },
-                "404": {
-                    "description": "Usuario no existe",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ErrorResponse"
-                            }
-                        }
-                    }
-                },
-                "500": {
-                    "description": "Error en servidor",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ErrorResponse"
-                            }
-                        }
-                    }
-                }
+            "description": "ID del usuario a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserSetEstado"
+              }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado del usuario actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
         }
+      }
     },
     "/users/superuser-only": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Ruta de ejemplo solo para Superuser",
         "description": "Endpoint de prueba que solo puede ser accedido por usuarios con rol 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Acceso permitido para superuser",
@@ -638,10 +1594,16 @@
     },
     "/empresa": {
       "get": {
-        "tags": ["Empresas"],
+        "tags": [
+          "Empresas"
+        ],
         "summary": "Listar todas las empresas",
         "description": "Obtiene una lista de todas las empresas. Requiere autenticación JWT y rol 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Lista de empresas",
@@ -679,10 +1641,16 @@
         }
       },
       "post": {
-        "tags": ["Empresas"],
+        "tags": [
+          "Empresas"
+        ],
         "summary": "Crear una nueva empresa",
         "description": "Crea una nueva empresa en el sistema. Requiere autenticación JWT y rol 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -701,8 +1669,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": { "type": "integer" },
-                    "message": { "type": "string" }
+                    "id": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -733,10 +1705,16 @@
     },
     "/empresa/{id}": {
       "get": {
-        "tags": ["Empresas"],
+        "tags": [
+          "Empresas"
+        ],
         "summary": "Obtener una empresa por ID",
         "description": "Obtiene los detalles de una empresa específica por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -792,10 +1770,16 @@
         }
       },
       "put": {
-        "tags": ["Empresas"],
+        "tags": [
+          "Empresas"
+        ],
         "summary": "Actualizar una empresa",
         "description": "Actualiza los datos de una empresa por su ID. Requiere autenticación JWT y rol 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -861,10 +1845,16 @@
         }
       },
       "delete": {
-        "tags": ["Empresas"],
+        "tags": [
+          "Empresas"
+        ],
         "summary": "Eliminar una empresa",
         "description": "Elimina una empresa por su ID. Requiere autenticación JWT y rol 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -922,10 +1912,16 @@
     },
     "/centro_costo/empresa/{empresa_id}": {
       "get": {
-        "tags": ["Centros de Costo"],
+        "tags": [
+          "Centros de Costo"
+        ],
         "summary": "Listar centros de costo por empresa",
         "description": "Obtiene una lista de centros de costo para una empresa específica. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "empresa_id",
@@ -986,10 +1982,16 @@
     },
     "/centro_costo": {
       "post": {
-        "tags": ["Centros de Costo"],
+        "tags": [
+          "Centros de Costo"
+        ],
         "summary": "Crear un nuevo centro de costo",
         "description": "Crea un nuevo centro de costo. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1046,10 +2048,16 @@
     },
     "/centro_costo/{id}": {
       "get": {
-        "tags": ["Centros de Costo"],
+        "tags": [
+          "Centros de Costo"
+        ],
         "summary": "Obtener un centro de costo por ID",
         "description": "Obtiene los detalles de un centro de costo específico por su ID. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1115,10 +2123,16 @@
         }
       },
       "put": {
-        "tags": ["Centros de Costo"],
+        "tags": [
+          "Centros de Costo"
+        ],
         "summary": "Actualizar un centro de costo",
         "description": "Actualiza los datos de un centro de costo por su ID. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1194,10 +2208,16 @@
         }
       },
       "delete": {
-        "tags": ["Centros de Costo"],
+        "tags": [
+          "Centros de Costo"
+        ],
         "summary": "Eliminar un centro de costo",
         "description": "Elimina un centro de costo por su ID. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1265,10 +2285,16 @@
     },
     "/cuenta_corriente/empresa/{empresa_id}": {
       "get": {
-        "tags": ["Cuenta Corriente"],
+        "tags": [
+          "Cuenta Corriente"
+        ],
         "summary": "Listar movimientos de cuenta corriente por empresa",
         "description": "Obtiene una lista de movimientos de cuenta corriente para una empresa específica. Requiere autenticación JWT y roles 'admin', 'superuser' o 'contralor'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "empresa_id",
@@ -1329,10 +2355,16 @@
     },
     "/cuenta_corriente": {
       "post": {
-        "tags": ["Cuenta Corriente"],
+        "tags": [
+          "Cuenta Corriente"
+        ],
         "summary": "Crear un movimiento de cuenta corriente",
         "description": "Crea un nuevo movimiento (abono o cargo) en la cuenta corriente de una empresa. Requiere autenticación JWT y roles 'admin', 'superuser' o 'contralor'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1389,10 +2421,16 @@
     },
     "/cuenta_corriente/{id}": {
       "get": {
-        "tags": ["Cuenta Corriente"],
+        "tags": [
+          "Cuenta Corriente"
+        ],
         "summary": "Obtener un movimiento de cuenta corriente por ID",
         "description": "Obtiene los detalles de un movimiento de cuenta corriente específico por su ID. Requiere autenticación JWT y roles 'admin', 'superuser' o 'contralor'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1458,10 +2496,16 @@
         }
       },
       "delete": {
-        "tags": ["Cuenta Corriente"],
+        "tags": [
+          "Cuenta Corriente"
+        ],
         "summary": "Eliminar un movimiento de cuenta corriente",
         "description": "Elimina un movimiento de cuenta corriente por su ID. Requiere autenticación JWT y rol 'superuser'.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
