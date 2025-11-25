@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcrypt";
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 

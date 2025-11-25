@@ -14,7 +14,7 @@
   "author": "Tu Nombre",
   "license": "MIT",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
+    "bcrypt": "^5.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
@@ -23,6 +23,7 @@
     "sequelize-typescript": "^2.1.6"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.5",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.10.1",

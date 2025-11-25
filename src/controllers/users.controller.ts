@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcrypt";
 import { User } from "../models/user.model";
 import { IUserCreate, IUserUpdate } from "../interfaces/user.interface";
 
