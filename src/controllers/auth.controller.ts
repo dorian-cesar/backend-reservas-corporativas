@@ -3,6 +3,7 @@ import * as bcrypt from "bcrypt";
 import { User } from "../models/user.model";
 import { signJwt } from "../utils/jwt";
 import { CentroCosto } from "../models/centro_costo.model";
+import {Empresa} from "../models/empresa.model";
 
 /**
  * Controlador para el inicio de sesión de usuarios.
@@ -41,12 +42,18 @@ export const login = async (req: Request, res: Response) => {
             const centroCosto = await CentroCosto.findByPk(user.centro_costo_id);
             centroCostoData = centroCosto ? centroCosto.toJSON() : null;
         }
+        // Busca centro de costo si corresponde, y devuelve null si no tiene
+        let empresaData = null;
+        if (user?.empresa_id) {
+            const empresa = await Empresa.findByPk(user.empresa_id);
+            empresaData = empresa ? empresa.toJSON() : null;
+        }
         const token = signJwt(payload);
 
         // Elimina la propiedad password del objeto retornado
         const { password: _, ...userData } = user;
         console.log(centroCostoData)
-        res.json({ token, user: userData, centroCosto: centroCostoData });
+        res.json({ token, user: userData, centroCosto: centroCostoData, empresa:empresaData });
     } catch (err) {
         console.log(err);
         res.status(500).json({ message: "Error en servidor" });
