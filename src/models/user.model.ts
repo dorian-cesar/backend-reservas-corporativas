@@ -44,10 +44,10 @@ export class User extends Model<IUser> {
     @Column({ type: DataType.INTEGER, allowNull: true })
     centro_costo_id?: number;
 
-    @Column({ type: DataType.DATE, allowNull: true })
+    @Column({ type: DataType.DATE, allowNull: true, defaultValue: DataType.NOW })
     created_at?: Date;
 
-    @Column({ type: DataType.DATE, allowNull: true })
+    @Column({ type: DataType.DATE, allowNull: true, defaultValue: DataType.NOW })
     updated_at?: Date;
 
     @BelongsTo(() => Empresa)

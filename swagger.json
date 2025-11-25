@@ -1,0 +1,1443 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Reservas Corporativas",
+    "version": "1.0.0",
+    "description": "Documentación de la API para la gestión de reservas corporativas, usuarios, empresas, centros de costo y movimientos de cuenta corriente."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Servidor de desarrollo local"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Autenticación JWT. Ingrese el token Bearer (ej. 'Bearer eyJhbGciOiJIUzI1Ni...') en el campo de valor."
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "readOnly": true, "description": "ID único del usuario" },
+          "nombre": { "type": "string", "description": "Nombre completo del usuario" },
+          "rut": { "type": "string", "description": "RUT del usuario" },
+          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario (único)" },
+          "password": { "type": "string", "writeOnly": true, "description": "Contraseña del usuario (hash)" },
+          "rol": { "type": "string", "enum": ["superuser", "admin", "empresa", "subusuario", "auditoria", "contralor"], "default": "empresa", "description": "Rol del usuario en el sistema" },
+          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al usuario" },
+          "centro_costo_id": { "type": "integer", "description": "ID del centro de costo asociado al usuario" },
+          "created_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de creación del usuario" },
+          "updated_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de última actualización del usuario" }
+        },
+        "required": ["nombre", "email", "password"]
+      },
+      "UserCreate": {
+        "type": "object",
+        "properties": {
+          "nombre": { "type": "string", "description": "Nombre completo del usuario" },
+          "rut": { "type": "string", "description": "RUT del usuario" },
+          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario (único)" },
+          "password": { "type": "string", "description": "Contraseña del usuario" },
+          "rol": { "type": "string", "enum": ["superuser", "admin", "empresa", "subusuario", "auditoria", "contralor"], "default": "empresa", "description": "Rol del usuario en el sistema" },
+          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al usuario" },
+          "centro_costo_id": { "type": "integer", "description": "ID del centro de costo asociado al usuario" }
+        },
+        "required": ["nombre", "email", "password"]
+      },
+      "UserUpdate": {
+        "type": "object",
+        "properties": {
+          "nombre": { "type": "string", "description": "Nombre completo del usuario" },
+          "rut": { "type": "string", "description": "RUT del usuario" },
+          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario (único)" },
+          "password": { "type": "string", "description": "Nueva contraseña del usuario" },
+          "rol": { "type": "string", "enum": ["superuser", "admin", "empresa", "subusuario", "auditoria", "contralor"], "description": "Nuevo rol del usuario" },
+          "empresa_id": { "type": "integer", "description": "Nuevo ID de la empresa asociada al usuario" },
+          "centro_costo_id": { "type": "integer", "description": "Nuevo ID del centro de costo asociado al usuario" }
+        }
+      },
+      "Empresa": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "readOnly": true, "description": "ID único de la empresa" },
+          "nombre": { "type": "string", "description": "Nombre de la empresa" },
+          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo de la empresa" },
+          "recargo": { "type": "integer", "default": 0, "description": "Porcentaje de recargo aplicado a la empresa" },
+          "porcentaje_devolucion": { "type": "number", "format": "float", "default": 0.00, "description": "Porcentaje de devolución aplicado a la empresa" }
+        },
+        "required": ["nombre"]
+      },
+      "EmpresaCreate": {
+        "type": "object",
+        "properties": {
+          "nombre": { "type": "string", "description": "Nombre de la empresa" },
+          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo de la empresa" },
+          "recargo": { "type": "integer", "default": 0, "description": "Porcentaje de recargo aplicado a la empresa" },
+          "porcentaje_devolucion": { "type": "number", "format": "float", "default": 0.00, "description": "Porcentaje de devolución aplicado a la empresa" }
+        },
+        "required": ["nombre"]
+      },
+      "EmpresaUpdate": {
+        "type": "object",
+        "properties": {
+          "nombre": { "type": "string", "description": "Nombre de la empresa" },
+          "estado": { "type": "boolean", "description": "Estado activo/inactivo de la empresa" },
+          "recargo": { "type": "integer", "description": "Porcentaje de recargo aplicado a la empresa" },
+          "porcentaje_devolucion": { "type": "number", "format": "float", "description": "Porcentaje de devolución aplicado a la empresa" }
+        }
+      },
+      "CentroCosto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "readOnly": true, "description": "ID único del centro de costo" },
+          "nombre": { "type": "string", "description": "Nombre del centro de costo" },
+          "empresa_id": { "type": "integer", "description": "ID de la empresa a la que pertenece el centro de costo" },
+          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo del centro de costo" },
+          "created_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de creación del centro de costo" },
+          "updated_at": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha de última actualización del centro de costo" }
+        },
+        "required": ["nombre", "empresa_id"]
+      },
+      "CentroCostoCreate": {
+        "type": "object",
+        "properties": {
+          "nombre": { "type": "string", "description": "Nombre del centro de costo" },
+          "empresa_id": { "type": "integer", "description": "ID de la empresa a la que pertenece el centro de costo" },
+          "estado": { "type": "boolean", "default": true, "description": "Estado activo/inactivo del centro de costo" }
+        },
+        "required": ["nombre", "empresa_id"]
+      },
+      "CentroCostoUpdate": {
+        "type": "object",
+        "properties": {
+          "nombre": { "type": "string", "description": "Nombre del centro de costo" },
+          "empresa_id": { "type": "integer", "description": "ID de la empresa a la que pertenece el centro de costo" },
+          "estado": { "type": "boolean", "description": "Estado activo/inactivo del centro de costo" }
+        }
+      },
+      "CuentaCorriente": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "readOnly": true, "description": "ID único del movimiento de cuenta corriente" },
+          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al movimiento" },
+          "fecha_movimiento": { "type": "string", "format": "date-time", "readOnly": true, "description": "Fecha y hora del movimiento" },
+          "tipo_movimiento": { "type": "string", "enum": ["abono", "cargo"], "description": "Tipo de movimiento (abono o cargo)" },
+          "monto": { "type": "number", "format": "float", "description": "Monto del movimiento" },
+          "descripcion": { "type": "string", "description": "Descripción del movimiento" },
+          "saldo": { "type": "number", "format": "float", "readOnly": true, "description": "Saldo resultante después del movimiento" },
+          "referencia": { "type": "string", "description": "Referencia del movimiento" }
+        },
+        "required": ["empresa_id", "tipo_movimiento", "monto"]
+      },
+      "CuentaCorrienteCreate": {
+        "type": "object",
+        "properties": {
+          "empresa_id": { "type": "integer", "description": "ID de la empresa asociada al movimiento" },
+          "tipo_movimiento": { "type": "string", "enum": ["abono", "cargo"], "description": "Tipo de movimiento (abono o cargo)" },
+          "monto": { "type": "number", "format": "float", "description": "Monto del movimiento" },
+          "descripcion": { "type": "string", "description": "Descripción del movimiento" },
+          "referencia": { "type": "string", "description": "Referencia del movimiento" }
+        },
+        "required": ["empresa_id", "tipo_movimiento", "monto"]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "format": "email", "description": "Correo electrónico del usuario" },
+          "password": { "type": "string", "description": "Contraseña del usuario" }
+        },
+        "required": ["email", "password"]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "description": "Token de autenticación JWT" },
+          "user": { "$ref": "#/components/schemas/User", "description": "Datos del usuario autenticado" },
+          "centroCosto": { "$ref": "#/components/schemas/CentroCosto", "description": "Datos del centro de costo asociado al usuario (si aplica)" },
+          "empresa": { "$ref": "#/components/schemas/Empresa", "description": "Datos de la empresa asociada al usuario (si aplica)" }
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "description": "Mensaje de respuesta" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "description": "Mensaje de error" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Iniciar sesión de usuario",
+        "description": "Autentica a un usuario con su email y contraseña, devolviendo un token JWT y los datos del usuario.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inicio de sesión exitoso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Email y contraseña son requeridos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Listar usuarios",
+        "description": "Obtiene una lista de todos los usuarios. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Lista de usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado (token inválido o ausente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "summary": "Crear un nuevo usuario",
+        "description": "Crea un nuevo usuario en el sistema. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente o intento de crear superuser sin permisos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "put": {
+        "tags": ["Users"],
+        "summary": "Actualizar un usuario existente",
+        "description": "Actualiza los datos de un usuario por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del usuario a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Usuario actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente o intento de asignar rol superuser sin permisos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Eliminar un usuario",
+        "description": "Elimina un usuario por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del usuario a eliminar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuario eliminado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuario inexistente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/superuser-only": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Ruta de ejemplo solo para Superuser",
+        "description": "Endpoint de prueba que solo puede ser accedido por usuarios con rol 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Acceso permitido para superuser",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (solo superuser)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/empresa": {
+      "get": {
+        "tags": ["Empresas"],
+        "summary": "Listar todas las empresas",
+        "description": "Obtiene una lista de todas las empresas. Requiere autenticación JWT y rol 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Lista de empresas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Empresa"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (solo superuser)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Empresas"],
+        "summary": "Crear una nueva empresa",
+        "description": "Crea una nueva empresa en el sistema. Requiere autenticación JWT y rol 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmpresaCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Empresa creada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (solo superuser)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/empresa/{id}": {
+      "get": {
+        "tags": ["Empresas"],
+        "summary": "Obtener una empresa por ID",
+        "description": "Obtiene los detalles de una empresa específica por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID de la empresa a obtener"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles de la empresa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empresa"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Empresa no encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Empresas"],
+        "summary": "Actualizar una empresa",
+        "description": "Actualiza los datos de una empresa por su ID. Requiere autenticación JWT y rol 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID de la empresa a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmpresaUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Empresa actualizada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (solo superuser)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Empresa no encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Empresas"],
+        "summary": "Eliminar una empresa",
+        "description": "Elimina una empresa por su ID. Requiere autenticación JWT y rol 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID de la empresa a eliminar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Empresa eliminada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (solo superuser)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Empresa no encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/centro_costo/empresa/{empresa_id}": {
+      "get": {
+        "tags": ["Centros de Costo"],
+        "summary": "Listar centros de costo por empresa",
+        "description": "Obtiene una lista de centros de costo para una empresa específica. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "empresa_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID de la empresa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de centros de costo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CentroCosto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/centro_costo": {
+      "post": {
+        "tags": ["Centros de Costo"],
+        "summary": "Crear un nuevo centro de costo",
+        "description": "Crea un nuevo centro de costo. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CentroCostoCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Centro de costo creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CentroCosto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/centro_costo/{id}": {
+      "get": {
+        "tags": ["Centros de Costo"],
+        "summary": "Obtener un centro de costo por ID",
+        "description": "Obtiene los detalles de un centro de costo específico por su ID. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del centro de costo a obtener"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles del centro de costo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CentroCosto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Centro de costo no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Centros de Costo"],
+        "summary": "Actualizar un centro de costo",
+        "description": "Actualiza los datos de un centro de costo por su ID. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del centro de costo a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CentroCostoUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Centro de costo actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Centro de costo no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Centros de Costo"],
+        "summary": "Eliminar un centro de costo",
+        "description": "Elimina un centro de costo por su ID. Requiere autenticación JWT y roles 'admin' o 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del centro de costo a eliminar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Centro de costo eliminado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Centro de costo no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cuenta_corriente/empresa/{empresa_id}": {
+      "get": {
+        "tags": ["Cuenta Corriente"],
+        "summary": "Listar movimientos de cuenta corriente por empresa",
+        "description": "Obtiene una lista de movimientos de cuenta corriente para una empresa específica. Requiere autenticación JWT y roles 'admin', 'superuser' o 'contralor'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "empresa_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID de la empresa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de movimientos de cuenta corriente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CuentaCorriente"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cuenta_corriente": {
+      "post": {
+        "tags": ["Cuenta Corriente"],
+        "summary": "Crear un movimiento de cuenta corriente",
+        "description": "Crea un nuevo movimiento (abono o cargo) en la cuenta corriente de una empresa. Requiere autenticación JWT y roles 'admin', 'superuser' o 'contralor'.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CuentaCorrienteCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Movimiento creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CuentaCorriente"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cuenta_corriente/{id}": {
+      "get": {
+        "tags": ["Cuenta Corriente"],
+        "summary": "Obtener un movimiento de cuenta corriente por ID",
+        "description": "Obtiene los detalles de un movimiento de cuenta corriente específico por su ID. Requiere autenticación JWT y roles 'admin', 'superuser' o 'contralor'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del movimiento de cuenta corriente a obtener"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles del movimiento de cuenta corriente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CuentaCorriente"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Movimiento no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Cuenta Corriente"],
+        "summary": "Eliminar un movimiento de cuenta corriente",
+        "description": "Elimina un movimiento de cuenta corriente por su ID. Requiere autenticación JWT y rol 'superuser'.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID del movimiento de cuenta corriente a eliminar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Movimiento eliminado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (solo superuser)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Movimiento no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

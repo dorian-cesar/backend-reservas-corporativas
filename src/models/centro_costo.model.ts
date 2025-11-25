@@ -16,10 +16,10 @@ export class CentroCosto extends Model {
     @Column({ type: DataType.BOOLEAN, defaultValue: true })
     estado!: boolean;
 
-    @Column({ type: DataType.DATE, allowNull: true })
+    @Column({ type: DataType.DATE, allowNull: true, defaultValue: DataType.NOW })
     created_at?: Date;
 
-    @Column({ type: DataType.DATE, allowNull: true })
+    @Column({ type: DataType.DATE, allowNull: true, defaultValue: DataType.NOW })
     updated_at?: Date;
 
     @BelongsTo(() => Empresa)
