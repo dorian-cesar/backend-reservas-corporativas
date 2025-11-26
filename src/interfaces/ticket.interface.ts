@@ -15,6 +15,7 @@ export interface ITicketCreate {
     seatNumbers: string;
     fare: number;
     monto_boleto: number;
+    monto_devolucion: number;
     confirmedAt: Date | string;
     id_User: number;
 }
@@ -32,6 +33,7 @@ export interface ITicketUpdate {
     seatNumbers?: string;
     fare?: number;
     monto_boleto?: number;
+    monto_devolucion?: number;
     confirmedAt?: Date | string;
     id_User?: number;
 }

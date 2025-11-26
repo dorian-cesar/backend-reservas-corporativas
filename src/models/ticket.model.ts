@@ -31,6 +31,7 @@ export interface ITicket {
     seatNumbers: string;
     fare: number;
     monto_boleto: number;
+    monto_devolucion: number;
     confirmedAt: Date;
     id_User: number;
     created_at?: Date;
@@ -73,6 +74,9 @@ export class Ticket extends Model<ITicket> {
 
     @Column({ type: DataType.INTEGER, allowNull: false })
     monto_boleto!: number;
+
+    @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })
+    monto_devolucion!: number;
 
     @Column({ type: DataType.DATE, allowNull: false })
     confirmedAt!: Date;

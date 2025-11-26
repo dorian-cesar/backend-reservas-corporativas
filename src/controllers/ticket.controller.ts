@@ -50,6 +50,7 @@ export const create = async (
             seatNumbers,
             fare,
             monto_boleto,
+            monto_devolucion,
             confirmedAt,
             id_User
         } = req.body;
@@ -72,6 +73,7 @@ export const create = async (
             seatNumbers,
             fare,
             monto_boleto,
+            monto_devolucion,
             confirmedAt: typeof confirmedAt === "string" ? new Date(confirmedAt) : confirmedAt,
             id_User
         });

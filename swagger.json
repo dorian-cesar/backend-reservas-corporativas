@@ -70,6 +70,10 @@
             "type": "integer",
             "description": "Monto total del boleto"
           },
+          "monto_devolucion": {
+            "type": "integer",
+            "description": "Monto de devolución del ticket"
+          },
           "confirmedAt": {
             "type": "string",
             "format": "date-time",
@@ -102,6 +106,7 @@
           "seatNumbers",
           "fare",
           "monto_boleto",
+          "monto_devolucion",
           "confirmedAt",
           "id_User"
         ]
@@ -150,6 +155,10 @@
             "type": "integer",
             "description": "Monto total del boleto"
           },
+          "monto_devolucion": {
+            "type": "integer",
+            "description": "Monto de devolución del ticket"
+          },
           "confirmedAt": {
             "type": "string",
             "format": "date-time",
@@ -170,6 +179,7 @@
           "seatNumbers",
           "fare",
           "monto_boleto",
+          "monto_devolucion",
           "confirmedAt",
           "id_User"
         ]
@@ -217,6 +227,10 @@
           "monto_boleto": {
             "type": "integer",
             "description": "Monto total del boleto"
+          },
+          "monto_devolucion": {
+            "type": "integer",
+            "description": "Monto de devolución del ticket"
           },
           "confirmedAt": {
             "type": "string",
