@@ -1178,6 +1178,76 @@
         }
       }
     },
+    "/tickets/search": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Buscar tickets por ticketNumber",
+        "description": "Permite a un usuario buscar sus tickets filtrando por ticketNumber.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticketNumber",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Número de ticket para filtrar la búsqueda"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de tickets que coinciden con el criterio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ticket"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado (rol insuficiente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/users": {
       "get": {
         "tags": [

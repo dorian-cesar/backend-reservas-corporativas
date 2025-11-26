@@ -182,7 +182,7 @@ export const setStatus = async (
 };
 
 /**
- * Buscar tickets por ticketNumber para rol 'user'.
+ * Buscar tickets por ticketNumber
  */
 export const getTicketsByTicketNumber = async (
     req: Request<{}, {}, {}, { ticketNumber?: string }>,
