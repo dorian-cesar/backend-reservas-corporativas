@@ -549,6 +549,33 @@
           "empresa_id"
         ]
       },
+      "UserWithCentroCosto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "nombre": { "type": "string" },
+          "rut": { "type": "string" },
+          "email": { "type": "string" },
+          "rol": { "type": "string" },
+          "empresa_id": { "type": "integer" },
+          "centro_costo_id": { "type": "integer" },
+          "estado": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "centroCosto": { "$ref": "#/components/schemas/CentroCosto" }
+        }
+      },
+      "TicketWithUserAndCentroCosto": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Ticket" },
+          {
+            "type": "object",
+            "properties": {
+              "user": { "$ref": "#/components/schemas/UserWithCentroCosto" }
+            }
+          }
+        ]
+      },
       "CentroCostoCreate": {
         "type": "object",
         "properties": {
@@ -1254,7 +1281,7 @@
           "Tickets"
         ],
         "summary": "Buscar tickets por empresa",
-        "description": "Obtiene una lista de tickets asociados a una empresa específica por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "description": "Obtiene una lista de tickets asociados a una empresa específica por su ID, incluyendo datos del usuario y su centro de costo. Requiere autenticación JWT y roles 'superuser', 'admin' o 'subusuario'.",
         "security": [
           {
             "bearerAuth": []
@@ -1273,13 +1300,53 @@
         ],
         "responses": {
           "200": {
-            "description": "Lista de tickets de la empresa",
+            "description": "Lista de tickets de la empresa, incluyendo datos del usuario y centro de costo",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Ticket"
+                    "$ref": "#/components/schemas/TicketWithUserAndCentroCosto"
+                  }
+                },
+                "examples": {
+                  "example": {
+                    "value": [
+                      {
+                        "id": 1,
+                        "ticketNumber": "TS251125133854508XBNV",
+                        "ticketStatus": "Confirmed",
+                        "origin": "Santiago",
+                        "destination": "Puerto Montt",
+                        "travelDate": "2025-11-25",
+                        "departureTime": "12:00 AM",
+                        "seatNumbers": "33",
+                        "fare": 2000,
+                        "monto_boleto": 2200,
+                        "monto_devolucion": 7000,
+                        "confirmedAt": "2025-11-25T16:38:58.000Z",
+                        "id_User": 1,
+                        "created_at": "2025-11-26T12:46:15.000Z",
+                        "updated_at": "2025-11-26T12:46:15.000Z",
+                        "user": {
+                          "id": 1,
+                          "nombre": "Test User",
+                          "rut": "1234567-9",
+                          "email": "user@wit.la",
+                          "rol": "subusuario",
+                          "empresa_id": 1,
+                          "centro_costo_id": 1,
+                          "estado": true,
+                          "created_at": "2025-11-25T19:16:50.000Z",
+                          "updated_at": "2025-11-25T19:16:50.000Z",
+                          "centroCosto": {
+                            "id": 1,
+                            "nombre": "test centro",
+                            "empresa_id": 1
+                          }
+                        }
+                      }
+                    ]
                   }
                 }
               }
