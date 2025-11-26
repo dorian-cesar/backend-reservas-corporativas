@@ -180,3 +180,35 @@ export const setStatus = async (
         res.status(500).json({ message: "Error en servidor" });
     }
 };
+
+/**
+ * Buscar tickets por ticketNumber para rol 'user'.
+ */
+export const getTicketsByTicketNumber = async (
+    req: Request<{}, {}, {}, { ticketNumber?: string }>,
+    res: Response
+) => {
+    try {
+        const { ticketNumber } = req.query;
+        const { rol, empresa_id, id } = req.user as any;
+
+        if (rol !== 'user') {
+            return res.status(403).json({ message: 'No autorizado' });
+        }
+
+        // Construir condición de búsqueda
+        const whereClause: any = {};
+
+        if (ticketNumber) {
+            whereClause.ticketNumber = ticketNumber;
+        }
+
+        // Solo tickets del usuario autenticado
+        whereClause.id_User = id;
+
+        const tickets = await Ticket.findAll({ where: whereClause });
+        return res.json(tickets);
+    } catch (err) {
+        res.status(500).json({ message: 'Error en servidor' });
+    }
+};
