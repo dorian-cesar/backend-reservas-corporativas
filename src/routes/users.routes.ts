@@ -15,7 +15,6 @@ const router = Router();
 // Listar usuarios
 router.get("/", authenticateJWT, authorizeRoles("superuser", "admin"), getUsers);
 
-
 // Obtener información completa de un usuario por ID
 router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), getUserById);
 
