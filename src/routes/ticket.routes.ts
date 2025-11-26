@@ -16,10 +16,10 @@ const router = Router();
 router.get("/", authenticateJWT, authorizeRoles("superuser", "admin"), getTickets);
 
 // Crear ticket
-router.post("/", authenticateJWT, authorizeRoles("superuser", "admin"), create);
+router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario"), create);
 
 // Actualizar ticket
-router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), update);
+router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario"), update);
 
 // Eliminar ticket
 router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), remove);
