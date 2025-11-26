@@ -235,3 +235,27 @@ export const getTicketsByEmpresa = async (
         res.status(500).json({ message: "Error en servidor" });
     }
 };
+
+
+/**
+ * Buscar tickets por usuario.
+ */
+export const getTicketsByUser = async (
+    req: Request<{ id_User: string }>,
+    res: Response
+) => {
+    try {
+        const id_User = parseInt(req.params.id_User, 10);
+
+        const user = await User.findByPk(id_User);
+        if (!user) {
+            return res.status(404).json({ message: "Usuario no existe" });
+        }
+
+        const tickets = await Ticket.findAll({ where: { id_User } });
+
+        return res.json(tickets);
+    } catch (err) {
+        res.status(500).json({ message: "Error en servidor" });
+    }
+};
