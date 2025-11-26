@@ -7,7 +7,7 @@ import {
     update,
     remove,
     setStatus,
-    getTicketsByTicketNumber, // Importar la nueva función
+    getTicketsByTicketNumber, getTicketsByEmpresa, // Importar la nueva función
 } from "../controllers/ticket.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
@@ -21,6 +21,9 @@ router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuar
 
 // Buscar tickets por ticketNumber (solo rol 'user')
 router.get("/search", authenticateJWT, authorizeRoles("superuser", "admin","subusuario"), getTicketsByTicketNumber);
+
+// Buscar tickets por empresa (solo rol 'superuser' o 'admin')
+router.get("/empresa/:id_empresa", authenticateJWT, authorizeRoles("superuser", "admin"), getTicketsByEmpresa);
 
 // Actualizar ticket
 router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario"), update);

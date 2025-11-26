@@ -212,3 +212,32 @@ export const getTicketsByTicketNumber = async (
         res.status(500).json({ message: 'Error en servidor' });
     }
 };
+
+
+/**
+ * Buscar tickets por empresa.
+ */
+export const getTicketsByEmpresa = async (
+    req: Request<{ id_empresa: string }>,
+    res: Response
+) => {
+    try {
+        const rol = (req.user as any).rol;
+        const id_empresa = parseInt(req.params.id_empresa, 10);
+
+        if (rol !== "admin" && rol !== "superuser") {
+            return res.status(403).json({ message: "No autorizado" });
+        }
+
+        const users = await User.findAll({ where: { empresa_id: id_empresa } });
+        if (!users.length) {
+            return res.status(404).json({ message: "No existen usuarios para la empresa indicada" });
+        }
+        const userIds = users.map(u => u.id);
+        const tickets = await Ticket.findAll({ where: { id_User: userIds } });
+
+        return res.json(tickets);
+    } catch (err) {
+        res.status(500).json({ message: "Error en servidor" });
+    }
+};
