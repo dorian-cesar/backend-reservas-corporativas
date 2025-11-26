@@ -222,9 +222,6 @@ export const getTicketsByEmpresa = async (
         const rol = (req.user as any).rol;
         const id_empresa = parseInt(req.params.id_empresa, 10);
 
-        if (rol !== "admin" && rol !== "superuser") {
-            return res.status(403).json({ message: "No autorizado" });
-        }
 
         const users = await User.findAll({ where: { empresa_id: id_empresa } });
         if (!users.length) {
