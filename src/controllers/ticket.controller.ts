@@ -94,12 +94,13 @@ export const update = async (
     try {
         const id = req.params.id;
         const data = req.body;
-        const ticket = await Ticket.findByPk(id);
+        const ticket = await Ticket.findByPk(id, { raw: false });
 
         if (!ticket) return res.status(404).json({ message: "Ticket no existe" });
 
         // Validación de usuario
-        const user = await User.findByPk(ticket.id_User);
+        const userId = ticket.getDataValue('id_User');
+        const user = await User.findByPk(userId);
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
         if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
@@ -126,7 +127,6 @@ export const update = async (
         res.status(500).json({ message: "Error en servidor" });
     }
 };
-
 /**
  * Eliminar ticket.
  */
