@@ -192,10 +192,6 @@ export const getTicketsByTicketNumber = async (
         const { ticketNumber } = req.query;
         const { rol, empresa_id, id } = req.user as any;
 
-        if (rol !== 'user') {
-            return res.status(403).json({ message: 'No autorizado' });
-        }
-
         // Construir condición de búsqueda
         const whereClause: any = {};
 
