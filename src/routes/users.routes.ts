@@ -5,7 +5,7 @@ import {
     create,
     update,
     remove,
-    setEstado,
+    setEstado, getUserById,
 } from "../controllers/users.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 import { onlySuperUser } from "../middleware/role.middleware";
@@ -14,6 +14,10 @@ const router = Router();
 
 // Listar usuarios
 router.get("/", authenticateJWT, authorizeRoles("superuser", "admin"), getUsers);
+
+
+// Obtener información completa de un usuario por ID
+router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), getUserById);
 
 // Crear usuario
 router.post("/", authenticateJWT, authorizeRoles("superuser", "admin"), create);

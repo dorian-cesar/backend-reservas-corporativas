@@ -3,6 +3,8 @@ import { Request, Response } from "express";
 import * as bcrypt from "bcrypt";
 import { User } from "../models/user.model";
 import { IUserCreate, IUserUpdate } from "../interfaces/user.interface";
+import {Empresa} from "../models/empresa.model";
+import {CentroCosto} from "../models/centro_costo.model";
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -20,6 +22,45 @@ export const getUsers = async (req: Request, res: Response) => {
         }
 
         return res.status(403).json({ message: "No autorizado" });
+    } catch (err) {
+        res.status(500).json({ message: "Error en servidor" });
+    }
+};
+
+
+/**
+ * Obtiene toda la información de un usuario, incluyendo empresa y centro de costo, a partir de su ID.
+ *
+ * @param req - Objeto Request de Express, con el parámetro 'id' en la URL.
+ * @param res - Objeto Response de Express.
+ * @returns JSON con la información completa del usuario o error correspondiente.
+ */
+
+export const getUserById = async (req: Request<{ id: string }>, res: Response) => {
+    try {
+        const id = req.params.id;
+
+        const user = await User.findByPk(id, {
+            include: [
+                {
+                    model: Empresa,
+                    as: "empresa"
+                },
+                {
+                    model: CentroCosto,
+                    as: "centroCosto"
+                }
+            ]
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: "Usuario no existe" });
+        }
+
+        const userData = user.toJSON();
+        delete userData.password;
+
+        res.json(userData);
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
     }
