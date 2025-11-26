@@ -22,7 +22,7 @@ router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuar
 // Buscar tickets por ticketNumber (solo rol 'user')
 router.get("/search", authenticateJWT, authorizeRoles("superuser", "admin","subusuario"), getTicketsByTicketNumber);
 
-// Buscar tickets por empresa (solo rol 'superuser' o 'admin')
+// Buscar tickets por empresa
 router.get("/empresa/:id_empresa", authenticateJWT, authorizeRoles("superuser", "admin"), getTicketsByEmpresa);
 
 // Actualizar ticket
