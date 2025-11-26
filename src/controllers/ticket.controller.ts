@@ -4,6 +4,7 @@ import { Request, Response } from "express";
 import { Ticket } from "../models/ticket.model";
 import { ITicketCreate, ITicketUpdate } from "../interfaces/ticket.interface";
 import { User } from "../models/user.model";
+import {CentroCosto} from "../models/centro_costo.model";
 
 /**
  * Listar tickets.
@@ -210,32 +211,64 @@ export const getTicketsByTicketNumber = async (
     }
 };
 
-
 /**
- * Buscar tickets por empresa.
+ * Buscar tickets por empresa, incluyendo datos del usuario y centro de costo.
+ */
+/**
+ * Buscar tickets por empresa, incluyendo datos del usuario y centro de costo.
+ * Corrige el error de columna desconocida 'codigo' en centros_costo.
  */
 export const getTicketsByEmpresa = async (
     req: Request<{ id_empresa: string }>,
     res: Response
 ) => {
     try {
-        const rol = (req.user as any).rol;
         const id_empresa = parseInt(req.params.id_empresa, 10);
-
 
         const users = await User.findAll({ where: { empresa_id: id_empresa } });
         if (!users.length) {
             return res.status(404).json({ message: "No existen usuarios para la empresa indicada" });
         }
         const userIds = users.map(u => u.id);
-        const tickets = await Ticket.findAll({ where: { id_User: userIds } });
+
+        const tickets = await Ticket.findAll({
+            where: { id_User: userIds },
+            include: [
+                {
+                    model: User,
+                    attributes: [
+                        'id',
+                        'nombre',
+                        'rut',
+                        'email',
+                        'rol',
+                        'empresa_id',
+                        'centro_costo_id',
+                        'estado',
+                        'created_at',
+                        'updated_at'
+                    ],
+                    include: [
+                        {
+                            model: CentroCosto,
+                            attributes: [
+                                'id',
+                                'nombre',
+                                'empresa_id'
+                                // 'codigo' eliminado porque no existe en la tabla
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
 
         return res.json(tickets);
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: "Error en servidor" });
     }
 };
-
 
 /**
  * Buscar tickets por usuario.
