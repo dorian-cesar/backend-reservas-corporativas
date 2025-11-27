@@ -12,7 +12,6 @@ import { Op } from "sequelize";
  * Genera o actualiza automáticamente los estados de pago para las empresas para todos los periodos históricos,
  * desde el primer ticket registrado hasta el mes actual, usando los días de facturación y vencimiento definidos en la base de datos.
  * El estado de cuenta del periodo actual se genera hasta la fecha de hoy.
- * Crea cargos y abonos en cuenta corriente para todos los tickets, sin importar si ya existe EstadoCuenta.
  * Si detecta más de un periodo a cerrar según el día de facturación, crea o actualiza todos los estados de cuenta necesarios.
  * Genera estados de cuenta vacíos si no hay tickets en el periodo.
  *
@@ -123,52 +122,7 @@ export const generarEstadosPagoEmpresas = async () => {
 
         console.log(`[${new Date().toISOString()}] Periodos generados para empresa ${empresaId}: ${periodos.map(p => p.periodo).join(', ')}`);
 
-        // Crear cargos y abonos en cuenta corriente para todos los tickets de la empresa
-        const allTickets = await Ticket.findAll({
-            where: {
-                id_User: { [Op.in]: userIds },
-                ticketStatus: { [Op.in]: ['Confirmed', 'Anulado'] }
-            }
-        });
-        console.log(`[${new Date().toISOString()}] Tickets (Confirmed/Anulado) encontrados: ${allTickets.length}`);
-
-        for (const ticket of allTickets) {
-            const ticketNumber = ticket.get('ticketNumber');
-            const ticketStatus = ticket.get('ticketStatus');
-            const montoBoleto = ticket.get('monto_boleto');
-            const montoDevolucion = ticket.get('monto_devolucion');
-            const referenciaTicket = `TICKET-${ticketNumber}-${ticketStatus}`;
-            const existe = await CuentaCorriente.findOne({
-                where: {
-                    empresa_id: empresaId,
-                    referencia: referenciaTicket
-                }
-            });
-            if (!existe) {
-                if (ticketStatus === 'Confirmed') {
-                    await CuentaCorriente.create({
-                        empresa_id: empresaId,
-                        tipo_movimiento: "cargo",
-                        monto: montoBoleto || 0,
-                        descripcion: `Cargo por ticket confirmado #${ticketNumber}`,
-                        saldo: 0,
-                        referencia: referenciaTicket
-                    });
-                    console.log(`[${new Date().toISOString()}] Cargo creado en cuenta corriente para ticket confirmado #${ticketNumber}, monto: ${montoBoleto}`);
-                }
-                if (ticketStatus === 'Anulado' && montoDevolucion > 0) {
-                    await CuentaCorriente.create({
-                        empresa_id: empresaId,
-                        tipo_movimiento: "abono",
-                        monto: montoDevolucion,
-                        descripcion: `Abono por ticket anulado #${ticketNumber}`,
-                        saldo: 0,
-                        referencia: referenciaTicket
-                    });
-                    console.log(`[${new Date().toISOString()}] Abono creado en cuenta corriente para ticket anulado #${ticketNumber}, monto: ${montoDevolucion}`);
-                }
-            }
-        }
+        // Eliminar lógica que pasa los tickets a la cuenta corriente
 
         // Procesar cada periodo histórico para EstadoCuenta y cargo global
         for (const { periodo, inicio, fin, esPeriodoActual } of periodos) {

@@ -3,15 +3,14 @@ import {
     listarMovimientos,
     obtenerMovimiento,
     crearMovimiento,
-    eliminarMovimiento, agruparResumenPorTipoMovimiento,
+    eliminarMovimiento,
 } from "../controllers/cuenta_corriente.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
 const router = Router();
 
 // Listar movimientos de cuenta corriente por empresa
-router.get("/empresa/:empresa_id/full", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), listarMovimientos);
-router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), agruparResumenPorTipoMovimiento);
+router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), listarMovimientos);
 
 // Obtener un movimiento específico
 router.get("/:id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), obtenerMovimiento);
