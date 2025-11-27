@@ -1,6 +1,9 @@
 // src/database.ts
 
 import { Sequelize } from "sequelize-typescript";
+import "./models/associations";
+import {EstadoCuenta} from "./models/estado_cuenta.model";
+
 import { Empresa } from "./models/empresa.model";
 import { CentroCosto } from "./models/centro_costo.model";
 import { User } from "./models/user.model";
@@ -17,12 +20,9 @@ export const sequelize = new Sequelize({
     username: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "multiempresa_db",
-    models: [Empresa, CentroCosto, User, CuentaCorriente, Ticket],
+    models: [Empresa, CentroCosto, User, CuentaCorriente, Ticket, EstadoCuenta],
     logging: false,
 });
-
-// Import associations after initializing Sequelize
-import "./models/associations";
 
 export const connectDB = async () => {
     try {
