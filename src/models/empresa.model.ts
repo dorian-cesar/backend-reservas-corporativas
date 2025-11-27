@@ -1,13 +1,20 @@
+// src/models/empresa.model.ts
+
 import { Table, Column, Model, DataType, HasMany } from 'sequelize-typescript';
 import { CentroCosto } from './centro_costo.model';
 import { CuentaCorriente } from './cuenta_corriente.model';
 
+/**
+ * Interfaz para el modelo Empresa.
+ */
 export interface IEmpresa {
     id?: number;
     nombre: string;
     estado?: boolean;
     recargo?: number;
     porcentaje_devolucion?: number;
+    dia_facturacion?: number;
+    dia_vencimiento?: number;
 }
 
 @Table({ tableName: 'empresas', timestamps: false })
@@ -26,6 +33,12 @@ export class Empresa extends Model<IEmpresa> {
 
     @Column({ type: DataType.DECIMAL(5,2), defaultValue: 0.00 })
     porcentaje_devolucion!: number;
+
+    @Column({ type: DataType.INTEGER, allowNull: true })
+    dia_facturacion?: number;
+
+    @Column({ type: DataType.INTEGER, allowNull: true })
+    dia_vencimiento?: number;
 
     @HasMany(() => CentroCosto)
     centrosCosto!: CentroCosto[];

@@ -454,6 +454,16 @@
             "format": "float",
             "default": 0.00,
             "description": "Porcentaje de devolución aplicado a la empresa"
+          },
+          "dia_facturacion": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Día del mes en que se realiza la facturación automática"
+          },
+          "dia_vencimiento": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Día del mes en que vence el pago automático"
           }
         },
         "required": [
@@ -482,6 +492,16 @@
             "format": "float",
             "default": 0.00,
             "description": "Porcentaje de devolución aplicado a la empresa"
+          },
+          "dia_facturacion": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Día del mes en que se realiza la facturación automática"
+          },
+          "dia_vencimiento": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Día del mes en que vence el pago automático"
           }
         },
         "required": [
@@ -507,6 +527,16 @@
             "type": "number",
             "format": "float",
             "description": "Porcentaje de devolución aplicado a la empresa"
+          },
+          "dia_facturacion": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Día del mes en que se realiza la facturación automática"
+          },
+          "dia_vencimiento": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Día del mes en que vence el pago automático"
           }
         }
       },
@@ -1978,7 +2008,7 @@
         }
       }
     },
-    "/empresa": {
+    "/empresas": {
       "get": {
         "tags": [
           "Empresas"
@@ -2089,7 +2119,7 @@
         }
       }
     },
-    "/empresa/{id}": {
+    "/empresas/{id}": {
       "get": {
         "tags": [
           "Empresas"

@@ -1,8 +1,12 @@
+// src/interfaces/empresa.interface.ts
+
 export interface IEmpresaCreate {
     nombre: string;
     estado?: boolean;
     recargo?: number;
     porcentaje_devolucion?: number;
+    dia_facturacion?: number;
+    dia_vencimiento?: number;
 }
 
 export interface IEmpresaUpdate {
@@ -10,4 +14,6 @@ export interface IEmpresaUpdate {
     estado?: boolean;
     recargo?: number;
     porcentaje_devolucion?: number;
+    dia_facturacion?: number;
+    dia_vencimiento?: number;
 }
