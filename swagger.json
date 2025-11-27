@@ -2699,7 +2699,7 @@
         }
       }
     },
-    "/cuenta_corriente/empresa/{empresa_id}": {
+    "/cuenta-corriente/empresa/{empresa_id}": {
       "get": {
         "tags": [
           "Cuenta Corriente"
@@ -2769,7 +2769,7 @@
         }
       }
     },
-    "/cuenta_corriente": {
+    "/cuenta-corriente": {
       "post": {
         "tags": [
           "Cuenta Corriente"
@@ -2835,7 +2835,7 @@
         }
       }
     },
-    "/cuenta_corriente/{id}": {
+    "/cuenta-corriente/{id}": {
       "get": {
         "tags": [
           "Cuenta Corriente"
