@@ -7,6 +7,9 @@ import { ITicketCreate, ITicketUpdate } from "../interfaces/ticket.interface";
 import { User } from "../models/user.model";
 import { CentroCosto } from "../models/centro_costo.model";
 
+import { sendTicketConfirmationEmail, sendTicketCancellationEmail } from "../services/mail.service";
+import { generateTicketPDF, TicketPDFData } from "../services/pdf.service";
+
 /**
  * Construye un objeto de filtros Sequelize a partir de los parámetros de consulta recibidos.
  * Permite filtrar por cualquier campo del modelo Ticket, soportando operadores "desde", "hasta" e "igual".
@@ -66,7 +69,7 @@ export const getTickets = async (req: Request, res: Response) => {
         }
 
         return res.status(403).json({ message: "No autorizado" });
-        } catch (err) {
+    } catch (err) {
         console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
@@ -95,9 +98,18 @@ export const create = async (
             id_User
         } = req.body;
 
+        console.log('📧 Iniciando creación de ticket para usuario:', id_User);
+
         // Validación de usuario
         const user = await User.findByPk(id_User);
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
+
+        console.log('📧 Usuario encontrado:', {
+            id: user.id,
+            nombre: user.nombre,
+            email: user.email,
+            tieneEmail: !!user.email
+        });
 
         // Si es admin, solo puede crear tickets para usuarios de su empresa
         if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
@@ -118,9 +130,76 @@ export const create = async (
             id_User
         });
 
-        res.status(201).json(ticket);
+
+        let emailSent = false;
+        let emailError: string | null = null;
+
+        try {
+            // Obtener el usuario directamente usando el id_User
+            const userForEmail = await User.findByPk(id_User, {
+                attributes: ['id', 'nombre', 'rut', 'email']
+            });
+
+            console.log('📧 Usuario para email:', userForEmail ? {
+                id: userForEmail.id,
+                nombre: userForEmail.getDataValue('nombre'),
+                email: userForEmail.getDataValue('email'),
+                tieneEmail: !!userForEmail.getDataValue('email')
+            } : 'Usuario no encontrado');
+
+            if (userForEmail && userForEmail.getDataValue('email')) {
+
+                const pdfData = {
+                    origen: {
+                        origen: origin,
+                        fecha_viaje: typeof travelDate === "string" ? travelDate : travelDate.toISOString(),
+                        hora_salida: departureTime
+                    },
+                    destino: {
+                        destino: destination
+                    },
+                    boleto: {
+                        numero_asiento: seatNumbers,
+                        numero_ticket: ticketNumber,
+                        estado_confirmacion: ticketStatus
+                    },
+                    pasajero: {
+                        nombre: userForEmail.getDataValue('nombre'),
+                        documento: userForEmail.getDataValue('rut') || '',
+                        precio_original: fare,
+                        precio_boleto: monto_boleto,
+                        precio_devolucion: monto_devolucion
+                    }
+                };
+
+                const pdfBytes = await generateTicketPDF(pdfData as TicketPDFData);
+                const pdfBuffer = Buffer.from(pdfBytes);
+
+                await sendTicketConfirmationEmail(userForEmail, pdfData, pdfBuffer);
+                emailSent = true;
+                console.log('Email enviado exitosamente');
+            } else {
+                console.log('No se puede enviar email: usuario sin email');
+            }
         } catch (err) {
-        console.log(err)
+            console.error('Error enviando email de confirmación:', err);
+            emailError = (err as Error).message;
+        }
+
+        res.status(201).json({
+            ...ticket.toJSON(),
+            emailInfo: {
+                sent: emailSent,
+                error: emailError || null,
+                message: emailSent
+                    ? 'Email enviado exitosamente'
+                    : emailError
+                        ? `Ticket creado pero email no enviado: ${emailError}`
+                        : 'Ticket creado pero email no enviado'
+            }
+        });
+    } catch (err) {
+        console.log('Error general en create:', err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
@@ -164,7 +243,7 @@ export const update = async (
 
         const updated = await Ticket.findByPk(id);
         res.json(updated);
-        } catch (err) {
+    } catch (err) {
         console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
@@ -189,7 +268,7 @@ export const remove = async (req: Request, res: Response) => {
 
         await ticket.destroy();
         res.json({ message: "Eliminado" });
-        } catch (err) {
+    } catch (err) {
         console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
@@ -219,12 +298,61 @@ export const setStatus = async (
         ticket.ticketStatus = ticketStatus;
         await ticket.save();
 
-        res.json(ticket);
-        } catch (err) {
+        let emailSent = false;
+        let emailError: string | null = null;
+
+        if (ticketStatus === "Anulado" && user.getDataValue('email')) {
+            try {
+                const pdfData = {
+                    origen: {
+                        origen: ticket.getDataValue('origin'),
+                        fecha_viaje: ticket.getDataValue('travelDate') ? ticket.getDataValue('travelDate').toString() : '',
+                        hora_salida: ticket.getDataValue('departureTime')
+                    },
+                    destino: {
+                        destino: ticket.getDataValue('destination')
+                    },
+                    boleto: {
+                        numero_asiento: ticket.getDataValue('seatNumbers'),
+                        numero_ticket: ticket.getDataValue('ticketNumber'),
+                        estado_confirmacion: ticketStatus
+                    },
+                    pasajero: {
+                        nombre: user.getDataValue('nombre'),
+                        documento: user.getDataValue('rut') || '',
+                        precio_original: ticket.getDataValue('fare'),
+                        precio_boleto: ticket.getDataValue('monto_boleto'),
+                        precio_devolucion: ticket.getDataValue('monto_devolucion')
+                    }
+                };
+
+                await sendTicketCancellationEmail(user, pdfData);
+                emailSent = true;
+            } catch (err) {
+                console.error('Error enviando email de anulación:', err);
+                const errMsg = err instanceof Error ? err.message : String(err);
+                emailError = errMsg;
+            }
+        }
+
+        res.json({
+            ...ticket.toJSON(),
+            emailInfo: ticketStatus === "Anulado" ? {
+                sent: emailSent,
+                error: emailError,
+                message: emailSent
+                    ? 'Email de anulación enviado exitosamente'
+                    : emailError
+                        ? `Ticket anulado pero email no enviado: ${emailError}`
+                        : 'Ticket anulado pero email no enviado'
+            } : undefined
+        });
+    } catch (err) {
         console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
+
 
 /**
  * Buscar tickets por ticketNumber
@@ -249,7 +377,7 @@ export const getTicketsByTicketNumber = async (
 
         const tickets = await Ticket.findAll({ where: whereClause });
         return res.json(tickets);
-        } catch (err) {
+    } catch (err) {
         console.log(err)
         res.status(500).json({ message: 'Error en servidor' });
     }
@@ -306,7 +434,7 @@ export const getTicketsByEmpresa = async (
         });
 
         return res.json(tickets);
-        } catch (err) {
+    } catch (err) {
         console.log(err)
         console.error(err);
         res.status(500).json({ message: "Error en servidor" });
@@ -334,7 +462,7 @@ export const getTicketsByUser = async (
         const tickets = await Ticket.findAll({ where: filters });
 
         return res.json(tickets);
-        } catch (err) {
+    } catch (err) {
         console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }

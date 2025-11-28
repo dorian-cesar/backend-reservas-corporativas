@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Ticket } from '../models/ticket.model';
 import { User } from '../models/user.model';
-import { generateTicketPDF } from '../utils/pdfGenerator';
+import { generateTicketPDF } from '../services/pdf.service';
 
 export const getTicketsWithPassengerInfo = async (req: Request, res: Response) => {
     try {
