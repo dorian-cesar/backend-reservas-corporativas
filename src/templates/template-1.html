@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pullman Bus - Boleto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+        }
+
+        .logo {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ff6600;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+        }
+
+        .print-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .first-row {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .second-row {
+            display: flex;
+            gap: 30px;
+        }
+
+        .left-section {
+            flex: 2;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 25px;
+        }
+
+        .right-section {
+            flex: 1;
+        }
+
+        .reservation-header {
+            display: flex;
+            justify-content: space-between;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .reservation-header div {
+            font-size: 14px;
+        }
+
+        .reservation-header strong {
+            color: #000;
+            font-weight: 600;
+        }
+
+        .trip-details {
+            display: flex;
+            gap: 40px;
+            margin-bottom: 30px;
+        }
+
+        .origin,
+        .destination {
+            flex: 1;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .marker {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 3px solid #ff6600;
+            background: white;
+        }
+
+        .location-marker {
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid #ff6600;
+            position: relative;
+        }
+
+        .location-marker::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #ff6600;
+            border-radius: 50%;
+            position: absolute;
+            top: -10px;
+            left: -4px;
+        }
+
+        .detail-line {
+            font-size: 13px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .footer-info {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 15px;
+            border-top: 2px solid #ddd;
+            font-size: 14px;
+        }
+
+        .passenger-box {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #fafafa;
+        }
+
+        .passenger-box div {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .price-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .price-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .total-box {
+            background: #0047ab;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            margin-top: 15px;
+        }
+
+        .contact-box {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .contact-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .reminder {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ff6600;
+        }
+
+        .clock-icon {
+            width: 30px;
+            height: 30px;
+            border: 2px solid #333;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .terms {
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .terms ul {
+            list-style: disc;
+            padding-left: 20px;
+        }
+
+        .terms li {
+            margin-bottom: 8px;
+        }
+
+        .instructions-section {
+            flex: 2;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 25px;
+        }
+
+        @media (max-width: 768px) {
+
+            .first-row,
+            .second-row {
+                flex-direction: column;
+            }
+
+            .trip-details {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">pullmanbus</div>
+
+        <div class="print-info">
+            Para subir al bus debe presentar este pasaje impreso o en su celular o no podrá viajar.
+        </div>
+
+        <div class="first-row">
+            <div class="left-section">
+                <div class="reservation-header">
+                    <div><strong>Nº DE RESERVA:</strong> {{ticketNumber}}</div>
+                    <div><strong>EMPRESA:</strong> PULLMAN BUS</div>
+                </div>
+
+                <div class="trip-details">
+                    <div class="origin">
+                        <div class="section-title">
+                            <span class="marker"></span>
+                            Origen: <strong>{{origin}}</strong>
+                        </div>
+                        <div class="detail-line">Fecha de viaje: {{travelDate}}</div>
+                        <div class="detail-line">Hora de salida: {{departureTime}}</div>
+                    </div>
+
+                    <div class="destination">
+                        <div class="section-title">
+                            <span class="location-marker"></span>
+                            Destino: <strong>{{destination}}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer-info">
+                    <div><strong>Nº ASIENTO:</strong> {{seatNumbers}}</div>
+                </div>
+            </div>
+
+            <div class="right-section">
+                <div class="passenger-box">
+                    <div><strong>PASAJERO:</strong> {{nombre}}</div>
+                    <div>RUT / Pasaporte / DNI: <strong>{{rut}}</strong></div>
+                    <div>Precio Pasaje: <strong>CLP$ {{monto_boleto}}</strong></div>
+                </div>
+
+                <div class="price-section">
+                    <div class="price-line">
+                        <span>PRECIO NORMAL:</span>
+                        <span>CLP$ {{fare}}</span>
+                    </div>
+                    <div class="total-box">
+                        <span>MONTO TOTAL</span>
+                        <span>CLP$ {{monto_boleto}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="second-row">
+            <div class="instructions-section">
+                <div class="reminder">
+                    <div>Recuerda presentarte al menos una (1) hora antes de la hora señalada.</div>
+                </div>
+
+                <div class="terms">
+                    <ul>
+                        <li>Este pasaje es válido para la fecha y hora señalada. La hora de llegada al destino es
+                            aproximada.</li>
+                        <li>Los servicios adquiridos en pullmanbus.cl, pueden ser prestados por Pullman Bus o Buses
+                            Nilahue.</li>
+                        <li>Todo servicio con origen o destino Punta Arenas, será ejecutado por Pullman Austral.</li>
+                        <li>No se aceptarán boletos rotos, enmendados, ilegibles o con adulteración.</li>
+                        <li>La empresa se reserva el derecho de cambiar el Nº de asiento o el horario por motivos de
+                            fuerza mayor.</li>
+                        <li>Los cambios en los boletos están permitidos hasta cuatro (4) horas antes de la hora salida
+                            del bus. Los reembolsos por cambios de pasajes serán realizados únicamente a la cuenta o
+                            billetera PullmanPay.</li>
+                        <li>Las anulaciones de pasajes pueden realizarse únicamente hasta cuatro (4) horas antes de la
+                            hora de salida del viaje en pullmanbus.cl.</li>
+                        <li>En caso de anulación de pasajes, la empresa de buses se reserva el derecho de retener el
+                            quince por ciento (15%) del valor del pasaje (Art. 67 d.s. 212), siendo la devolución del
+                            85% del valor del pasaje.</li>
+                        <li>Las devoluciones de dinero por anulación de pasajes son procesadas en un tiempo máximo de
+                            entre siete (7) y diez (10) días hábiles.</li>
+                        <li>Los pasajes emitidos con boletos de cuponeras no tendrán opción de cambio ni anulación.</li>
+                        <li>Cada pasajero tendrá derecho a treinta kilogramos (30 kg) de equipaje, sólo si su volumen no
+                            excede los 180 decímetros cúbicos (Art. 68). En caso del equipaje exceda 5 UTM, es
+                            responsabilidad del pasajero declararlo en las sucursales de ventas, a lo menos con 1 hora
+                            de antelación de la salida del bus para declararlo a la tripulación antes del viaje (Art. 70
+                            d.s. 212/92 MT).</li>
+                        <li>En viajes de más de dos (2) horas, el pasajero debe entregar la información necesaria para
+                            evitar un sumario sanitario, según lo indica la Resolución Exenta 644/2021 del Ministerio de
+                            Salud. Esto incluye: Nombres, apellidos, RUT, DNI o pasaporte y números de teléfono de
+                            contacto.</li>
+                        <li>Es responsabilidad del pasajero contar con la documentación necesaria estipulada por el
+                            Gobierno de Chile.</li>
+                        <li>Para viajes internacionales los itinerarios están sujetos a cambios sin previo aviso o
+                            suspensión por condición climática adversa o restricciones por situación sanitaria por
+                            Covid-19.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="right-section">
+                <div class="contact-box">
+                    <div class="contact-title">¿Cómo contactarnos?</div>
+                    <div class="contact-item">
+                        <span>📞</span>
+                        <span>+56 2 3304 8632</span>
+                    </div>
+                    <div class="contact-item">
+                        <span>✉️</span>
+                        <span>clientes@pullmanbus.cl</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
