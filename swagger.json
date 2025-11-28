@@ -859,10 +859,215 @@
           "Tickets"
         ],
         "summary": "Listar tickets",
-        "description": "Obtiene una lista de todos los tickets. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
+        "description": "Obtiene una lista de todos los tickets. Permite filtrar por cualquier campo del modelo Ticket usando parámetros de query. Soporta filtros exactos (campo=valor), desde (campo_desde=valor), hasta (campo_hasta=valor). Requiere autenticación JWT y roles 'superuser' o 'admin'.",
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por ID exacto"
+          },
+          {
+            "name": "ticketNumber",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por número de ticket exacto"
+          },
+          {
+            "name": "ticketStatus",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["Confirmed", "Anulado"] },
+            "description": "Filtrar por estado del ticket"
+          },
+          {
+            "name": "origin",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por origen"
+          },
+          {
+            "name": "destination",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por destino"
+          },
+          {
+            "name": "travelDate",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date" },
+            "description": "Filtrar por fecha de viaje exacta"
+          },
+          {
+            "name": "travelDate_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date" },
+            "description": "Filtrar por fecha de viaje desde (inclusive)"
+          },
+          {
+            "name": "travelDate_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date" },
+            "description": "Filtrar por fecha de viaje hasta (inclusive)"
+          },
+          {
+            "name": "departureTime",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por hora de salida"
+          },
+          {
+            "name": "seatNumbers",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por número de asiento"
+          },
+          {
+            "name": "fare",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por tarifa exacta"
+          },
+          {
+            "name": "fare_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por tarifa desde (inclusive)"
+          },
+          {
+            "name": "fare_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por tarifa hasta (inclusive)"
+          },
+          {
+            "name": "monto_boleto",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por monto de boleto exacto"
+          },
+          {
+            "name": "monto_boleto_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por monto de boleto desde (inclusive)"
+          },
+          {
+            "name": "monto_boleto_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por monto de boleto hasta (inclusive)"
+          },
+          {
+            "name": "monto_devolucion",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por monto de devolución exacto"
+          },
+          {
+            "name": "monto_devolucion_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por monto de devolución desde (inclusive)"
+          },
+          {
+            "name": "monto_devolucion_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por monto de devolución hasta (inclusive)"
+          },
+          {
+            "name": "confirmedAt",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de confirmación exacta"
+          },
+          {
+            "name": "confirmedAt_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de confirmación desde (inclusive)"
+          },
+          {
+            "name": "confirmedAt_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de confirmación hasta (inclusive)"
+          },
+          {
+            "name": "id_User",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por ID de usuario"
+          },
+          {
+            "name": "created_at",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de creación exacta"
+          },
+          {
+            "name": "created_at_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de creación desde (inclusive)"
+          },
+          {
+            "name": "created_at_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de creación hasta (inclusive)"
+          },
+          {
+            "name": "updated_at",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de actualización exacta"
+          },
+          {
+            "name": "updated_at_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de actualización desde (inclusive)"
+          },
+          {
+            "name": "updated_at_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Filtrar por fecha de actualización hasta (inclusive)"
           }
         ],
         "responses": {
@@ -986,332 +1191,13 @@
         }
       }
     },
-    "/tickets/{id}": {
-      "put": {
-        "tags": [
-          "Tickets"
-        ],
-        "summary": "Actualizar un ticket existente",
-        "description": "Actualiza los datos de un ticket por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "ID del ticket a actualizar"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TicketUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Ticket actualizado exitosamente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Ticket"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No autorizado",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Acceso denegado (rol insuficiente o intento de modificar ticket de otra empresa)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Ticket o usuario no existe",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error en servidor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Tickets"
-        ],
-        "summary": "Eliminar un ticket",
-        "description": "Elimina un ticket por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "ID del ticket a eliminar"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ticket eliminado exitosamente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No autorizado",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Acceso denegado (rol insuficiente o intento de eliminar ticket de otra empresa)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Ticket o usuario no existe",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error en servidor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tickets/{id}/status": {
-      "patch": {
-        "tags": [
-          "Tickets"
-        ],
-        "summary": "Cambiar estado de un ticket",
-        "description": "Actualiza el estado de un ticket por su ID. Requiere autenticación JWT y roles 'superuser' o 'admin'.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "ID del ticket a actualizar"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TicketSetStatus"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Estado del ticket actualizado exitosamente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Ticket"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No autorizado",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Acceso denegado (rol insuficiente o intento de modificar ticket de otra empresa)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Ticket o usuario no existe",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error en servidor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tickets/search": {
-      "get": {
-        "tags": [
-          "Tickets"
-        ],
-        "summary": "Buscar tickets por ticketNumber",
-        "description": "Permite a un usuario buscar sus tickets filtrando por ticketNumber.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "ticketNumber",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Número de ticket para filtrar la búsqueda"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Lista de tickets que coinciden con el criterio",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Ticket"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No autorizado",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Acceso denegado (rol insuficiente)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error en servidor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/tickets/empresa/{id_empresa}": {
       "get": {
         "tags": [
           "Tickets"
         ],
         "summary": "Buscar tickets por empresa",
-        "description": "Obtiene una lista de tickets asociados a una empresa específica por su ID, incluyendo datos del usuario y su centro de costo. Requiere autenticación JWT y roles 'superuser', 'admin' o 'subusuario'.",
+        "description": "Obtiene una lista de tickets asociados a una empresa específica por su ID, incluyendo datos del usuario y su centro de costo. Permite filtrar por cualquier campo del modelo Ticket usando parámetros de query. Soporta filtros exactos (campo=valor), desde (campo_desde=valor), hasta (campo_hasta=valor). Requiere autenticación JWT y roles 'superuser', 'admin' o 'subusuario'.",
         "security": [
           {
             "bearerAuth": []
@@ -1326,6 +1212,76 @@
               "type": "string"
             },
             "description": "ID de la empresa para buscar tickets"
+          },
+          {
+            "name": "ticketNumber",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por número de ticket exacto"
+          },
+          {
+            "name": "ticketStatus",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["Confirmed", "Anulado"] },
+            "description": "Filtrar por estado del ticket"
+          },
+          {
+            "name": "origin",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por origen"
+          },
+          {
+            "name": "destination",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filtrar por destino"
+          },
+          {
+            "name": "travelDate",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date" },
+            "description": "Filtrar por fecha de viaje exacta"
+          },
+          {
+            "name": "travelDate_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date" },
+            "description": "Filtrar por fecha de viaje desde (inclusive)"
+          },
+          {
+            "name": "travelDate_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date" },
+            "description": "Filtrar por fecha de viaje hasta (inclusive)"
+          },
+          {
+            "name": "fare",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por tarifa exacta"
+          },
+          {
+            "name": "fare_desde",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por tarifa desde (inclusive)"
+          },
+          {
+            "name": "fare_hasta",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por tarifa hasta (inclusive)"
           }
         ],
         "responses": {
@@ -1404,86 +1360,6 @@
           },
           "404": {
             "description": "No existen usuarios para la empresa indicada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error en servidor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tickets/usuario/{id_User}": {
-      "get": {
-        "tags": [
-          "Tickets"
-        ],
-        "summary": "Buscar tickets por usuario",
-        "description": "Obtiene una lista de tickets asociados a un usuario específico por su ID. Requiere autenticación JWT y roles 'superuser', 'admin' o 'subusuario'.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id_User",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "ID del usuario para buscar tickets"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Lista de tickets del usuario",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Ticket"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No autorizado (token inválido o ausente)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Acceso denegado (rol insuficiente)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Usuario no existe",
             "content": {
               "application/json": {
                 "schema": {

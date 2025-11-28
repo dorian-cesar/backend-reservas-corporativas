@@ -1,34 +1,73 @@
 // src/controllers/ticket.controller.ts
 
 import { Request, Response } from "express";
+import { Op } from "sequelize";
 import { Ticket } from "../models/ticket.model";
 import { ITicketCreate, ITicketUpdate } from "../interfaces/ticket.interface";
 import { User } from "../models/user.model";
-import {CentroCosto} from "../models/centro_costo.model";
+import { CentroCosto } from "../models/centro_costo.model";
 
 /**
- * Listar tickets.
+ * Construye un objeto de filtros Sequelize a partir de los parámetros de consulta recibidos.
+ * Permite filtrar por cualquier campo del modelo Ticket, soportando operadores "desde", "hasta" e "igual".
+ * Ejemplo de query params:
+ *   ?origin=SCL&destination=PMC&travelDate_desde=2024-06-01&travelDate_hasta=2024-06-30&fare=15000
+ */
+function buildTicketFilters(query: any): Record<string, any> {
+    const filters: Record<string, any> = {};
+    const ticketFields = [
+        "id", "ticketNumber", "ticketStatus", "origin", "destination", "travelDate",
+        "departureTime", "seatNumbers", "fare", "monto_boleto", "monto_devolucion",
+        "confirmedAt", "id_User", "created_at", "updated_at"
+    ];
+
+    for (const key of Object.keys(query)) {
+        // Soporta campos con sufijos _desde, _hasta, o igual
+        for (const field of ticketFields) {
+            if (key === field) {
+                filters[field] = query[key];
+            }
+            if (key === `${field}_desde`) {
+                if (!filters[field]) filters[field] = {};
+                filters[field][Op.gte] = query[key];
+            }
+            if (key === `${field}_hasta`) {
+                if (!filters[field]) filters[field] = {};
+                filters[field][Op.lte] = query[key];
+            }
+        }
+    }
+    return filters;
+}
+
+/**
+ * Listar tickets con filtros opcionales.
  */
 export const getTickets = async (req: Request, res: Response) => {
     try {
         const rol = (req.user as any).rol;
         const empresa_id = (req.user as any).empresa_id;
 
+        // Construcción de filtros dinámicos
+        const filters = buildTicketFilters(req.query);
+
         if (rol === "admin") {
             // Solo tickets de usuarios de la empresa del admin
             const users = await User.findAll({ where: { empresa_id } });
             const userIds = users.map(u => u.id);
-            const tickets = await Ticket.findAll({ where: { id_User: userIds } });
+            filters.id_User = userIds;
+            const tickets = await Ticket.findAll({ where: filters });
             return res.json(tickets);
         }
 
         if (rol === "superuser") {
-            const tickets = await Ticket.findAll();
+            const tickets = await Ticket.findAll({ where: filters });
             return res.json(tickets);
         }
 
         return res.status(403).json({ message: "No autorizado" });
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
@@ -80,7 +119,8 @@ export const create = async (
         });
 
         res.status(201).json(ticket);
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
@@ -124,10 +164,12 @@ export const update = async (
 
         const updated = await Ticket.findByPk(id);
         res.json(updated);
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
+
 /**
  * Eliminar ticket.
  */
@@ -147,7 +189,8 @@ export const remove = async (req: Request, res: Response) => {
 
         await ticket.destroy();
         res.json({ message: "Eliminado" });
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
@@ -177,7 +220,8 @@ export const setStatus = async (
         await ticket.save();
 
         res.json(ticket);
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
@@ -193,7 +237,6 @@ export const getTicketsByTicketNumber = async (
         const { ticketNumber } = req.query;
         const { rol, empresa_id, id } = req.user as any;
 
-
         // Construir condición de búsqueda
         const whereClause: any = {};
 
@@ -206,17 +249,14 @@ export const getTicketsByTicketNumber = async (
 
         const tickets = await Ticket.findAll({ where: whereClause });
         return res.json(tickets);
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         res.status(500).json({ message: 'Error en servidor' });
     }
 };
 
 /**
  * Buscar tickets por empresa, incluyendo datos del usuario y centro de costo.
- */
-/**
- * Buscar tickets por empresa, incluyendo datos del usuario y centro de costo.
- * Corrige el error de columna desconocida 'codigo' en centros_costo.
  */
 export const getTicketsByEmpresa = async (
     req: Request<{ id_empresa: string }>,
@@ -231,8 +271,11 @@ export const getTicketsByEmpresa = async (
         }
         const userIds = users.map(u => u.id);
 
+        const filters = buildTicketFilters(req.query);
+        filters.id_User = userIds;
+
         const tickets = await Ticket.findAll({
-            where: { id_User: userIds },
+            where: filters,
             include: [
                 {
                     model: User,
@@ -255,7 +298,6 @@ export const getTicketsByEmpresa = async (
                                 'id',
                                 'nombre',
                                 'empresa_id'
-                                // 'codigo' eliminado porque no existe en la tabla
                             ]
                         }
                     ]
@@ -264,7 +306,8 @@ export const getTicketsByEmpresa = async (
         });
 
         return res.json(tickets);
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         console.error(err);
         res.status(500).json({ message: "Error en servidor" });
     }
@@ -285,10 +328,14 @@ export const getTicketsByUser = async (
             return res.status(404).json({ message: "Usuario no existe" });
         }
 
-        const tickets = await Ticket.findAll({ where: { id_User } });
+        const filters = buildTicketFilters(req.query);
+        filters.id_User = id_User;
+
+        const tickets = await Ticket.findAll({ where: filters });
 
         return res.json(tickets);
-    } catch (err) {
+        } catch (err) {
+        console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
