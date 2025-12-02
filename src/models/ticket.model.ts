@@ -34,6 +34,9 @@ export interface ITicket {
     monto_devolucion: number;
     confirmedAt: Date;
     id_User: number;
+    nombre_pasajero: string;
+    rut_pasajero?: string;
+    email_pasajero?: string;
     created_at?: Date;
     updated_at?: Date;
 }
@@ -84,6 +87,15 @@ export class Ticket extends Model<ITicket> {
     @ForeignKey(() => User)
     @Column({ type: DataType.INTEGER, allowNull: false })
     id_User!: number;
+
+    @Column({ type: DataType.STRING(150), allowNull: false })
+    nombre_pasajero!: string;
+
+    @Column({ type: DataType.STRING(50), allowNull: true })
+    rut_pasajero?: string;
+
+    @Column({ type: DataType.STRING(150), allowNull: true })
+    email_pasajero?: string;
 
     @BelongsTo(() => User)
     user?: User;

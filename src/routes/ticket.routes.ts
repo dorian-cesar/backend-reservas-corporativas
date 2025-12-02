@@ -14,18 +14,18 @@ import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 const router = Router();
 
 // Listar tickets
-router.get("/", authenticateJWT, authorizeRoles("superuser", "admin"), getTickets);
+router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "auditoria"), getTickets);
 
 // Crear ticket
 router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario"), create);
 
 // Buscar tickets por ticketNumber (solo rol 'user')
-router.get("/search", authenticateJWT, authorizeRoles("superuser", "admin","subusuario"), getTicketsByTicketNumber);
+router.get("/search", authenticateJWT, authorizeRoles("superuser", "admin","subusuario", "auditoria"), getTicketsByTicketNumber);
 
 // Buscar tickets por empresa
-router.get("/empresa/:id_empresa", authenticateJWT, authorizeRoles("superuser", "admin","subusuario"), getTicketsByEmpresa);
+router.get("/empresa/:id_empresa", authenticateJWT, authorizeRoles("superuser", "admin","subusuario", "auditoria"), getTicketsByEmpresa);
 // Buscar tickets por id_User
-router.get("/usuario/:id_User", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario"), getTicketsByUser);
+router.get("/usuario/:id_User", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria"), getTicketsByUser);
 
 // Actualizar ticket
 router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario"), update);

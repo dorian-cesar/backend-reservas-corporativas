@@ -10,7 +10,7 @@ import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 const router = Router();
 
 // Listar movimientos de cuenta corriente por empresa
-router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), listarMovimientos);
+router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "auditoria"), listarMovimientos);
 
 // Obtener un movimiento específico
 router.get("/:id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), obtenerMovimiento);

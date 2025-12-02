@@ -11,7 +11,7 @@ import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 const router = Router();
 
 // Listar todos los centros de costo de una empresa
-router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "superuser"), listarCentrosCosto);
+router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "superuser", "auditoria"), listarCentrosCosto);
 
 // Obtener un centro de costo por id
 router.get("/:id", authenticateJWT, authorizeRoles("admin", "superuser"), obtenerCentroCosto);

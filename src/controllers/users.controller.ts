@@ -3,8 +3,9 @@ import { Request, Response } from "express";
 import * as bcrypt from "bcrypt";
 import { User } from "../models/user.model";
 import { IUserCreate, IUserUpdate } from "../interfaces/user.interface";
-import {Empresa} from "../models/empresa.model";
-import {CentroCosto} from "../models/centro_costo.model";
+import { Empresa } from "../models/empresa.model";
+import { CentroCosto } from "../models/centro_costo.model";
+import { Op } from "sequelize";
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -12,12 +13,21 @@ export const getUsers = async (req: Request, res: Response) => {
         const empresa_id = (req.user as any).empresa_id;
 
         if (rol === "admin") {
-            const users = await User.findAll({ where: { empresa_id } });
+            const users = await User.findAll({
+                where: {
+                    empresa_id,
+                    rol: { [Op.ne]: "superuser" }
+                }
+            });
             return res.json(users);
         }
 
         if (rol === "superuser") {
-            const users = await User.findAll();
+            const users = await User.findAll({
+                where: {
+                    rol: { [Op.ne]: "superuser" }
+                }
+            });
             return res.json(users);
         }
 

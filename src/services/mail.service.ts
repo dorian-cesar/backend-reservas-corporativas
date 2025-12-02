@@ -21,6 +21,7 @@ export interface TicketEmailData {
     pdfDownloadUrl: string;
 }
 
+
 /**
  * Envía email de confirmación de ticket con PDF adjunto
  */

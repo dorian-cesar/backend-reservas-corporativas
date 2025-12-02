@@ -18,6 +18,9 @@ export interface ITicketCreate {
     monto_devolucion: number;
     confirmedAt: Date | string;
     id_User: number;
+    nombre_pasajero: string;
+    rut_pasajero?: string;
+    email_pasajero?: string;
 }
 
 /**
@@ -36,4 +39,7 @@ export interface ITicketUpdate {
     monto_devolucion?: number;
     confirmedAt?: Date | string;
     id_User?: number;
+    nombre_pasajero?: string;
+    rut_pasajero?: string;
+    email_pasajero?: string;
 }
