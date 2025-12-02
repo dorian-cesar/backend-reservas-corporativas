@@ -8,17 +8,23 @@ dotenv.config();
 sgMail.setApiKey(process.env.SENDGRID_API_KEY as string);
 
 export interface TicketEmailData {
-    ticketNumber: string;
-    origin: string;
-    destination: string;
-    travelDate: string;
-    departureTime: string;
-    seatNumbers: string;
-    passengerName: string;
-    passengerDocument: string;
-    fare: number;
-    monto_boleto: number;
-    pdfDownloadUrl: string;
+  ticketNumber: string;
+  origin: string;
+  destination: string;
+  travelDate: string;
+  departureTime: string;
+  seatNumbers: string;
+  passengerName: string;
+  passengerDocument: string;
+  fare: number;
+  monto_boleto: number;
+  pdfDownloadUrl: string;
+}
+
+export interface PassengerInfo {
+  email: string;
+  nombre: string;
+  rut?: string;
 }
 
 
@@ -26,107 +32,107 @@ export interface TicketEmailData {
  * Envía email de confirmación de ticket con PDF adjunto
  */
 export const sendTicketConfirmationEmail = async (
-    user: User,
-    ticketData: TicketPDFData,
-    pdfBuffer: Buffer
+  passenger: PassengerInfo,
+  ticketData: TicketPDFData,
+  pdfBuffer: Buffer
 ): Promise<void> => {
-    try {
-        const userEmail = user.getDataValue('email');
+  try {
+    const userEmail = passenger.email;
 
-        if (!userEmail) {
-            throw new Error("User email is required");
-        }
-
-        const emailData: TicketEmailData = {
-            ticketNumber: ticketData.boleto.numero_ticket,
-            origin: ticketData.origen.origen,
-            destination: ticketData.destino.destino,
-            travelDate: formatDateForEmail(ticketData.origen.fecha_viaje),
-            departureTime: ticketData.origen.hora_salida,
-            seatNumbers: ticketData.boleto.numero_asiento,
-            passengerName: user.getDataValue('nombre'),
-            passengerDocument: user.getDataValue('rut') || '',
-            fare: ticketData.pasajero.precio_original,
-            monto_boleto: ticketData.pasajero.precio_boleto,
-            pdfDownloadUrl: `https://reservas-corporativas.dev-wit.com/api/pdf/${ticketData.boleto.numero_ticket}?format=pdf`
-        };
-
-
-        const html = generateTicketEmailHTML(emailData);
-
-        const msg = {
-            to: userEmail,
-            from: "viajes@pullmanbus.cl",
-            subject: `Confirmación de Pasaje - ${ticketData.boleto.numero_ticket}`,
-            html,
-            attachments: [
-                {
-                    content: pdfBuffer.toString('base64'),
-                    filename: `boleto-${ticketData.boleto.numero_ticket}.pdf`,
-                    type: 'application/pdf',
-                    disposition: 'attachment'
-                }
-            ]
-        };
-
-        await sgMail.send(msg);
-        console.log('✅ [Mail Service] Email enviado exitosamente a:', userEmail);
-
-    } catch (error) {
-        console.error('❌ [Mail Service] Error enviando email:', error);
-        throw new Error(`Error al enviar email: ${error}`);
+    if (!userEmail) {
+      throw new Error("User email is required");
     }
+
+    const emailData: TicketEmailData = {
+      ticketNumber: ticketData.boleto.numero_ticket,
+      origin: ticketData.origen.origen,
+      destination: ticketData.destino.destino,
+      travelDate: formatDateForEmail(ticketData.origen.fecha_viaje),
+      departureTime: ticketData.origen.hora_salida,
+      seatNumbers: ticketData.boleto.numero_asiento,
+      passengerName: passenger.nombre,
+      passengerDocument: passenger.rut || '',
+      fare: ticketData.pasajero.precio_original,
+      monto_boleto: ticketData.pasajero.precio_boleto,
+      pdfDownloadUrl: `https://reservas-corporativas.dev-wit.com/api/pdf/${ticketData.boleto.numero_ticket}?format=pdf`
+    };
+
+
+    const html = generateTicketEmailHTML(emailData);
+
+    const msg = {
+      to: userEmail,
+      from: "viajes@pullmanbus.cl",
+      subject: `Confirmación de Pasaje - ${ticketData.boleto.numero_ticket}`,
+      html,
+      attachments: [
+        {
+          content: pdfBuffer.toString('base64'),
+          filename: `boleto-${ticketData.boleto.numero_ticket}.pdf`,
+          type: 'application/pdf',
+          disposition: 'attachment'
+        }
+      ]
+    };
+
+    await sgMail.send(msg);
+    console.log('✅ [Mail Service] Email enviado exitosamente a:', userEmail);
+
+  } catch (error) {
+    console.error('❌ [Mail Service] Error enviando email:', error);
+    throw new Error(`Error al enviar email: ${error}`);
+  }
 };
 
 /**
  * Envía email de anulación de ticket
  */
 export const sendTicketCancellationEmail = async (
-    user: User,
-    ticketData: TicketPDFData
+  user: User,
+  ticketData: TicketPDFData
 ): Promise<void> => {
-    try {
-        if (!user.email) {
-            throw new Error("User email is required");
-        }
-
-        const emailData: TicketEmailData = {
-            ticketNumber: ticketData.boleto.numero_ticket,
-            origin: ticketData.origen.origen,
-            destination: ticketData.destino.destino,
-            travelDate: formatDateForEmail(ticketData.origen.fecha_viaje),
-            departureTime: ticketData.origen.hora_salida,
-            seatNumbers: ticketData.boleto.numero_asiento,
-            passengerName: ticketData.pasajero.nombre,
-            passengerDocument: ticketData.pasajero.documento,
-            fare: ticketData.pasajero.precio_original,
-            monto_boleto: ticketData.pasajero.precio_boleto,
-            pdfDownloadUrl: `https://tudominio.com/api/pdf/${ticketData.boleto.numero_ticket}?format=pdf`
-        };
-
-        const html = generateCancellationEmailHTML(emailData);
-
-        const msg = {
-            to: user.email,
-            from: "viajes@pullmanbus.cl",
-            subject: `Anulación de Pasaje - ${ticketData.boleto.numero_ticket}`,
-            html
-        };
-
-        await sgMail.send(msg);
-        console.log(`Email de anulación enviado a: ${user.email}`);
-
-    } catch (error) {
-        console.error('Error enviando email de anulación:', error);
-        throw new Error(`Error al enviar email de anulación: ${error}`);
+  try {
+    if (!user.email) {
+      throw new Error("User email is required");
     }
+
+    const emailData: TicketEmailData = {
+      ticketNumber: ticketData.boleto.numero_ticket,
+      origin: ticketData.origen.origen,
+      destination: ticketData.destino.destino,
+      travelDate: formatDateForEmail(ticketData.origen.fecha_viaje),
+      departureTime: ticketData.origen.hora_salida,
+      seatNumbers: ticketData.boleto.numero_asiento,
+      passengerName: ticketData.pasajero.nombre,
+      passengerDocument: ticketData.pasajero.documento,
+      fare: ticketData.pasajero.precio_original,
+      monto_boleto: ticketData.pasajero.precio_boleto,
+      pdfDownloadUrl: `https://tudominio.com/api/pdf/${ticketData.boleto.numero_ticket}?format=pdf`
+    };
+
+    const html = generateCancellationEmailHTML(emailData);
+
+    const msg = {
+      to: user.email,
+      from: "viajes@pullmanbus.cl",
+      subject: `Anulación de Pasaje - ${ticketData.boleto.numero_ticket}`,
+      html
+    };
+
+    await sgMail.send(msg);
+    console.log(`Email de anulación enviado a: ${user.email}`);
+
+  } catch (error) {
+    console.error('Error enviando email de anulación:', error);
+    throw new Error(`Error al enviar email de anulación: ${error}`);
+  }
 };
 
 /**
  * Genera HTML para email de confirmación
  */
 function generateTicketEmailHTML(data: TicketEmailData): string {
-    return `
+  return `
 <!doctype html>
 <html lang="es">
 
@@ -355,7 +361,7 @@ function generateTicketEmailHTML(data: TicketEmailData): string {
  * Genera HTML para email de anulación
  */
 function generateCancellationEmailHTML(data: TicketEmailData): string {
-    return `
+  return `
 <!doctype html>
 <html lang="es">
 <head>
@@ -497,14 +503,14 @@ function generateCancellationEmailHTML(data: TicketEmailData): string {
  * Formatea fecha para email
  */
 function formatDateForEmail(dateString: string): string {
-    try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-CL', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
-    } catch {
-        return dateString;
-    }
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch {
+    return dateString;
+  }
 }

@@ -175,17 +175,17 @@ export const create = async (
                     }
                 };
 
-                // const pdfBytes = await generateTicketPDF(pdfData as TicketPDFData);
-                // const pdfBuffer = Buffer.from(pdfBytes);
+                const pdfBytes = await generateTicketPDF(pdfData as TicketPDFData);
+                const pdfBuffer = Buffer.from(pdfBytes);
 
-                // await sendTicketConfirmationEmail({
-                //     email: emailDestino,
-                //     nombre: nombre_pasajero,
-                //     rut: rut_pasajero
-                // }, pdfData, pdfBuffer);
+                await sendTicketConfirmationEmail({
+                    email: emailDestino,
+                    nombre: nombre_pasajero,
+                    rut: rut_pasajero
+                }, pdfData, pdfBuffer);
 
                 emailSent = true;
-                // console.log('Email enviado exitosamente a:', emailDestino);
+                console.log('Email enviado exitosamente a:', emailDestino);
             } else {
                 console.log('No se puede enviar email: no hay email disponible');
             }
