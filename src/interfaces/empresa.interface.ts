@@ -7,6 +7,7 @@ export interface IEmpresaCreate {
     porcentaje_devolucion?: number;
     dia_facturacion?: number;
     dia_vencimiento?: number;
+    monto_maximo?: number;
 }
 
 export interface IEmpresaUpdate {
@@ -16,4 +17,5 @@ export interface IEmpresaUpdate {
     porcentaje_devolucion?: number;
     dia_facturacion?: number;
     dia_vencimiento?: number;
+    monto_maximo?: number;
 }

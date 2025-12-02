@@ -225,8 +225,8 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
     });
 
     page.drawText(ticketData.pasajero.nombre, {
-        x: rightSectionX + 80,
-        y: rightFirstY - 25,
+        x: rightSectionX + 10,
+        y: rightFirstY - 40,
         size: 10,
         font: fontBold,
         color: rgb(0, 0, 0),
@@ -234,7 +234,7 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
 
     page.drawText(`RUT / Pasaporte: ${ticketData.pasajero.documento}`, {
         x: rightSectionX + 10,
-        y: rightFirstY - 45,
+        y: rightFirstY - 55,
         size: 9,
         font: font,
         color: rgb(0.2, 0.2, 0.2),
@@ -242,7 +242,7 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
 
     page.drawText(`Precio Pasaje: CLP$ ${formatNumber(ticketData.pasajero.precio_boleto)}`, {
         x: rightSectionX + 10,
-        y: rightFirstY - 65,
+        y: rightFirstY - 75,
         size: 9,
         font: fontBold,
         color: rgb(0.2, 0.2, 0.2),
@@ -250,35 +250,20 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
 
     // Sección de precios
     const priceY = rightFirstY - 90;
-    page.drawRectangle({
-        x: rightSectionX,
-        y: priceY - 100,
-        width: rightSectionWidth,
-        height: 80,
-        borderColor: rgb(0.8, 0.8, 0.8),
-        borderWidth: 1,
-    });
+    // page.drawRectangle({
+    //     x: rightSectionX,
+    //     y: priceY - 100,
+    //     width: rightSectionWidth,
+    //     height: 80,
+    //     borderColor: rgb(0.8, 0.8, 0.8),
+    //     borderWidth: 1,
+    // });
 
-    page.drawText('PRECIO NORMAL:', {
-        x: rightSectionX + 10,
-        y: priceY - 50,
-        size: 9,
-        font: font,
-        color: rgb(0.2, 0.2, 0.2),
-    });
-
-    page.drawText(`$ ${formatNumber(ticketData.pasajero.precio_original)}`, {
-        x: rightSectionX + rightSectionWidth - 50,
-        y: priceY - 50,
-        size: 9,
-        font: font,
-        color: rgb(0.2, 0.2, 0.2),
-    });
 
     // Caja total
     page.drawRectangle({
         x: rightSectionX,
-        y: priceY - 110,
+        y: priceY - 60,
         width: rightSectionWidth,
         height: 40,
         color: rgb(0, 0.28, 0.67), // Azul #0047ab
@@ -286,7 +271,7 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
 
     page.drawText('MONTO TOTAL', {
         x: rightSectionX + 10,
-        y: priceY - 95,
+        y: priceY - 45,
         size: 10,
         font: fontBold,
         color: rgb(1, 1, 1),
@@ -294,7 +279,7 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
 
     page.drawText(`$ ${formatNumber(ticketData.pasajero.precio_boleto)}`, {
         x: rightSectionX + rightSectionWidth - 50,
-        y: priceY - 95,
+        y: priceY - 45,
         size: 10,
         font: fontBold,
         color: rgb(1, 1, 1),
@@ -390,16 +375,16 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
     const contactY = secondRowY + 100;
     page.drawRectangle({
         x: rightSectionX,
-        y: contactY - 100,
+        y: contactY - 30,
         width: rightSectionWidth,
-        height: 100,
+        height: 80,
         borderColor: rgb(0.8, 0.8, 0.8),
         borderWidth: 1,
     });
 
     page.drawText('¿Cómo contactarnos?', {
         x: rightSectionX + 10,
-        y: contactY - 30,
+        y: contactY + 20,
         size: 10,
         font: fontBold,
         color: rgb(0, 0, 0),
@@ -407,7 +392,7 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
 
     page.drawText('+56 2 3304 8632', {
         x: rightSectionX + 10,
-        y: contactY - 60,
+        y: contactY + 5,
         size: 9,
         font: font,
         color: rgb(0.2, 0.2, 0.2),
@@ -415,7 +400,7 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
 
     page.drawText('clientes@pullmanbus.cl', {
         x: rightSectionX + 10,
-        y: contactY - 80,
+        y: contactY - 10,
         size: 9,
         font: font,
         color: rgb(0.2, 0.2, 0.2),

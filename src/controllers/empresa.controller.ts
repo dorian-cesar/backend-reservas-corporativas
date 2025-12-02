@@ -28,8 +28,26 @@ export const crearEmpresa = async (
     req: Request<{}, {}, IEmpresaCreate>,
     res: Response
 ) => {
-    const { nombre, estado, recargo, porcentaje_devolucion, dia_facturacion, dia_vencimiento } = req.body;
-    const empresa = await Empresa.create({ nombre, estado, recargo, porcentaje_devolucion, dia_facturacion, dia_vencimiento });
+    const {
+        nombre,
+        estado,
+        recargo,
+        porcentaje_devolucion,
+        dia_facturacion,
+        dia_vencimiento,
+        monto_maximo
+    } = req.body;
+
+    const empresa = await Empresa.create({
+        nombre,
+        estado,
+        recargo,
+        porcentaje_devolucion,
+        dia_facturacion,
+        dia_vencimiento,
+        monto_maximo
+    });
+
     res.json({ id: empresa.id, message: "Empresa creada" });
 };
 

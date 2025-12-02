@@ -15,6 +15,7 @@ export interface IEmpresa {
     porcentaje_devolucion?: number;
     dia_facturacion?: number;
     dia_vencimiento?: number;
+    monto_maximo?: number;
 }
 
 @Table({ tableName: 'empresas', timestamps: false })
@@ -36,6 +37,9 @@ export class Empresa extends Model<IEmpresa> {
 
     @Column({ type: DataType.INTEGER, allowNull: true })
     dia_facturacion?: number;
+
+    @Column({ type: DataType.INTEGER, allowNull: true })
+    monto_maximo?: number; 
 
     @Column({ type: DataType.INTEGER, allowNull: true })
     dia_vencimiento?: number;
