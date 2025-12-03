@@ -105,60 +105,49 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
 
         const estadoData = estado.toJSON();
 
-        if (!estadoData.periodo || estadoData.periodo.trim() === '') {
+        // 1. VERIFICAR QUE TENGA FECHAS VÁLIDAS
+        if (!estadoData.fecha_inicio || !estadoData.fecha_fin) {
             return res.status(400).json({
-                message: "El estado de cuenta no tiene período asignado"
+                message: "El estado de cuenta no tiene fechas de período definidas",
+                detalles: {
+                    fecha_inicio: estadoData.fecha_inicio,
+                    fecha_fin: estadoData.fecha_fin
+                }
             });
         }
 
         const empresaId = estadoData.empresa_id;
-        const periodo = estadoData.periodo.trim();
 
-
-        // Usar fecha_inicio y fecha_fin si están disponibles
+        // 2. CONVERTIR FECHAS STRING A DATE
         let inicio: Date;
         let fin: Date;
 
-        if (estadoData.fecha_inicio && estadoData.fecha_fin) {
+        try {
             inicio = new Date(estadoData.fecha_inicio);
             fin = new Date(estadoData.fecha_fin);
 
-        } else {
-            // Si no hay fechas específicas, intentar interpretar el período
-            // Formato esperado: "01", "02", ..., "12" o "1", "2", ..., "12"
-            const mesStr = periodo.replace(/[^0-9]/g, ''); // Extraer solo números
-            const mesNum = parseInt(mesStr, 10);
-
-            if (isNaN(mesNum) || mesNum < 1 || mesNum > 12) {
+            // Validar que las fechas sean válidas
+            if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
                 return res.status(400).json({
-                    message: "Período inválido. Debe ser un número de mes (1-12)",
-                    periodoRecibido: periodo
+                    message: "Fechas inválidas en el estado de cuenta",
+                    detalles: {
+                        fecha_inicio: estadoData.fecha_inicio,
+                        fecha_fin: estadoData.fecha_fin
+                    }
                 });
             }
 
-            // Usar el año actual para el mes especificado
-            const ahora = new Date();
-            const year = ahora.getFullYear();
+            // Asegurar que fin sea el final del día
+            fin.setHours(23, 59, 59, 999);
 
-            // Si el mes es mayor al actual, usar año anterior
-            let yearCalculado = year;
-            if (mesNum > ahora.getMonth() + 1) {
-                yearCalculado = year - 1;
-            }
-
-            inicio = new Date(yearCalculado, mesNum - 1, 1);
-            fin = new Date(yearCalculado, mesNum, 0); // último día del mes
-
-            console.log('📅 Calculando fechas desde período numérico:', {
-                periodo,
-                mesNum,
-                yearCalculado,
-                inicio: inicio.toISOString(),
-                fin: fin.toISOString()
+        } catch (error) {
+            return res.status(400).json({
+                message: "Error al procesar las fechas del estado de cuenta",
+                error: error instanceof Error ? error.message : "Error desconocido"
             });
         }
 
-        // Buscar tickets
+        // 3. BUSCAR TICKETS CON confirmedAt EN EL RANGO DE FECHAS
         const tickets = await Ticket.findAll({
             include: [
                 {
@@ -168,14 +157,13 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
                 }
             ],
             where: {
-                travelDate: {
+                // IMPORTANTE: Usar confirmedAt en lugar de travelDate
+                confirmedAt: {
                     [Op.between]: [inicio, fin]
                 }
             },
-            order: [["travelDate", "DESC"]],
+            order: [["confirmedAt", "DESC"]],
         });
-
-        console.log(`✅ Encontrados ${tickets.length} tickets para el período`);
 
         return res.json(tickets);
 
