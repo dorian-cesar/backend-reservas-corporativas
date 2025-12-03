@@ -7,8 +7,9 @@ import { ITicketCreate, ITicketUpdate } from "../interfaces/ticket.interface";
 import { User } from "../models/user.model";
 import { CentroCosto } from "../models/centro_costo.model";
 
-import { sendTicketConfirmationEmail, sendTicketCancellationEmail } from "../services/mail.service";
+import { sendTicketConfirmationEmail } from "../services/mail.service";
 import { generateTicketPDF, TicketPDFData } from "../services/pdf.service";
+import { Empresa } from "../models/empresa.model";
 
 /**
  * Construye un objeto de filtros Sequelize a partir de los parámetros de consulta recibidos.
@@ -102,23 +103,57 @@ export const create = async (
             email_pasajero
         } = req.body;
 
-        console.log('📧 Iniciando creación de ticket para usuario:', id_User);
 
-        // Validación de usuario
         const user = await User.findByPk(id_User);
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
-        console.log('📧 Usuario encontrado:', {
-            id: user.id,
-            nombre: user.nombre,
-            email: user.email,
-            tieneEmail: !!user.email
-        });
+        const userData = user.toJSON();
+        
+        if (!userData.empresa_id) {
+            return res.status(400).json({
+                message: "El usuario no tiene empresa asignada",
+                detalles: {
+                    userId: userData.id,
+                    userName: userData.nombre,
+                    userEmail: userData.email
+                }
+            });
+        }
 
-        // Si es admin, solo puede crear tickets para usuarios de su empresa
-        // if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
-        //     return res.status(403).json({ message: "No autorizado" });
+        const empresa = await Empresa.findByPk(userData.empresa_id);
+        if (!empresa) {
+            return res.status(400).json({
+                message: "La empresa asignada al usuario no existe",
+                detalles: {
+                    userId: userData.id,
+                    empresaId: userData.empresa_id
+                }
+            });
+        }
 
+        const empresaData = empresa.toJSON();
+
+        // Validar límite de monto máximo
+        if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
+            const montoActual = empresaData.monto_acumulado || 0;
+            const montoMaximo = empresaData.monto_maximo;
+            const montoNuevo = montoActual + monto_boleto;
+
+            if (montoNuevo > montoMaximo) {
+                return res.status(400).json({
+                    message: `La empresa ha excedido su límite de gasto. Límite: $${montoMaximo}, Actual: $${montoActual}, Nuevo ticket: $${monto_boleto}`,
+                    detalles: {
+                        monto_maximo: montoMaximo,
+                        monto_acumulado: montoActual,
+                        monto_ticket: monto_boleto,
+                        monto_nuevo_total: montoNuevo,
+                        disponible: montoMaximo - montoActual
+                    }
+                });
+            }
+        }
+
+        // Crear el ticket
         const ticket = await Ticket.create({
             ticketNumber,
             ticketStatus,
@@ -137,17 +172,36 @@ export const create = async (
             email_pasajero
         });
 
+        try {
+            // Calcular nuevo monto
+            const montoActual = empresaData.monto_acumulado || 0;
+            const nuevoMontoAcumulado = montoActual + monto_boleto;
+            
+            await empresa.update({
+                monto_acumulado: nuevoMontoAcumulado
+            });
 
+            await empresa.reload();
+            const empresaActualizada = empresa.toJSON();
+            
+            console.log('Monto acumulado actualizado correctamente:', {
+                empresaId: empresaActualizada.id,
+                montoActualizado: empresaActualizada.monto_acumulado
+            });
+        } catch (error) {
+            console.error('Error al actualizar monto acumulado:', error);
+        }
+
+        // Envío de email
         let emailSent = false;
         let emailError: string | null = null;
 
         try {
-            // Usar el email del pasajero si está disponible, de lo contrario usar el del usuario
-            const emailDestino = email_pasajero || user.getDataValue('email');
+            const emailDestino = email_pasajero || userData.email;
 
-            console.log('📧 Email destino para confirmación:', {
+            console.log('[MAIL] Email destino para confirmación:', {
                 emailPasajero: email_pasajero,
-                emailUsuario: user.getDataValue('email'),
+                emailUsuario: userData.email,
                 emailFinal: emailDestino
             });
 
@@ -185,12 +239,12 @@ export const create = async (
                 }, pdfData, pdfBuffer);
 
                 emailSent = true;
-                console.log('Email enviado exitosamente a:', emailDestino);
+                console.log('[MAIL] Email enviado exitosamente a:', emailDestino);
             } else {
-                console.log('No se puede enviar email: no hay email disponible');
+                console.log('[MAIL] No se puede enviar email: no hay email disponible');
             }
         } catch (err) {
-            console.error('Error enviando email de confirmación:', err);
+            console.error('[MAIL] Error enviando email de confirmación:', err);
             emailError = (err as Error).message;
         }
 
@@ -207,11 +261,10 @@ export const create = async (
             }
         });
     } catch (err) {
-        console.log('Error general en create:', err)
+        console.error('Error general en create:', err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
-
 /**
  * Actualizar ticket.
  */
@@ -296,73 +349,58 @@ export const setStatus = async (
         const ticket = await Ticket.findByPk(id);
         if (!ticket) return res.status(404).json({ message: "Ticket no existe" });
 
+        // Convertir a objeto plano
+        const ticketData = ticket.toJSON();
+        
         // Validación de usuario
-        const user = await User.findByPk(ticket.id_User);
+        const user = await User.findByPk(ticketData.id_User);
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
-        if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
-            return res.status(403).json({ message: "No autorizado" });
+        // if ((req.user as any).rol === "admin") {
+        //     const userData = user.toJSON();
+        //     if (userData.empresa_id !== (req.user as any).empresa_id)
+        //         return res.status(403).json({ message: "No autorizado" });
+        // }
 
+        const estadoAnterior = ticketData.ticketStatus;
         ticket.ticketStatus = ticketStatus;
         await ticket.save();
 
-        let emailSent = false;
-        let emailError: string | null = null;
+        // Si se anula un ticket confirmado, ajustar monto acumulado
+        if (estadoAnterior === "Confirmed" && ticketStatus === "Anulado") {
+            const userData = user.toJSON();
+            
+            if (userData.empresa_id) {
+                try {
+                    const empresa = await Empresa.findByPk(userData.empresa_id);
+                    if (empresa) {
+                        const empresaData = empresa.toJSON();
+                        const montoActual = empresaData.monto_acumulado || 0;
+                        const montoTicket = ticketData.monto_devolucion || 0;
+                        
+                        // Restar el monto
+                        const nuevoMonto = Math.max(0, montoActual - montoTicket);
+                        
+                        await empresa.update({
+                            monto_acumulado: nuevoMonto
+                        });
 
-        // if (ticketStatus === "Anulado") {
-        //     // Usar el email del pasajero si está disponible, de lo contrario usar el del usuario
-        //     const emailDestino = ticket.getDataValue('email_pasajero') || user.getDataValue('email');
-
-        //     if (emailDestino) {
-        //         try {
-        //             const pdfData = {
-        //                 origen: {
-        //                     origen: ticket.getDataValue('origin'),
-        //                     fecha_viaje: ticket.getDataValue('travelDate') ? ticket.getDataValue('travelDate').toString() : '',
-        //                     hora_salida: ticket.getDataValue('departureTime')
-        //                 },
-        //                 destino: {
-        //                     destino: ticket.getDataValue('destination')
-        //                 },
-        //                 boleto: {
-        //                     numero_asiento: ticket.getDataValue('seatNumbers'),
-        //                     numero_ticket: ticket.getDataValue('ticketNumber'),
-        //                     estado_confirmacion: ticketStatus
-        //                 },
-        //                 pasajero: {
-        //                     nombre: ticket.getDataValue('nombre_pasajero'),
-        //                     documento: ticket.getDataValue('rut_pasajero') || '',
-        //                     precio_original: ticket.getDataValue('fare'),
-        //                     precio_boleto: ticket.getDataValue('monto_boleto'),
-        //                     precio_devolucion: ticket.getDataValue('monto_devolucion')
-        //                 }
-        //             };
-
-        //             await sendTicketCancellationEmail({
-        //                 email: emailDestino,
-        //                 nombre: ticket.getDataValue('nombre_pasajero'),
-        //                 rut: ticket.getDataValue('rut_pasajero')
-        //             }, pdfData);
-        //             emailSent = true;
-        //         } catch (err) {
-        //             console.error('Error enviando email de anulación:', err);
-        //             const errMsg = err instanceof Error ? err.message : String(err);
-        //             emailError = errMsg;
-        //         }
-        //     }
-        // }
+                        console.log('Monto acumulado ajustado por anulación:', {
+                            empresaId: empresaData.id,
+                            montoAnterior: montoActual,
+                            montoRestado: montoTicket,
+                            montoNuevo: nuevoMonto
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error al ajustar monto acumulado por anulación:', error);
+                }
+            }
+        }
 
         res.json({
             ...ticket.toJSON(),
-            emailInfo: ticketStatus === "Anulado" ? {
-                sent: emailSent,
-                error: emailError,
-                message: emailSent
-                    ? 'Email de anulación enviado exitosamente'
-                    : emailError
-                        ? `Ticket anulado pero email no enviado: ${emailError}`
-                        : 'Ticket anulado pero email no enviado'
-            } : undefined
+            message: "Estado del ticket actualizado"
         });
     } catch (err) {
         console.log(err)
