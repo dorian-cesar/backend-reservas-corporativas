@@ -8,6 +8,7 @@ export interface IEmpresaCreate {
     dia_facturacion?: number;
     dia_vencimiento?: number;
     monto_maximo?: number;
+    monto_acumulado?: number;
 }
 
 export interface IEmpresaUpdate {
@@ -18,4 +19,5 @@ export interface IEmpresaUpdate {
     dia_facturacion?: number;
     dia_vencimiento?: number;
     monto_maximo?: number;
+    monto_acumulado?: number;
 }

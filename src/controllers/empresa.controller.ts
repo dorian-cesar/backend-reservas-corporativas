@@ -35,7 +35,8 @@ export const crearEmpresa = async (
         porcentaje_devolucion,
         dia_facturacion,
         dia_vencimiento,
-        monto_maximo
+        monto_maximo,
+        monto_acumulado
     } = req.body;
 
     const empresa = await Empresa.create({
@@ -45,7 +46,8 @@ export const crearEmpresa = async (
         porcentaje_devolucion,
         dia_facturacion,
         dia_vencimiento,
-        monto_maximo
+        monto_maximo,
+        monto_acumulado
     });
 
     res.json({ id: empresa.id, message: "Empresa creada" });
