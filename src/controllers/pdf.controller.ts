@@ -52,8 +52,8 @@ export const getTicketsWithPassengerInfo = async (req: Request, res: Response) =
                     estado_confirmacion: ticketData.ticketStatus
                 },
                 pasajero: {
-                    nombre: ticketData.user?.nombre || 'No disponible',
-                    documento: ticketData.user?.rut || 'No disponible',
+                    nombre: ticketData.nombre_pasajero || 'No disponible',
+                    documento: ticketData.rut_pasajero || 'No disponible',
                     precio_original: ticketData.fare,
                     precio_boleto: ticketData.monto_boleto,
                     precio_devolucion: ticketData.monto_devolucion
