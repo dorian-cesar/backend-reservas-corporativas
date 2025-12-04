@@ -11,19 +11,21 @@ import {
 import { Empresa } from "./empresa.model";
 
 export interface IEstadoCuenta {
-    id?: number;
-    empresa_id: number;
-    periodo: string;
-    fecha_generacion: Date;
-    fecha_inicio?: string; // VARCHAR(19) en la base de datos
-    fecha_fin?: string; // VARCHAR(19) en la base de datos
-    total_tickets: number;
-    total_tickets_anulados: number;
-    monto_facturado: number;
-    detalle_por_cc: string; // JSON con detalle por centro de costo
-    pagado: boolean;
-    fecha_pago?: Date;
-    suma_devoluciones?: number;
+  id?: number;
+  empresa_id: number;
+  periodo: string;
+  fecha_generacion: Date;
+  fecha_inicio?: string; // VARCHAR(19) en la base de datos
+  fecha_fin?: string; // VARCHAR(19) en la base de datos
+  fecha_facturacion?: Date;
+  fecha_vencimiento?: Date;
+  total_tickets: number;
+  total_tickets_anulados: number;
+  monto_facturado: number;
+  detalle_por_cc: string; // JSON con detalle por centro de costo
+  pagado: boolean;
+  fecha_pago?: Date;
+  suma_devoluciones?: number;
 }
 
 @Table({ tableName: "estados_cuenta", timestamps: false })
@@ -41,11 +43,17 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
   @Column({ type: DataType.DATE, allowNull: false })
   fecha_generacion!: Date;
 
-    @Column({ type: DataType.STRING(19), allowNull: true })
-    fecha_inicio?: string;
+  @Column({ type: DataType.DATE, allowNull: false })
+  fecha_vencimiento!: Date;
 
-    @Column({ type: DataType.STRING(19), allowNull: true })
-    fecha_fin?: string;
+  @Column({ type: DataType.STRING(19), allowNull: true })
+  fecha_inicio?: string;
+
+  @Column({ type: DataType.DATE, allowNull: false })
+  fecha_facturacion!: Date;
+
+  @Column({ type: DataType.STRING(19), allowNull: true })
+  fecha_fin?: string;
 
   @Column({ type: DataType.INTEGER, allowNull: false })
   total_tickets!: number;
@@ -65,8 +73,8 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
   @Column({ type: DataType.BOOLEAN, defaultValue: false })
   pagado!: boolean;
 
-    @Column({ type: DataType.DATE, allowNull: true })
-    fecha_pago?: Date;
+  @Column({ type: DataType.DATE, allowNull: true })
+  fecha_pago?: Date;
 
   @BelongsTo(() => Empresa)
   empresa!: Empresa;
