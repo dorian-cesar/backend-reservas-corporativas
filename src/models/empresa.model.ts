@@ -9,7 +9,9 @@ import { CuentaCorriente } from './cuenta_corriente.model';
  */
 export interface IEmpresa {
     id?: number;
+    rut?: string;
     nombre: string;
+    cuenta_corriente?: string;
     estado?: boolean;
     recargo?: number;
     porcentaje_devolucion?: number;
@@ -24,8 +26,14 @@ export class Empresa extends Model<IEmpresa> {
     @Column({ type: DataType.INTEGER, autoIncrement: true, primaryKey: true })
     declare id: number;
 
+    @Column({ type: DataType.STRING(20), allowNull: true })
+    rut?: string;
+
     @Column({ type: DataType.STRING(150), allowNull: false })
     nombre!: string;
+
+    @Column({ type: DataType.STRING(20), allowNull: true })
+    cuenta_corriente?: string;
 
     @Column({ type: DataType.BOOLEAN, defaultValue: true })
     estado!: boolean;

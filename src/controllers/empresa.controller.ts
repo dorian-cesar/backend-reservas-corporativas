@@ -29,7 +29,9 @@ export const crearEmpresa = async (
     res: Response
 ) => {
     const {
+        rut,
         nombre,
+        cuenta_corriente,
         estado,
         recargo,
         porcentaje_devolucion,
@@ -40,7 +42,9 @@ export const crearEmpresa = async (
     } = req.body;
 
     const empresa = await Empresa.create({
+        rut,
         nombre,
+        cuenta_corriente,
         estado,
         recargo,
         porcentaje_devolucion,

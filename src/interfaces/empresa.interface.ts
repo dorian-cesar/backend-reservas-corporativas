@@ -1,7 +1,9 @@
 // src/interfaces/empresa.interface.ts
 
 export interface IEmpresaCreate {
+    rut?: string;
     nombre: string;
+    cuenta_corriente?: string;
     estado?: boolean;
     recargo?: number;
     porcentaje_devolucion?: number;
@@ -12,7 +14,9 @@ export interface IEmpresaCreate {
 }
 
 export interface IEmpresaUpdate {
+    rut?: string;
     nombre?: string;
+    cuenta_corriente?: string;
     estado?: boolean;
     recargo?: number;
     porcentaje_devolucion?: number;
