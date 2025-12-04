@@ -7,6 +7,7 @@ import { TicketStatus } from "../models/ticket.model";
  */
 export interface ITicketCreate {
     ticketNumber: string;
+    pnrNumber?: string;
     ticketStatus: TicketStatus;
     origin: string;
     destination: string;
@@ -28,6 +29,7 @@ export interface ITicketCreate {
  */
 export interface ITicketUpdate {
     ticketNumber?: string;
+    pnrNumber?: string;
     ticketStatus?: TicketStatus;
     origin?: string;
     destination?: string;

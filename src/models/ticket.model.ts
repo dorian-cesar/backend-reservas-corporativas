@@ -23,6 +23,7 @@ export type TicketStatus = 'Confirmed' | 'Anulado';
 export interface ITicket {
     id?: number;
     ticketNumber: string;
+    pnrNumber?: string;
     ticketStatus: TicketStatus;
     origin: string;
     destination: string;
@@ -53,6 +54,9 @@ export class Ticket extends Model<ITicket> {
 
     @Column({ type: DataType.STRING(50), allowNull: false, unique: true })
     ticketNumber!: string;
+
+    @Column({ type: DataType.STRING(50), allowNull: true })
+    pnrNumber?: string;
 
     @Column({ type: DataType.ENUM('Confirmed', 'Anulado'), allowNull: false })
     ticketStatus!: TicketStatus;

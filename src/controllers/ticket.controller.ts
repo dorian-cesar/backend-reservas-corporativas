@@ -20,7 +20,7 @@ import { Empresa } from "../models/empresa.model";
 function buildTicketFilters(query: any): Record<string, any> {
     const filters: Record<string, any> = {};
     const ticketFields = [
-        "id", "ticketNumber", "ticketStatus", "origin", "destination", "travelDate",
+        "id", "ticketNumber", "pnrNumber", "ticketStatus", "origin", "destination", "travelDate",
         "departureTime", "seatNumbers", "fare", "monto_boleto", "monto_devolucion",
         "confirmedAt", "id_User", "nombre_pasajero", "rut_pasajero", "email_pasajero",
         "created_at", "updated_at"
@@ -87,6 +87,7 @@ export const create = async (
     try {
         const {
             ticketNumber,
+            pnrNumber,
             ticketStatus,
             origin,
             destination,
@@ -156,6 +157,7 @@ export const create = async (
         // Crear el ticket
         const ticket = await Ticket.create({
             ticketNumber,
+            pnrNumber,
             ticketStatus,
             origin,
             destination,
