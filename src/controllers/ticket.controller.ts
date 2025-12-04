@@ -7,7 +7,7 @@ import { ITicketCreate, ITicketUpdate } from "../interfaces/ticket.interface";
 import { User } from "../models/user.model";
 import { CentroCosto } from "../models/centro_costo.model";
 
-import { sendTicketConfirmationEmail } from "../services/mail.service";
+import { sendTicketCancellationEmail, sendTicketConfirmationEmail } from "../services/mail.service";
 import { generateTicketPDF, TicketPDFData } from "../services/pdf.service";
 import { Empresa } from "../models/empresa.model";
 
@@ -337,6 +337,59 @@ export const update = async (
             }
         }
 
+        let emailAnulacionSent = false;
+        let emailAnulacionError: string | null = null;
+        
+        if (data.ticketStatus === "Anulado" && estadoAnterior !== "Anulado") {
+            try {
+                const userData = user.toJSON();
+                const emailDestino = ticketData.email_pasajero || userData.email;
+        
+                if (emailDestino) {
+                    const pdfData = {
+                        origen: {
+                            origen: ticketData.origin,
+                            fecha_viaje: ticketData.travelDate instanceof Date 
+                                ? ticketData.travelDate.toISOString() 
+                                : ticketData.travelDate,
+                            hora_salida: ticketData.departureTime
+                        },
+                        destino: {
+                            destino: ticketData.destination
+                        },
+                        boleto: {
+                            numero_asiento: ticketData.seatNumbers,
+                            numero_ticket: ticketData.ticketNumber,
+                            estado_confirmacion: "Anulado"
+                        },
+                        pasajero: {
+                            nombre: ticketData.nombre_pasajero,
+                            documento: ticketData.rut_pasajero || '',
+                            precio_original: ticketData.fare,
+                            precio_boleto: ticketData.monto_boleto,
+                            precio_devolucion: data.monto_devolucion || ticketData.monto_devolucion
+                        }
+                    };
+        
+        
+                    await sendTicketCancellationEmail({
+                        email: emailDestino,
+                        nombre: ticketData.nombre_pasajero,
+                        rut: ticketData.rut_pasajero
+                    }, pdfData);
+        
+                    emailAnulacionSent = true;
+                    console.log('[MAIL] Email de anulación enviado exitosamente a:', emailDestino);
+                } else {
+                    console.log('[MAIL] No se puede enviar email de anulación: no hay email disponible');
+                }
+            } catch (err) {
+                console.error('[MAIL] Error enviando email de anulación:', err);
+                emailAnulacionError = (err as Error).message;
+            }
+        }
+
+
         await ticket.update(updateData);
 
         // Obtener ticket actualizado
@@ -349,7 +402,16 @@ export const update = async (
             ajustesRealizados: {
                 estadoCambiado: data.ticketStatus !== undefined,
                 devolucionAjustada: montoDevolucionNuevo !== montoDevolucionAnterior
-            }
+            },
+            emailInfo: data.ticketStatus === "Anulado" && estadoAnterior !== "Anulado" ? {
+                sent: emailAnulacionSent,
+                error: emailAnulacionError || null,
+                message: emailAnulacionSent
+                    ? 'Email de anulación enviado exitosamente'
+                    : emailAnulacionError
+                        ? `Ticket actualizado pero email de anulación no enviado: ${emailAnulacionError}`
+                        : 'Ticket actualizado pero email de anulación no enviado'
+            } : undefined
         });
     } catch (err) {
         console.error('Error en update:', err);

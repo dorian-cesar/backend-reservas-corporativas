@@ -88,11 +88,13 @@ export const sendTicketConfirmationEmail = async (
  * Envía email de anulación de ticket
  */
 export const sendTicketCancellationEmail = async (
-  user: User,
+  passenger: PassengerInfo,
   ticketData: TicketPDFData
 ): Promise<void> => {
   try {
-    if (!user.email) {
+    const userEmail = passenger.email;
+
+    if (!userEmail) {
       throw new Error("User email is required");
     }
 
@@ -103,27 +105,27 @@ export const sendTicketCancellationEmail = async (
       travelDate: formatDateForEmail(ticketData.origen.fecha_viaje),
       departureTime: ticketData.origen.hora_salida,
       seatNumbers: ticketData.boleto.numero_asiento,
-      passengerName: ticketData.pasajero.nombre,
-      passengerDocument: ticketData.pasajero.documento,
+      passengerName: passenger.nombre,
+      passengerDocument: passenger.rut || '',
       fare: ticketData.pasajero.precio_original,
       monto_boleto: ticketData.pasajero.precio_boleto,
-      pdfDownloadUrl: `https://tudominio.com/api/pdf/${ticketData.boleto.numero_ticket}?format=pdf`
+      pdfDownloadUrl: `https://reservas-corporativas.dev-wit.com/api/pdf/${ticketData.boleto.numero_ticket}?format=pdf`
     };
 
     const html = generateCancellationEmailHTML(emailData);
 
     const msg = {
-      to: user.email,
+      to: userEmail,
       from: "viajes@pullmanbus.cl",
       subject: `Anulación de Pasaje - ${ticketData.boleto.numero_ticket}`,
       html
     };
 
     await sgMail.send(msg);
-    console.log(`Email de anulación enviado a: ${user.email}`);
+    console.log('[Mail Service] Email de anulación enviado exitosamente a:', userEmail);
 
   } catch (error) {
-    console.error('Error enviando email de anulación:', error);
+    console.error('[Mail Service] Error enviando email de anulación:', error);
     throw new Error(`Error al enviar email de anulación: ${error}`);
   }
 };
@@ -458,7 +460,7 @@ function generateCancellationEmailHTML(data: TicketEmailData): string {
                       <tr>
                         <td align="center" style="padding:16px; background:#fef2f2; border-radius:8px;">
                           <div style="font-size:13px; color:#dc2626; font-weight:600; margin-bottom:6px;">
-                            ✅ Boleto anulado exitosamente
+                            Boleto anulado exitosamente
                           </div>
                           <div style="font-size:12px; color:#666;">
                             Fecha de anulación: ${new Date().toLocaleDateString('es-CL')}
