@@ -12,17 +12,17 @@ import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 const router = Router();
 
 // Listar todas las empresas
-router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "auditoria"), listarEmpresas);
+router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "auditoria", "contralor"), listarEmpresas);
 
 // Obtener una empresa por id
-router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), obtenerEmpresa);
+router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), obtenerEmpresa);
 
 // Crear una empresa
-router.post("/", authenticateJWT, authorizeRoles("superuser", "admin"), crearEmpresa);
+router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), crearEmpresa);
 
 // Actualizar una empresa
-router.put("/reset/:id", authenticateJWT, authorizeRoles("superuser", "admin"), resetMontoAcumulado)
-router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), actualizarEmpresa);
+router.put("/reset/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), resetMontoAcumulado)
+router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), actualizarEmpresa);
 
 // Eliminar una empresa
 router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), eliminarEmpresa);

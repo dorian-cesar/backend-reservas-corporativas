@@ -22,7 +22,7 @@ export const getUsers = async (req: Request, res: Response) => {
             return res.json(users);
         }
 
-        if (rol === "superuser") {
+        if (rol === "superuser" || rol === "contralor") {
             const users = await User.findAll({
                 where: {
                     rol: { [Op.ne]: "superuser" }

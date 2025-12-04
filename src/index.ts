@@ -11,6 +11,7 @@ import swaggerDocument from "../swagger.json";
 import ticketRoutes from "./routes/ticket.routes";
 import pdfRoutes from "./routes/pdf.routes";
 import estadoCuentaRoutes from "./routes/estadoCuenta.routes"
+import dashboardRoutes from "./routes/dashboard.routes"
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/api/cuenta-corriente", cuentaCorrienteRoutes);
 app.use("/api/estado-cuenta", estadoCuentaRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use('/api/pdf', pdfRoutes);
+app.use("/api/dashboard", dashboardRoutes)
 
 // Documentación Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
