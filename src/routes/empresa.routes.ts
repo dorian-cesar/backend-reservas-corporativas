@@ -5,6 +5,7 @@ import {
     crearEmpresa,
     actualizarEmpresa,
     eliminarEmpresa,
+    resetMontoAcumulado,
 } from "../controllers/empresa.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
@@ -20,6 +21,7 @@ router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), obtene
 router.post("/", authenticateJWT, authorizeRoles("superuser", "admin"), crearEmpresa);
 
 // Actualizar una empresa
+router.put("/reset/:id", authenticateJWT, authorizeRoles("superuser", "admin"), resetMontoAcumulado)
 router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), actualizarEmpresa);
 
 // Eliminar una empresa

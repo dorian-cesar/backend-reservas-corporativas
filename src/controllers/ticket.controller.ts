@@ -330,19 +330,9 @@ export const update = async (
                         await empresa.update({
                             monto_acumulado: nuevoMonto
                         });
-
-                        console.log('Monto acumulado ajustado por anulación:', {
-                            empresaId: empresaData.id,
-                            montoAnterior: montoActual,
-                            montoDevolucion: montoARestar,
-                            montoNuevo: nuevoMonto,
-                            ticketId: ticketData.id,
-                            ticketNumber: ticketData.ticketNumber
-                        });
                     }
                 } catch (error) {
                     console.error('Error al ajustar monto acumulado por anulación:', error);
-                    // No devolvemos error aquí para no interrumpir la actualización del ticket
                 }
             }
         }

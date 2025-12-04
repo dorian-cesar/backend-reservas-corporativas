@@ -75,3 +75,56 @@ export const eliminarEmpresa = async (req: Request, res: Response) => {
     await empresa.destroy();
     res.json({ message: "Empresa eliminada" });
 };
+
+
+export const resetMontoAcumulado = async (
+    req: Request<{ id: string }>,
+    res: Response
+) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const user = req.user as any;
+
+        const empresa = await Empresa.findByPk(id);
+        if (!empresa) {
+            return res.status(404).json({ message: "Empresa no encontrada" });
+        }
+
+        const montoAnterior = empresa.monto_acumulado || 0;
+
+        await empresa.update({
+            monto_acumulado: 0,
+        });
+
+        console.log(`Monto acumulado reestablecido:`, {
+            empresaId: empresa.id,
+            empresaNombre: empresa.nombre,
+            montoAnterior: montoAnterior,
+            montoNuevo: 0,
+            usuarioId: user.id,
+            usuarioRol: user.rol,
+            fecha: new Date().toISOString()
+        });
+
+        res.json({
+            success: true,
+            message: `Monto acumulado reestablecido a 0`,
+            detalles: {
+                empresa: {
+                    id: empresa.id,
+                    nombre: empresa.nombre
+                },
+                monto_anterior: montoAnterior,
+                monto_nuevo: 0,
+                fecha_reestablecimiento: new Date()
+            }
+        });
+
+    } catch (err) {
+        console.error('Error reestableciendo monto acumulado:', err);
+        res.status(500).json({
+            message: "Error en servidor",
+            error: (err as Error).message
+        });
+    }
+};
