@@ -108,7 +108,7 @@ export const create = async (
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
         const userData = user.toJSON();
-        
+
         if (!userData.empresa_id) {
             return res.status(400).json({
                 message: "El usuario no tiene empresa asignada",
@@ -176,14 +176,14 @@ export const create = async (
             // Calcular nuevo monto
             const montoActual = empresaData.monto_acumulado || 0;
             const nuevoMontoAcumulado = montoActual + monto_boleto;
-            
+
             await empresa.update({
                 monto_acumulado: nuevoMontoAcumulado
             });
 
             await empresa.reload();
             const empresaActualizada = empresa.toJSON();
-            
+
             console.log('Monto acumulado actualizado correctamente:', {
                 empresaId: empresaActualizada.id,
                 montoActualizado: empresaActualizada.monto_acumulado
@@ -284,8 +284,8 @@ export const update = async (
         const user = await User.findByPk(userId);
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
-        if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
-            return res.status(403).json({ message: "No autorizado" });
+        // if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
+        //     return res.status(403).json({ message: "No autorizado" });
 
         // Normalizar tipos para campos Date
         const updateData: any = { ...data };
@@ -300,13 +300,70 @@ export const update = async (
                 : updateData.confirmedAt;
         }
 
+        const ticketData = ticket.toJSON();
+        const estadoAnterior = ticketData.ticketStatus;
+        const montoDevolucionAnterior = ticketData.monto_devolucion || 0;
+        const montoDevolucionNuevo = data.monto_devolucion || 0;
+
+        // LÓGICA DE DEVOLUCIÓN cuando se anula un ticket
+        if (data.ticketStatus === "Anulado" && estadoAnterior === "Confirmed") {
+            const userData = user.toJSON();
+
+            if (userData.empresa_id) {
+                try {
+                    const empresa = await Empresa.findByPk(userData.empresa_id);
+                    if (empresa) {
+                        const empresaData = empresa.toJSON();
+                        const montoActual = empresaData.monto_acumulado || 0;
+
+                        // Usar el monto_devolucion del update o del ticket existente
+                        const montoDevolucion = data.monto_devolucion !== undefined
+                            ? data.monto_devolucion
+                            : ticketData.monto_devolucion || ticketData.monto_boleto;
+
+                        // Asegurarnos de que el monto de devolución sea positivo
+                        const montoARestar = Math.abs(montoDevolucion);
+
+                        // Restar el monto (pero no dejar negativo)
+                        const nuevoMonto = Math.max(0, montoActual - montoARestar);
+
+                        await empresa.update({
+                            monto_acumulado: nuevoMonto
+                        });
+
+                        console.log('Monto acumulado ajustado por anulación:', {
+                            empresaId: empresaData.id,
+                            montoAnterior: montoActual,
+                            montoDevolucion: montoARestar,
+                            montoNuevo: nuevoMonto,
+                            ticketId: ticketData.id,
+                            ticketNumber: ticketData.ticketNumber
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error al ajustar monto acumulado por anulación:', error);
+                    // No devolvemos error aquí para no interrumpir la actualización del ticket
+                }
+            }
+        }
+
         await ticket.update(updateData);
 
+        // Obtener ticket actualizado
         const updated = await Ticket.findByPk(id);
-        res.json(updated);
+        const respuesta = updated?.toJSON() || {};
+
+        res.json({
+            ...respuesta,
+            message: "Ticket actualizado correctamente",
+            ajustesRealizados: {
+                estadoCambiado: data.ticketStatus !== undefined,
+                devolucionAjustada: montoDevolucionNuevo !== montoDevolucionAnterior
+            }
+        });
     } catch (err) {
-        console.log(err)
-        res.status(500).json({ message: "Error en servidor" });
+        console.error('Error en update:', err);
+        res.status(500).json({ message: "Error en servidor", error: (err as Error).message });
     }
 };
 
@@ -351,7 +408,7 @@ export const setStatus = async (
 
         // Convertir a objeto plano
         const ticketData = ticket.toJSON();
-        
+
         // Validación de usuario
         const user = await User.findByPk(ticketData.id_User);
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
@@ -369,7 +426,7 @@ export const setStatus = async (
         // Si se anula un ticket confirmado, ajustar monto acumulado
         if (estadoAnterior === "Confirmed" && ticketStatus === "Anulado") {
             const userData = user.toJSON();
-            
+
             if (userData.empresa_id) {
                 try {
                     const empresa = await Empresa.findByPk(userData.empresa_id);
@@ -377,10 +434,10 @@ export const setStatus = async (
                         const empresaData = empresa.toJSON();
                         const montoActual = empresaData.monto_acumulado || 0;
                         const montoTicket = ticketData.monto_devolucion || 0;
-                        
+
                         // Restar el monto
                         const nuevoMonto = Math.max(0, montoActual - montoTicket);
-                        
+
                         await empresa.update({
                             monto_acumulado: nuevoMonto
                         });
@@ -520,5 +577,114 @@ export const getTicketsByUser = async (
     } catch (err) {
         console.log(err)
         res.status(500).json({ message: "Error en servidor" });
+    }
+};
+
+
+export const checkDisponibilidad = async (
+    req: Request<{}, {}, { id_User: number; monto_boleto: number }>,
+    res: Response
+) => {
+    try {
+        const { id_User, monto_boleto } = req.body;
+
+        // Validar datos requeridos
+        if (!id_User || monto_boleto === undefined || monto_boleto === null) {
+            return res.status(400).json({
+                message: "id_User y monto_boleto son requeridos",
+                disponible: false
+            });
+        }
+
+        // Buscar usuario
+        const user = await User.findByPk(id_User);
+        if (!user) {
+            return res.status(404).json({
+                message: "Usuario no encontrado",
+                disponible: false
+            });
+        }
+
+        const userData = user.toJSON();
+
+        if (!userData.empresa_id) {
+            return res.status(400).json({
+                message: "El usuario no tiene empresa asignada",
+                disponible: false,
+                detalles: {
+                    userId: userData.id,
+                    userName: userData.nombre
+                }
+            });
+        }
+
+        // Buscar empresa
+        const empresa = await Empresa.findByPk(userData.empresa_id);
+        if (!empresa) {
+            return res.status(400).json({
+                message: "La empresa asignada al usuario no existe",
+                disponible: false,
+                detalles: {
+                    empresaId: userData.empresa_id
+                }
+            });
+        }
+
+        const empresaData = empresa.toJSON();
+
+        // Verificar límite de monto máximo
+        if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
+            const montoActual = empresaData.monto_acumulado || 0;
+            const montoMaximo = empresaData.monto_maximo;
+            const montoNuevo = montoActual + monto_boleto;
+
+            if (montoNuevo > montoMaximo) {
+                return res.status(200).json({
+                    disponible: false,
+                    message: `La empresa ha excedido su límite de gasto. Límite: $${montoMaximo}, Actual: $${montoActual}, Nuevo ticket: $${monto_boleto}`,
+                    detalles: {
+                        monto_maximo: montoMaximo,
+                        monto_acumulado: montoActual,
+                        monto_ticket: monto_boleto,
+                        monto_nuevo_total: montoNuevo,
+                        disponible: montoMaximo - montoActual,
+                        excedido: (montoNuevo > montoMaximo) ? montoNuevo - montoMaximo : 0
+                    }
+                });
+            }
+
+            // Si hay disponibilidad
+            return res.status(200).json({
+                disponible: true,
+                message: "Disponibilidad verificada correctamente",
+                detalles: {
+                    monto_maximo: montoMaximo,
+                    monto_acumulado: montoActual,
+                    monto_ticket: monto_boleto,
+                    monto_nuevo_total: montoNuevo,
+                    disponible: montoMaximo - montoActual,
+                    porcentaje_disponible: Math.round(((montoMaximo - montoNuevo) / montoMaximo) * 100)
+                }
+            });
+        }
+
+        // Si no hay límite configurado
+        return res.status(200).json({
+            disponible: true,
+            message: "Empresa sin límite de gasto configurado",
+            detalles: {
+                monto_acumulado: empresaData.monto_acumulado || 0,
+                monto_ticket: monto_boleto,
+                monto_nuevo_total: (empresaData.monto_acumulado || 0) + monto_boleto
+            }
+        });
+
+    } catch (err) {
+        console.error('Error en checkDisponibilidad:', err);
+        res.status(500).json({
+            message: "Error en servidor",
+            disponible: false,
+            error: (err as Error).message
+        });
     }
 };
