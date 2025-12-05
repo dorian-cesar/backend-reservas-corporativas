@@ -2,26 +2,44 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 
+import bwipjs from "bwip-js";
+
 export interface TicketPDFData {
-    origen: {
-        origen: string;
-        fecha_viaje: string;
-        hora_salida: string;
+    ticket: {
+        id: number | undefined; // Cambiado a opcional
+        ticketNumber: string;
+        pnrNumber?: string;
+        ticketStatus: string;
+        origin: string;
+        destination: string;
+        travelDate: string;
+        departureTime: string;
+        seatNumbers: string;
+        fare: number;
+        monto_boleto: number;
+        monto_devolucion: number;
+        confirmedAt: string;
+        created_at?: string;
+        updated_at?: string;
     };
-    destino: {
-        destino: string;
+    cliente: {
+        id: number | null | undefined; // Cambiado a aceptar undefined
+        nombre: string;
+        rut: string | null;
+        email: string;
+        rol: string | null;
     };
-    boleto: {
-        numero_asiento: string;
-        numero_ticket: string;
-        estado_confirmacion: string;
+    empresa: {
+        id: number | null;
+        nombre: string;
+        rut: string | null;
+        cuenta_corriente: string | null;
+        estado: boolean | null;
     };
     pasajero: {
         nombre: string;
-        documento: string;
-        precio_original: number;
-        precio_boleto: number;
-        precio_devolucion: number;
+        rut: string | null;
+        correo: string;
     };
 }
 
@@ -84,21 +102,13 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
     });
 
     // Encabezado de reserva
-    page.drawText(`Nº DE RESERVA: ${ticketData.boleto.numero_ticket}`, {
+    page.drawText(`Nº DE RESERVA: ${ticketData.ticket.ticketNumber}`, {
         x: leftSectionX + 15,
         y: yPosition - 30,
         size: 10,
         font: fontBold,
         color: rgb(0, 0, 0),
     });
-
-    // page.drawText('EMPRESA: PULLMAN BUS', {
-    //     x: leftSectionX + 180,
-    //     y: yPosition - 30,
-    //     size: 10,
-    //     font: fontBold,
-    //     color: rgb(0, 0, 0),
-    // });
 
     // Línea divisoria
     page.drawLine({
@@ -120,7 +130,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         color: rgb(0, 0, 0),
     });
 
-    page.drawText(ticketData.origen.origen, {
+    page.drawText(ticketData.ticket.origin, {
         x: leftSectionX + 80,
         y: originY,
         size: 11,
@@ -137,7 +147,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         borderWidth: 2,
     });
 
-    page.drawText(`Fecha de viaje: ${formatDate(ticketData.origen.fecha_viaje)}`, {
+    page.drawText(`Fecha de viaje: ${formatDate(ticketData.ticket.travelDate)}`, {
         x: leftSectionX + 15,
         y: originY - 15,
         size: 10,
@@ -145,7 +155,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         color: rgb(0.2, 0.2, 0.2),
     });
 
-    page.drawText(`Hora de salida: ${ticketData.origen.hora_salida}`, {
+    page.drawText(`Hora de salida: ${ticketData.ticket.departureTime}`, {
         x: leftSectionX + 15,
         y: originY - 30,
         size: 10,
@@ -162,7 +172,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         color: rgb(0, 0, 0),
     });
 
-    page.drawText(ticketData.destino.destino, {
+    page.drawText(ticketData.ticket.destination, {
         x: leftSectionX + 255,
         y: destY,
         size: 11,
@@ -194,7 +204,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         thickness: 1,
     });
 
-    page.drawText(`Nº ASIENTO: ${ticketData.boleto.numero_asiento}`, {
+    page.drawText(`Nº ASIENTO: ${ticketData.ticket.seatNumbers}`, {
         x: leftSectionX + 15,
         y: yPosition - 180,
         size: 10,
@@ -202,15 +212,26 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         color: rgb(0, 0, 0),
     });
 
+    // PNR Number si existe
+    if (ticketData.ticket.pnrNumber) {
+        page.drawText(`PNR: ${ticketData.ticket.pnrNumber}`, {
+            x: leftSectionX + 130,
+            y: yPosition - 180,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+    }
+
     // Sección derecha - Primera fila
     const rightFirstY = yPosition;
 
     // Caja de pasajero
     page.drawRectangle({
         x: rightSectionX,
-        y: rightFirstY - 90,
+        y: rightFirstY - 100,
         width: rightSectionWidth,
-        height: 90,
+        height: 100,
         borderColor: rgb(0.8, 0.8, 0.8),
         borderWidth: 1,
         color: rgb(0.98, 0.98, 0.98),
@@ -232,7 +253,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         color: rgb(0, 0, 0),
     });
 
-    page.drawText(`RUT / Pasaporte: ${ticketData.pasajero.documento}`, {
+    page.drawText(`RUT / Pasaporte: ${ticketData.pasajero.rut || 'No disponible'}`, {
         x: rightSectionX + 10,
         y: rightFirstY - 55,
         size: 9,
@@ -240,47 +261,108 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
         color: rgb(0.2, 0.2, 0.2),
     });
 
-    page.drawText(`Precio Pasaje: CLP$ ${formatNumber(ticketData.pasajero.precio_boleto)}`, {
+    page.drawText(`Email: ${ticketData.pasajero.correo}`, {
         x: rightSectionX + 10,
-        y: rightFirstY - 75,
+        y: rightFirstY - 70,
+        size: 9,
+        font: font,
+        color: rgb(0.2, 0.2, 0.2),
+    });
+
+    page.drawText(`Precio Pasaje: CLP$ ${formatNumber(ticketData.ticket.monto_boleto)}`, {
+        x: rightSectionX + 10,
+        y: rightFirstY - 85,
         size: 9,
         font: fontBold,
         color: rgb(0.2, 0.2, 0.2),
     });
 
-    // Sección de precios
-    const priceY = rightFirstY - 90;
-    // page.drawRectangle({
-    //     x: rightSectionX,
-    //     y: priceY - 100,
-    //     width: rightSectionWidth,
-    //     height: 80,
-    //     borderColor: rgb(0.8, 0.8, 0.8),
-    //     borderWidth: 1,
-    // });
+    // Sección de cliente y empresa
+    const clientY = rightFirstY - 100;
 
+    page.drawRectangle({
+        x: rightSectionX,
+        y: clientY - 100,
+        width: rightSectionWidth,
+        height: 100,
+        borderColor: rgb(0.8, 0.8, 0.8),
+        borderWidth: 1,
+        color: rgb(0.98, 0.98, 0.98),
+    });
+
+    page.drawText('CLIENTE:', {
+        x: rightSectionX + 10,
+        y: clientY - 20,
+        size: 9,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    page.drawText(ticketData.cliente.nombre, {
+        x: rightSectionX + 10,
+        y: clientY - 35,
+        size: 9,
+        font: font,
+        color: rgb(0.2, 0.2, 0.2),
+    });
+
+    if (ticketData.cliente.rut) {
+        page.drawText(`RUT: ${ticketData.cliente.rut}`, {
+            x: rightSectionX + 10,
+            y: clientY - 50,
+            size: 8,
+            font: font,
+            color: rgb(0.2, 0.2, 0.2),
+        });
+    }
+
+    page.drawText('EMPRESA:', {
+        x: rightSectionX + 10,
+        y: clientY - 70,
+        size: 9,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    page.drawText(ticketData.empresa.nombre, {
+        x: rightSectionX + 10,
+        y: clientY - 85,
+        size: 9,
+        font: font,
+        color: rgb(0.2, 0.2, 0.2),
+    });
+
+    // if (ticketData.empresa.rut) {
+    //     page.drawText(`RUT: ${ticketData.empresa.rut}`, {
+    //         x: rightSectionX + 10,
+    //         y: clientY - 100,
+    //         size: 8,
+    //         font: font,
+    //         color: rgb(0.2, 0.2, 0.2),
+    //     });
+    // }
 
     // Caja total
     page.drawRectangle({
         x: rightSectionX,
-        y: priceY - 60,
+        y: clientY - 170,
         width: rightSectionWidth,
-        height: 40,
+        height: 50,
         color: rgb(0, 0.28, 0.67), // Azul #0047ab
     });
 
     page.drawText('MONTO TOTAL', {
         x: rightSectionX + 10,
-        y: priceY - 45,
+        y: clientY - 150,
         size: 10,
         font: fontBold,
         color: rgb(1, 1, 1),
     });
 
-    page.drawText(`$ ${formatNumber(ticketData.pasajero.precio_boleto)}`, {
+    page.drawText(`${formatNumber(ticketData.ticket.monto_boleto)}`, {
         x: rightSectionX + rightSectionWidth - 50,
-        y: priceY - 45,
-        size: 10,
+        y: clientY - 150,
+        size: 12,
         font: fontBold,
         color: rgb(1, 1, 1),
     });
@@ -375,7 +457,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
     const contactY = secondRowY + 100;
     page.drawRectangle({
         x: rightSectionX,
-        y: contactY - 30,
+        y: contactY - 150,
         width: rightSectionWidth,
         height: 80,
         borderColor: rgb(0.8, 0.8, 0.8),
@@ -384,7 +466,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('¿Cómo contactarnos?', {
         x: rightSectionX + 10,
-        y: contactY + 20,
+        y: contactY - 95,
         size: 10,
         font: fontBold,
         color: rgb(0, 0, 0),
@@ -392,7 +474,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('+56 2 3304 8632', {
         x: rightSectionX + 10,
-        y: contactY + 5,
+        y: contactY - 115,
         size: 9,
         font: font,
         color: rgb(0.2, 0.2, 0.2),
@@ -400,7 +482,7 @@ export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('clientes@pullmanbus.cl', {
         x: rightSectionX + 10,
-        y: contactY - 10,
+        y: contactY - 130,
         size: 9,
         font: font,
         color: rgb(0.2, 0.2, 0.2),
@@ -428,6 +510,13 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
     const logoPath = path.resolve(__dirname, '../assets/logo-pullman-nuevo.png');
     const logoBytes = fs.readFileSync(logoPath);
 
+    const barcodePng = await generateBarcodePng(ticketData.ticket.pnrNumber || ticketData.ticket.ticketNumber);
+
+    const barcodeImg = await pdfDoc.embedPng(barcodePng);
+    const scaled = barcodeImg.scale(1); // puedes ajustar a gusto
+    
+
+
 
     page.drawText('BOLETO ELECTRÓNICO', {
         x: margin,
@@ -437,9 +526,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
         color: rgb(0.4, 0.4, 0.4),
     });
 
-
     const logoImage = await pdfDoc.embedPng(logoBytes);
-
     const logoDims = logoImage.scale(0.1);
 
     page.drawImage(logoImage, {
@@ -461,6 +548,15 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     yPosition -= 120;
 
+    // --- Nuevo cálculo de columnas: 3 columnas reales dentro del ancho util ---
+    const usableWidth = width - margin * 2;
+    const colWidth = usableWidth / 4;
+    const col1X = margin + 30;
+    const col2X = margin + colWidth + 30;
+    const col3X = margin + colWidth * 2 + 10;
+    const col4X = margin + colWidth * 3 + 10;
+    // -----------------------------------------------------------------------
+
     page.drawText('Datos del Servicio', {
         x: margin,
         y: yPosition,
@@ -472,98 +568,413 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawRectangle({
         x: margin,
-        y: yPosition - 200,
+        y: yPosition - 330,
         width: width - margin * 2,
-        height: 180,
+        height: 310,
         borderColor: rgb(0.5, 0.5, 0.5),
-        borderWidth: 1, 
+        borderWidth: 1,
     });
 
-    let xPosition = margin + 30;
-
-    page.drawText('RUT EMPRESA: ', {
-        x: xPosition,
+    // Información de la empresa
+    page.drawText('EMPRESA:', {
+        x: col1X,
         y: yPosition - 45,
         size: 12,
         font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('CUENTA CORRIENTE: ', {
-        x: xPosition,
-        y: yPosition - 60,
+    page.drawText(ticketData.empresa.nombre, {
+        x: col2X,
+        y: yPosition - 45,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('RUT EMPRESA:', {
+        x: col1X,
+        y: yPosition - 65,
         size: 12,
         font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('PASAJERO: ', {
-        x: xPosition,
-        y: yPosition - 75,
+    page.drawText(ticketData.empresa.rut || 'No disponible', {
+        x: col2X,
+        y: yPosition - 65,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('CUENTA CORRIENTE:', {
+        x: col1X,
+        y: yPosition - 85,
         size: 12,
         font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('CLIENTE: ', {
-        x: xPosition,
-        y: yPosition - 90,
+    page.drawText(ticketData.empresa.cuenta_corriente || 'No disponible', {
+        x: col2X,
+        y: yPosition - 85,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    // Información del cliente
+    page.drawText('CLIENTE:', {
+        x: col1X,
+        y: yPosition - 115,
         size: 12,
         font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('ORIGEN: ', {
-        x: xPosition,
-        y: yPosition - 105,
+    page.drawText(ticketData.cliente.nombre, {
+        x: col2X,
+        y: yPosition - 115,
         size: 12,
-        font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('DESTINO: ', {
-        x: xPosition,
-        y: yPosition - 120,
+    page.drawText(ticketData.cliente.rut || 'No disponible', {
+        x: col3X,
+        y: yPosition - 115,
         size: 12,
-        font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('FECHA VIAJE: ', {
-        x: xPosition,
+    // Información del pasajero
+    page.drawText('PASAJERO:', {
+        x: col1X,
         y: yPosition - 135,
         size: 12,
         font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('HORA VIAJE: ', {
-        x: xPosition,
-        y: yPosition - 150,
+    page.drawText(ticketData.pasajero.nombre, {
+        x: col2X,
+        y: yPosition - 135,
         size: 12,
-        font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('ASIENTO: ', {
-        x: xPosition,
+    page.drawText(ticketData.pasajero.rut || 'No disponible', {
+        x: col3X,
+        y: yPosition - 135,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.pasajero.correo || '', {
+        x: col4X,
+        y: yPosition - 135,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    // Información del viaje
+    page.drawText('ORIGEN:', {
+        x: col1X,
         y: yPosition - 165,
         size: 12,
         font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText('VALOR PAGADO: ', {
-        x: xPosition,
-        y: yPosition - 180,
+    page.drawText(ticketData.ticket.origin, {
+        x: col2X,
+        y: yPosition - 165,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('DESTINO:', {
+        x: col1X,
+        y: yPosition - 185,
         size: 12,
         font: fontBold,
-        color: rgb(0.3 , 0.3 , 0.3 ),
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.destination, {
+        x: col2X,
+        y: yPosition - 185,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('FECHA VIAJE:', {
+        x: col1X,
+        y: yPosition - 215,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(formatDate(ticketData.ticket.travelDate), {
+        x: col2X,
+        y: yPosition - 215,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('HORA VIAJE:', {
+        x: col1X,
+        y: yPosition - 235,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.departureTime, {
+        x: col2X,
+        y: yPosition - 235,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('ASIENTO:', {
+        x: col1X,
+        y: yPosition - 265,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.seatNumbers, {
+        x: col2X,
+        y: yPosition - 265,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('Nº BOLETO:', {
+        x: col1X,
+        y: yPosition - 285,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.pnrNumber || '', {
+        x: col2X,
+        y: yPosition - 285,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('VALOR PAGADO:', {
+        x: col1X,
+        y: yPosition - 315,
+        size: 13,
+        font: fontBold,
+        color: rgb(0.1, 0.1, 0.1),
+    });
+
+    page.drawText(`${formatNumber(ticketData.ticket.monto_boleto)}`, {
+        x: col2X,
+        y: yPosition - 315,
+        size: 16,
+        font: fontBold,
+        color: rgb(0.1, 0.1, 0.1),
+    });
+
+
+    yPosition -= 370;
+
+    page.drawText('Este boleto es válido únicamente para la fecha y hora indicadas.', {
+        x: margin,
+        y: yPosition + 10,
+        size: 9,
+        font: font,
+        color: rgb(0.4, 0.4, 0.4),
+    });
+
+    page.drawText('Copia Cliente', {
+        x: col4X,
+        y: yPosition + 10,
+        size: 11,
+        font: fontBold,
+        color: rgb(252 / 255, 107 / 255, 3 / 255),
+    });
+
+    page.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: margin + (width - margin * 2), y: yPosition },
+        thickness: 1,
+        color: rgb(0.4, 0.4, 0.4),
+        dashArray: [4, 4],
+    });
+
+    page.drawRectangle({
+        x: margin,
+        y: yPosition - 230,
+        width: width - margin * 2,
+        height: 190,
+        borderColor: rgb(0.5, 0.5, 0.5),
+        borderWidth: 1,
+    });
+
+
+    page.drawImage(barcodeImg, {
+        x: col2X - 10,
+        y: yPosition - 80,
+        width: 200,   // ← bien largo
+        height: 15,   // ← bien bajito
+      });
+
+
+    page.drawText('codigoSeguridad', {
+        x: col2X + 40,
+        y: yPosition - 100,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.pnrNumber || '', {
+        x: col2X + 60,
+        y: yPosition - 120,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('FECHA:', {
+        x: col1X,
+        y: yPosition - 150,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+
+    page.drawText(formatDate(ticketData.ticket.travelDate), {
+        x: col2X,
+        y: yPosition - 150,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('HORA VIAJE:', {
+        x: col1X,
+        y: yPosition - 170,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.departureTime, {
+        x: col2X,
+        y: yPosition - 170,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+
+    page.drawText('ORIGEN:', {
+        x: col3X,
+        y: yPosition - 150,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.origin, {
+        x: col4X,
+        y: yPosition - 150,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('DESTINO:', {
+        x: col3X,
+        y: yPosition - 170,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(ticketData.ticket.destination, {
+        x: col4X,
+        y: yPosition - 170,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText('A PAGAR  :', {
+        x: col2X,
+        y: yPosition - 200,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+    page.drawText(`${formatNumber(ticketData.ticket.monto_boleto)}`, {
+        x: col3X,
+        y: yPosition - 200,
+        size: 15,
+        font: fontBold,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
+
+
+
+
+    // Pie de página
+    const footerY = 50;
+
+    page.drawText('Copia Empresa', {
+        x: col4X,
+        y: footerY,
+        size: 11,
+        font: fontBold,
+        color: rgb(252 / 255, 107 / 255, 3 / 255),
     });
 
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 };
+
+
+export async function generateBarcodePng(text: string): Promise<Buffer> {
+    if (!text || text.trim() === "") {
+      throw new Error("generateWideBarcode: texto requerido.");
+    }
+  
+    // Código de barras tipo boarding-pass (largo y bajito)
+    return await bwipjs.toBuffer({
+      bcid: "code128",     // Tipo de código
+      text,
+      scaleX: 3,           // ← Más grande horizontalmente
+      scaleY: 1,           // ← Más delgado verticalmente
+      height: 8,           // ← MUY bajo
+      includetext: false,  // No mostrar texto debajo
+      paddingwidth: 0,
+      paddingheight: 0,
+    });
+  }
 
 // Función auxiliar para formatear fechas
 function formatDate(dateString: string): string {
@@ -572,6 +983,18 @@ function formatDate(dateString: string): string {
         return date.toLocaleDateString('es-CL');
     } catch {
         return dateString;
+    }
+}
+
+// Función auxiliar para formatear fecha y hora
+function formatDateTime(dateTimeString?: string): string {
+    if (!dateTimeString) return 'No disponible';
+
+    try {
+        const date = new Date(dateTimeString);
+        return date.toLocaleString('es-CL');
+    } catch {
+        return dateTimeString;
     }
 }
 

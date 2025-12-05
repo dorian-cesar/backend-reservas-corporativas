@@ -43,18 +43,18 @@ export const sendTicketConfirmationEmail = async (
       throw new Error("User email is required");
     }
 
-    const emailData: TicketEmailData = {
-      ticketNumber: ticketData.boleto.numero_ticket,
-      origin: ticketData.origen.origen,
-      destination: ticketData.destino.destino,
-      travelDate: formatDateForEmail(ticketData.origen.fecha_viaje),
-      departureTime: ticketData.origen.hora_salida,
-      seatNumbers: ticketData.boleto.numero_asiento,
-      passengerName: passenger.nombre,
-      passengerDocument: passenger.rut || '',
-      fare: ticketData.pasajero.precio_original,
-      monto_boleto: ticketData.pasajero.precio_boleto,
-      pdfDownloadUrl: `https://reservas-corporativas.dev-wit.com/api/pdf/${ticketData.boleto.numero_ticket}?format=pdf`
+    const emailData = {
+      ticketNumber: ticketData.ticket.ticketNumber,
+      origin: ticketData.ticket.origin,
+      destination: ticketData.ticket.destination,
+      travelDate: formatDateForEmail(ticketData.ticket.travelDate),
+      departureTime: ticketData.ticket.departureTime,
+      seatNumbers: ticketData.ticket.seatNumbers,
+      passengerName: ticketData.pasajero.nombre,
+      passengerDocument: ticketData.pasajero.rut || '',
+      fare: ticketData.ticket.fare,
+      monto_boleto: ticketData.ticket.monto_boleto,
+      pdfDownloadUrl: `https://reservas-corporativas.dev-wit.com/api/pdf/${ticketData.ticket.ticketNumber}?format=pdf`
     };
 
 
@@ -63,12 +63,12 @@ export const sendTicketConfirmationEmail = async (
     const msg = {
       to: userEmail,
       from: "viajes@pullmanbus.cl",
-      subject: `Confirmación de Pasaje - ${ticketData.boleto.numero_ticket}`,
+      subject: `Confirmación de Pasaje - ${ticketData.ticket.ticketNumber}`,
       html,
       attachments: [
         {
           content: pdfBuffer.toString('base64'),
-          filename: `boleto-${ticketData.boleto.numero_ticket}.pdf`,
+          filename: `boleto-${ticketData.ticket.ticketNumber}.pdf`,
           type: 'application/pdf',
           disposition: 'attachment'
         }
@@ -89,7 +89,7 @@ export const sendTicketConfirmationEmail = async (
  */
 export const sendTicketCancellationEmail = async (
   passenger: PassengerInfo,
-  ticketData: TicketPDFData
+  ticketData: any 
 ): Promise<void> => {
   try {
     const userEmail = passenger.email;
@@ -98,7 +98,7 @@ export const sendTicketCancellationEmail = async (
       throw new Error("User email is required");
     }
 
-    const emailData: TicketEmailData = {
+    const emailData = {
       ticketNumber: ticketData.boleto.numero_ticket,
       origin: ticketData.origen.origen,
       destination: ticketData.destino.destino,

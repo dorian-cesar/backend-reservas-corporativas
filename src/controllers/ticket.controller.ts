@@ -269,35 +269,50 @@ export const create = async (
             });
 
             if (emailDestino) {
-                const pdfData = {
-                    origen: {
-                        origen: origin,
-                        fecha_viaje: typeof travelDate === "string" ? travelDate : travelDate.toISOString(),
-                        hora_salida: departureTime
+                const pdfData: TicketPDFData = {
+                    ticket: {
+                        id: ticket.id,
+                        ticketNumber: ticketNumber,
+                        pnrNumber: pnrNumber,
+                        ticketStatus: ticketStatus,
+                        origin: origin,
+                        destination: destination,
+                        travelDate: typeof travelDate === "string" ? travelDate : (travelDate as Date).toISOString().split('T')[0],
+                        departureTime: departureTime,
+                        seatNumbers: seatNumbers,
+                        fare: fare,
+                        monto_boleto: monto_boleto,
+                        monto_devolucion: monto_devolucion || 0,
+                        confirmedAt: typeof confirmedAt === "string" ? confirmedAt : (confirmedAt as Date).toISOString(),
+                        created_at: ticket.created_at?.toISOString(),
+                        updated_at: ticket.updated_at?.toISOString()
                     },
-                    destino: {
-                        destino: destination
+                    cliente: {
+                        id: userData.id,
+                        nombre: userData.nombre || 'No disponible',
+                        rut: userData.rut || null,
+                        email: userData.email || 'No disponible',
+                        rol: userData.rol || null
                     },
-                    boleto: {
-                        numero_asiento: seatNumbers,
-                        numero_ticket: ticketNumber,
-                        pnr_number: pnrNumber,
-                        estado_confirmacion: ticketStatus
+                    empresa: {
+                        id: empresaData.id || null,
+                        nombre: empresaData.nombre || 'No disponible',
+                        rut: empresaData.rut || null,
+                        cuenta_corriente: empresaData.cuenta_corriente || null,
+                        estado: empresaData.estado || null
                     },
                     pasajero: {
-                        nombre: nombrePasajero,
-                        documento: rutPasajero,
-                        precio_original: fare,
-                        precio_boleto: monto_boleto,
-                        precio_devolucion: monto_devolucion || 0
+                        nombre: pasajeroData?.nombre || userData.nombre || 'No disponible',
+                        rut: pasajeroData?.rut || userData.rut || null,
+                        correo: pasajeroData?.correo || userData.email || 'No disponible'
                     }
                 };
-
+                
                 const pdfBytes = await generateTicketPDFTemplate1(pdfData as TicketPDFData);
                 const pdfBuffer = Buffer.from(pdfBytes);
 
                 await sendTicketConfirmationEmail({
-                    email: emailDestino,
+                    email: emailDestino!,
                     nombre: nombrePasajero,
                     rut: rutPasajero
                 }, pdfData, pdfBuffer);
@@ -460,24 +475,24 @@ export const update = async (
 
         if (data.ticketStatus === "Anulado" && estadoAnterior !== "Anulado") {
             try {
-                let emailDestino = null;
-                let nombrePasajero = "Pasajero";
-                let rutPasajero = "";
-
-                if (ticketData.pasajero) {
-                    // Usar datos del pasajero relacionado
-                    emailDestino = ticketData.pasajero.correo;
-                    nombrePasajero = ticketData.pasajero.nombre;
-                    rutPasajero = ticketData.pasajero.rut || '';
-                } else {
-                    // Fallback a datos del usuario
-                    emailDestino = userData.email;
-                    nombrePasajero = userData.nombre;
-                    rutPasajero = userData.rut || '';
+                // Obtener datos para el PDF
+                const empresa = await Empresa.findByPk(userData.empresa_id);
+                const empresaData = empresa ? empresa.toJSON() : null;
+                
+                // Obtener datos del pasajero si existe
+                let pasajeroData = null;
+                if (ticketData.id_pasajero) {
+                    const pasajero = await Pasajero.findByPk(ticketData.id_pasajero);
+                    pasajeroData = pasajero ? pasajero.toJSON() : null;
                 }
-
+        
+                const emailDestino = pasajeroData?.correo || userData.email;
+                const nombrePasajero = pasajeroData?.nombre || userData.nombre;
+                const rutPasajero = pasajeroData?.rut || userData.rut || '';
+        
                 if (emailDestino) {
-                    const pdfData = {
+                    // Preparar datos para el PDF
+                    const pdfDataForCancellation: any = {
                         origen: {
                             origen: ticketData.origin,
                             fecha_viaje: ticketData.travelDate instanceof Date
@@ -502,17 +517,17 @@ export const update = async (
                             precio_devolucion: data.monto_devolucion || ticketData.monto_devolucion
                         }
                     };
-
+        
+                    console.log('[PDF] Datos para PDF de anulación:', pdfDataForCancellation);
+        
                     await sendTicketCancellationEmail({
-                        email: emailDestino,
+                        email: emailDestino!,
                         nombre: nombrePasajero,
                         rut: rutPasajero
-                    }, pdfData);
-
+                    }, pdfDataForCancellation);
+        
                     emailAnulacionSent = true;
                     console.log('[MAIL] Email de anulación enviado exitosamente a:', emailDestino);
-                } else {
-                    console.log('[MAIL] No se puede enviar email de anulación: no hay email disponible');
                 }
             } catch (err) {
                 console.error('[MAIL] Error enviando email de anulación:', err);

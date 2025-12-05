@@ -19,6 +19,7 @@
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
     "bcrypt": "^5.1.0",
+    "bwip-js": "^4.8.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
