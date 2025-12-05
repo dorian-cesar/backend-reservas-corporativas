@@ -43,13 +43,13 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
   @Column({ type: DataType.DATE, allowNull: false })
   fecha_generacion!: Date;
 
-  @Column({ type: DataType.DATE, allowNull: false })
+  @Column({ type: DataType.DATE, allowNull: true })
   fecha_vencimiento!: Date;
 
   @Column({ type: DataType.STRING(19), allowNull: true })
   fecha_inicio?: string;
 
-  @Column({ type: DataType.DATE, allowNull: false })
+  @Column({ type: DataType.DATE, allowNull: true })
   fecha_facturacion!: Date;
 
   @Column({ type: DataType.STRING(19), allowNull: true })
