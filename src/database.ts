@@ -10,6 +10,7 @@ import { User } from "./models/user.model";
 import { CuentaCorriente } from "./models/cuenta_corriente.model";
 import { Ticket } from "./models/ticket.model";
 import * as dotenv from "dotenv";
+import { Pasajero } from "./models/pasajero.model";
 
 dotenv.config();
 
@@ -20,7 +21,7 @@ export const sequelize = new Sequelize({
     username: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "multiempresa_db",
-    models: [Empresa, CentroCosto, User, CuentaCorriente, Ticket, EstadoCuenta],
+    models: [Empresa, CentroCosto, User, CuentaCorriente, Ticket, EstadoCuenta, Pasajero],
     logging: false,
 });
 

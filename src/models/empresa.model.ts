@@ -3,6 +3,7 @@
 import { Table, Column, Model, DataType, HasMany } from 'sequelize-typescript';
 import { CentroCosto } from './centro_costo.model';
 import { CuentaCorriente } from './cuenta_corriente.model';
+import { Pasajero } from './pasajero.model';
 
 /**
  * Interfaz para el modelo Empresa.
@@ -61,4 +62,7 @@ export class Empresa extends Model<IEmpresa> {
 
     @HasMany(() => CuentaCorriente)
     cuentasCorriente!: CuentaCorriente[];
+
+    @HasMany(() => Pasajero, { foreignKey: 'id_empresa' })
+    pasajeros!: Pasajero[];
 }

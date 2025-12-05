@@ -12,6 +12,7 @@ import ticketRoutes from "./routes/ticket.routes";
 import pdfRoutes from "./routes/pdf.routes";
 import estadoCuentaRoutes from "./routes/estadoCuenta.routes"
 import dashboardRoutes from "./routes/dashboard.routes"
+import pasajeroRoutes from "./routes/pasajeros.routes"
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use("/api/estado-cuenta", estadoCuentaRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use("/api/dashboard", dashboardRoutes)
+app.use("/api/pasajeros", pasajeroRoutes)
 
 // Documentación Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
