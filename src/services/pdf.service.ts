@@ -25,7 +25,7 @@ export interface TicketPDFData {
     };
 }
 
-export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint8Array> => {
+export const generateTicketPDFTemplate1 = async (ticketData: TicketPDFData): Promise<Uint8Array> => {
     // Crear un nuevo documento PDF con tamaño A4
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595, 842]); // A4 size in points
@@ -407,6 +407,160 @@ export const generateTicketPDF = async (ticketData: TicketPDFData): Promise<Uint
     });
 
     // Guardar el PDF
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+};
+
+export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Promise<Uint8Array> => {
+    // Crear un nuevo documento PDF con tamaño A4
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595, 842]); // A4 size in points
+    const { width, height } = page.getSize();
+
+    // Obtener fuentes
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Configuración
+    const margin = 40;
+    let yPosition = height - margin;
+
+    const logoPath = path.resolve(__dirname, '../assets/logo-pullman-nuevo.png');
+    const logoBytes = fs.readFileSync(logoPath);
+
+
+    page.drawText('BOLETO ELECTRÓNICO', {
+        x: margin,
+        y: yPosition,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.4, 0.4, 0.4),
+    });
+
+
+    const logoImage = await pdfDoc.embedPng(logoBytes);
+
+    const logoDims = logoImage.scale(0.1);
+
+    page.drawImage(logoImage, {
+        x: margin,
+        y: yPosition - (logoDims.height + 10),
+        width: logoDims.width,
+        height: logoDims.height,
+    });
+
+    page.drawText('Debe acreditar domicilio particular habitual y/o lugar de trabajo en la I o XV Región del país, en control o aduana\n' +
+        'sanitaria, bajo su responsabilidad.', {
+        x: margin,
+        y: yPosition - 80,
+        size: 10,
+        font: font,
+        color: rgb(0.4, 0.4, 0.4),
+        lineHeight: 12
+    });
+
+    yPosition -= 120;
+
+    page.drawText('Datos del Servicio', {
+        x: margin,
+        y: yPosition,
+        size: 12,
+        font: fontBold,
+        color: rgb(252 / 255, 107 / 255, 3 / 255),
+        lineHeight: 12,
+    });
+
+    page.drawRectangle({
+        x: margin,
+        y: yPosition - 200,
+        width: width - margin * 2,
+        height: 180,
+        borderColor: rgb(0.5, 0.5, 0.5),
+        borderWidth: 1, 
+    });
+
+    let xPosition = margin + 30;
+
+    page.drawText('RUT EMPRESA: ', {
+        x: xPosition,
+        y: yPosition - 45,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('CUENTA CORRIENTE: ', {
+        x: xPosition,
+        y: yPosition - 60,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('PASAJERO: ', {
+        x: xPosition,
+        y: yPosition - 75,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('CLIENTE: ', {
+        x: xPosition,
+        y: yPosition - 90,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('ORIGEN: ', {
+        x: xPosition,
+        y: yPosition - 105,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('DESTINO: ', {
+        x: xPosition,
+        y: yPosition - 120,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('FECHA VIAJE: ', {
+        x: xPosition,
+        y: yPosition - 135,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('HORA VIAJE: ', {
+        x: xPosition,
+        y: yPosition - 150,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('ASIENTO: ', {
+        x: xPosition,
+        y: yPosition - 165,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
+    page.drawText('VALOR PAGADO: ', {
+        x: xPosition,
+        y: yPosition - 180,
+        size: 12,
+        font: fontBold,
+        color: rgb(0.3 , 0.3 , 0.3 ),
+    });
+
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 };

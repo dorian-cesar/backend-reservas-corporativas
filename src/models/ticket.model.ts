@@ -11,16 +11,23 @@ import {
     UpdatedAt,
 } from 'sequelize-typescript';
 import { User } from './user.model';
+import { Pasajero } from './pasajero.model';
 
 /**
  * Estado posible del ticket.
  */
 export type TicketStatus = 'Confirmed' | 'Anulado';
 
+
+export interface ITicket extends ITicketBase {
+    // Relaciones que Sequelize agregará
+    user?: User;
+    pasajero?: Pasajero;
+}
 /**
  * Interfaz para el modelo Ticket.
  */
-export interface ITicket {
+export interface ITicketBase {
     id?: number;
     ticketNumber: string;
     pnrNumber?: string;
@@ -35,9 +42,7 @@ export interface ITicket {
     monto_devolucion: number;
     confirmedAt: Date;
     id_User: number;
-    nombre_pasajero: string;
-    rut_pasajero?: string;
-    email_pasajero?: string;
+    id_pasajero?: number;
     created_at?: Date;
     updated_at?: Date;
 }
@@ -92,17 +97,22 @@ export class Ticket extends Model<ITicket> {
     @Column({ type: DataType.INTEGER, allowNull: false })
     id_User!: number;
 
-    @Column({ type: DataType.STRING(150), allowNull: false })
-    nombre_pasajero!: string;
-
-    @Column({ type: DataType.STRING(50), allowNull: true })
-    rut_pasajero?: string;
-
-    @Column({ type: DataType.STRING(150), allowNull: true })
-    email_pasajero?: string;
+    @ForeignKey(() => Pasajero)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true, // Permite NULL para compatibilidad con tickets existentes
+        field: 'id_pasajero'
+    })
+    id_pasajero?: number;
 
     @BelongsTo(() => User)
     user?: User;
+
+    @BelongsTo(() => Pasajero, {
+        foreignKey: 'id_pasajero',
+        targetKey: 'id'
+    })
+    pasajero?: Pasajero;
 
     @CreatedAt
     @Column({ type: DataType.DATE, allowNull: true })

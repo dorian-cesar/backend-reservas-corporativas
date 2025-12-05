@@ -6,9 +6,10 @@ import { Ticket } from "../models/ticket.model";
 import { ITicketCreate, ITicketUpdate } from "../interfaces/ticket.interface";
 import { User } from "../models/user.model";
 import { CentroCosto } from "../models/centro_costo.model";
+import { Pasajero } from "../models/pasajero.model"; // Nueva importación
 
 import { sendTicketCancellationEmail, sendTicketConfirmationEmail } from "../services/mail.service";
-import { generateTicketPDF, TicketPDFData } from "../services/pdf.service";
+import { generateTicketPDFTemplate1, TicketPDFData } from "../services/pdf.service";
 import { Empresa } from "../models/empresa.model";
 
 /**
@@ -22,7 +23,7 @@ function buildTicketFilters(query: any): Record<string, any> {
     const ticketFields = [
         "id", "ticketNumber", "pnrNumber", "ticketStatus", "origin", "destination", "travelDate",
         "departureTime", "seatNumbers", "fare", "monto_boleto", "monto_devolucion",
-        "confirmedAt", "id_User", "nombre_pasajero", "rut_pasajero", "email_pasajero",
+        "confirmedAt", "id_User", "id_pasajero", // Cambiado: ahora usamos id_pasajero
         "created_at", "updated_at"
     ];
 
@@ -61,13 +62,43 @@ export const getTickets = async (req: Request, res: Response) => {
             const users = await User.findAll({ where: { empresa_id } });
             const userIds = users.map(u => u.id);
             filters.id_User = userIds;
-            const tickets = await Ticket.findAll({ where: filters });
-            return res.json(tickets);
+            const tickets = await Ticket.findAll({
+                where: filters,
+                include: [
+                    {
+                        model: User,
+                        attributes: ['id', 'nombre', 'email', 'empresa_id']
+                    },
+                    {
+                        model: Pasajero,
+                        attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    }
+                ]
+            });
+
+            const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+            return res.json(ticketsJSON);
         }
 
         if (rol === "superuser") {
-            const tickets = await Ticket.findAll({ where: filters });
-            return res.json(tickets);
+            const tickets = await Ticket.findAll({
+                where: filters,
+                include: [
+                    {
+                        model: User,
+                        attributes: ['id', 'nombre', 'email', 'empresa_id']
+                    },
+                    {
+                        model: Pasajero,
+                        attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    }
+                ]
+            });
+
+            const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+            return res.json(ticketsJSON);
         }
 
         return res.status(403).json({ message: "No autorizado" });
@@ -99,12 +130,10 @@ export const create = async (
             monto_devolucion,
             confirmedAt,
             id_User,
-            nombre_pasajero,
-            rut_pasajero,
-            email_pasajero
+            id_pasajero
         } = req.body;
 
-
+        // Validar que el usuario existe
         const user = await User.findByPk(id_User);
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
@@ -119,6 +148,26 @@ export const create = async (
                     userEmail: userData.email
                 }
             });
+        }
+
+        let pasajeroData = null;
+        if (id_pasajero) {
+            const pasajero = await Pasajero.findByPk(id_pasajero);
+            if (!pasajero) {
+                return res.status(404).json({ message: "Pasajero no encontrado" });
+            }
+
+            const pasajeroJSON = pasajero.toJSON();
+            if (pasajeroJSON.id_empresa !== userData.empresa_id) {
+                return res.status(400).json({
+                    message: "El pasajero no pertenece a la misma empresa que el usuario",
+                    detalles: {
+                        empresa_pasajero: pasajeroJSON.id_empresa,
+                        empresa_usuario: userData.empresa_id
+                    }
+                });
+            }
+            pasajeroData = pasajeroJSON;
         }
 
         const empresa = await Empresa.findByPk(userData.empresa_id);
@@ -166,16 +215,13 @@ export const create = async (
             seatNumbers,
             fare,
             monto_boleto,
-            monto_devolucion,
+            monto_devolucion: monto_devolucion || 0,
             confirmedAt: typeof confirmedAt === "string" ? new Date(confirmedAt) : confirmedAt,
             id_User,
-            nombre_pasajero,
-            rut_pasajero,
-            email_pasajero
+            id_pasajero
         });
 
         try {
-            // Calcular nuevo monto
             const montoActual = empresaData.monto_acumulado || 0;
             const nuevoMontoAcumulado = montoActual + monto_boleto;
 
@@ -199,12 +245,27 @@ export const create = async (
         let emailError: string | null = null;
 
         try {
-            const emailDestino = email_pasajero || userData.email;
+            // Determinar el email destino
+            let emailDestino = null;
+            let nombrePasajero = "Pasajero";
+            let rutPasajero = "";
+
+            if (pasajeroData) {
+                // Usar datos del pasajero
+                emailDestino = pasajeroData.correo;
+                nombrePasajero = pasajeroData.nombre;
+                rutPasajero = pasajeroData.rut || '';
+            } else {
+                // Fallback a datos del usuario
+                emailDestino = userData.email;
+                nombrePasajero = userData.nombre;
+                rutPasajero = userData.rut || '';
+            }
 
             console.log('[MAIL] Email destino para confirmación:', {
-                emailPasajero: email_pasajero,
-                emailUsuario: userData.email,
-                emailFinal: emailDestino
+                emailDestino,
+                nombrePasajero,
+                tienePasajero: !!pasajeroData
             });
 
             if (emailDestino) {
@@ -220,24 +281,25 @@ export const create = async (
                     boleto: {
                         numero_asiento: seatNumbers,
                         numero_ticket: ticketNumber,
+                        pnr_number: pnrNumber,
                         estado_confirmacion: ticketStatus
                     },
                     pasajero: {
-                        nombre: nombre_pasajero,
-                        documento: rut_pasajero || '',
+                        nombre: nombrePasajero,
+                        documento: rutPasajero,
                         precio_original: fare,
                         precio_boleto: monto_boleto,
-                        precio_devolucion: monto_devolucion
+                        precio_devolucion: monto_devolucion || 0
                     }
                 };
 
-                const pdfBytes = await generateTicketPDF(pdfData as TicketPDFData);
+                const pdfBytes = await generateTicketPDFTemplate1(pdfData as TicketPDFData);
                 const pdfBuffer = Buffer.from(pdfBytes);
 
                 await sendTicketConfirmationEmail({
                     email: emailDestino,
-                    nombre: nombre_pasajero,
-                    rut: rut_pasajero
+                    nombre: nombrePasajero,
+                    rut: rutPasajero
                 }, pdfData, pdfBuffer);
 
                 emailSent = true;
@@ -250,8 +312,28 @@ export const create = async (
             emailError = (err as Error).message;
         }
 
+        const ticketConRelaciones = await Ticket.findByPk(ticket.id, {
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'email']
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false
+                }
+            ]
+        });
+
+        if (!ticketConRelaciones) {
+            return res.status(500).json({ message: "Error al obtener ticket creado" });
+        }
+
+        const ticketJSON = ticketConRelaciones.toJSON();
+
         res.status(201).json({
-            ...ticket.toJSON(),
+            ...ticketJSON,
             emailInfo: {
                 sent: emailSent,
                 error: emailError || null,
@@ -267,6 +349,7 @@ export const create = async (
         res.status(500).json({ message: "Error en servidor" });
     }
 };
+
 /**
  * Actualizar ticket.
  */
@@ -277,19 +360,33 @@ export const update = async (
     try {
         const id = req.params.id;
         const data = req.body;
-        const ticket = await Ticket.findByPk(id, { raw: false });
+
+        const ticket = await Ticket.findByPk(id, {
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'email', 'empresa_id']
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false
+                }
+            ]
+        });
 
         if (!ticket) return res.status(404).json({ message: "Ticket no existe" });
 
-        // Validación de usuario
-        const userId = ticket.getDataValue('id_User');
-        const user = await User.findByPk(userId);
-        if (!user) return res.status(404).json({ message: "Usuario no existe" });
+        const ticketData = ticket.toJSON();
+        const userData = ticketData.user ? ticketData.user : null;
 
-        // if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
+        if (!userData) {
+            return res.status(404).json({ message: "Usuario no existe" });
+        }
+
+        // if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== userData.empresa_id)
         //     return res.status(403).json({ message: "No autorizado" });
 
-        // Normalizar tipos para campos Date
         const updateData: any = { ...data };
         if (updateData.travelDate !== undefined) {
             updateData.travelDate = typeof updateData.travelDate === "string"
@@ -302,15 +399,34 @@ export const update = async (
                 : updateData.confirmedAt;
         }
 
-        const ticketData = ticket.toJSON();
+        if (updateData.id_pasajero !== undefined) {
+            if (updateData.id_pasajero === null) {
+                // Permitir establecer como null
+                updateData.id_pasajero = null;
+            } else if (updateData.id_pasajero) {
+                const pasajero = await Pasajero.findByPk(updateData.id_pasajero);
+                if (!pasajero) {
+                    return res.status(404).json({ message: "Pasajero no encontrado" });
+                }
+
+                const pasajeroJSON = pasajero.toJSON();
+                if (pasajeroJSON.id_empresa !== userData.empresa_id) {
+                    return res.status(400).json({
+                        message: "El pasajero no pertenece a la misma empresa que el usuario",
+                        detalles: {
+                            empresa_pasajero: pasajeroJSON.id_empresa,
+                            empresa_usuario: userData.empresa_id
+                        }
+                    });
+                }
+            }
+        }
+
         const estadoAnterior = ticketData.ticketStatus;
         const montoDevolucionAnterior = ticketData.monto_devolucion || 0;
         const montoDevolucionNuevo = data.monto_devolucion || 0;
 
-        // LÓGICA DE DEVOLUCIÓN cuando se anula un ticket
         if (data.ticketStatus === "Anulado" && estadoAnterior === "Confirmed") {
-            const userData = user.toJSON();
-
             if (userData.empresa_id) {
                 try {
                     const empresa = await Empresa.findByPk(userData.empresa_id);
@@ -341,18 +457,31 @@ export const update = async (
 
         let emailAnulacionSent = false;
         let emailAnulacionError: string | null = null;
-        
+
         if (data.ticketStatus === "Anulado" && estadoAnterior !== "Anulado") {
             try {
-                const userData = user.toJSON();
-                const emailDestino = ticketData.email_pasajero || userData.email;
-        
+                let emailDestino = null;
+                let nombrePasajero = "Pasajero";
+                let rutPasajero = "";
+
+                if (ticketData.pasajero) {
+                    // Usar datos del pasajero relacionado
+                    emailDestino = ticketData.pasajero.correo;
+                    nombrePasajero = ticketData.pasajero.nombre;
+                    rutPasajero = ticketData.pasajero.rut || '';
+                } else {
+                    // Fallback a datos del usuario
+                    emailDestino = userData.email;
+                    nombrePasajero = userData.nombre;
+                    rutPasajero = userData.rut || '';
+                }
+
                 if (emailDestino) {
                     const pdfData = {
                         origen: {
                             origen: ticketData.origin,
-                            fecha_viaje: ticketData.travelDate instanceof Date 
-                                ? ticketData.travelDate.toISOString() 
+                            fecha_viaje: ticketData.travelDate instanceof Date
+                                ? ticketData.travelDate.toISOString()
                                 : ticketData.travelDate,
                             hora_salida: ticketData.departureTime
                         },
@@ -362,24 +491,24 @@ export const update = async (
                         boleto: {
                             numero_asiento: ticketData.seatNumbers,
                             numero_ticket: ticketData.ticketNumber,
+                            pnr_number: ticketData.pnrNumber,
                             estado_confirmacion: "Anulado"
                         },
                         pasajero: {
-                            nombre: ticketData.nombre_pasajero,
-                            documento: ticketData.rut_pasajero || '',
+                            nombre: nombrePasajero,
+                            documento: rutPasajero,
                             precio_original: ticketData.fare,
                             precio_boleto: ticketData.monto_boleto,
                             precio_devolucion: data.monto_devolucion || ticketData.monto_devolucion
                         }
                     };
-        
-        
+
                     await sendTicketCancellationEmail({
                         email: emailDestino,
-                        nombre: ticketData.nombre_pasajero,
-                        rut: ticketData.rut_pasajero
+                        nombre: nombrePasajero,
+                        rut: rutPasajero
                     }, pdfData);
-        
+
                     emailAnulacionSent = true;
                     console.log('[MAIL] Email de anulación enviado exitosamente a:', emailDestino);
                 } else {
@@ -391,12 +520,28 @@ export const update = async (
             }
         }
 
-
+        // Actualizar el ticket
         await ticket.update(updateData);
 
-        // Obtener ticket actualizado
-        const updated = await Ticket.findByPk(id);
-        const respuesta = updated?.toJSON() || {};
+        const ticketActualizado = await Ticket.findByPk(id, {
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'email']
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false
+                }
+            ]
+        });
+
+        if (!ticketActualizado) {
+            return res.status(500).json({ message: "Error al obtener ticket actualizado" });
+        }
+
+        const respuesta = ticketActualizado.toJSON();
 
         res.json({
             ...respuesta,
@@ -427,15 +572,25 @@ export const update = async (
 export const remove = async (req: Request, res: Response) => {
     try {
         const id = req.params.id;
-        const ticket = await Ticket.findByPk(id);
+        const ticket = await Ticket.findByPk(id, {
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'empresa_id']
+                }
+            ]
+        });
 
         if (!ticket) return res.status(404).json({ message: "Ticket no existe" });
 
-        // Validación de usuario
-        const user = await User.findByPk(ticket.id_User);
-        if (!user) return res.status(404).json({ message: "Usuario no existe" });
+        const ticketData = ticket.toJSON();
+        const userData = ticketData.user ? ticketData.user : null;
 
-        if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
+        if (!userData) {
+            return res.status(404).json({ message: "Usuario no existe" });
+        }
+
+        if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== userData.empresa_id)
             return res.status(403).json({ message: "No autorizado" });
 
         await ticket.destroy();
@@ -457,18 +612,31 @@ export const setStatus = async (
         const id = req.params.id;
         const { ticketStatus } = req.body;
 
-        const ticket = await Ticket.findByPk(id);
+        const ticket = await Ticket.findByPk(id, {
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'empresa_id']
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false
+                }
+            ]
+        });
+
         if (!ticket) return res.status(404).json({ message: "Ticket no existe" });
 
         // Convertir a objeto plano
         const ticketData = ticket.toJSON();
+        const userData = ticketData.user ? ticketData.user : null;
 
-        // Validación de usuario
-        const user = await User.findByPk(ticketData.id_User);
-        if (!user) return res.status(404).json({ message: "Usuario no existe" });
+        if (!userData) {
+            return res.status(404).json({ message: "Usuario no existe" });
+        }
 
         // if ((req.user as any).rol === "admin") {
-        //     const userData = user.toJSON();
         //     if (userData.empresa_id !== (req.user as any).empresa_id)
         //         return res.status(403).json({ message: "No autorizado" });
         // }
@@ -477,10 +645,7 @@ export const setStatus = async (
         ticket.ticketStatus = ticketStatus;
         await ticket.save();
 
-        // Si se anula un ticket confirmado, ajustar monto acumulado
         if (estadoAnterior === "Confirmed" && ticketStatus === "Anulado") {
-            const userData = user.toJSON();
-
             if (userData.empresa_id) {
                 try {
                     const empresa = await Empresa.findByPk(userData.empresa_id);
@@ -509,8 +674,28 @@ export const setStatus = async (
             }
         }
 
+        const ticketActualizado = await Ticket.findByPk(id, {
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'email']
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false
+                }
+            ]
+        });
+
+        if (!ticketActualizado) {
+            return res.status(500).json({ message: "Error al obtener ticket actualizado" });
+        }
+
+        const ticketActualizadoJSON = ticketActualizado.toJSON();
+
         res.json({
-            ...ticket.toJSON(),
+            ...ticketActualizadoJSON,
             message: "Estado del ticket actualizado"
         });
     } catch (err) {
@@ -518,7 +703,6 @@ export const setStatus = async (
         res.status(500).json({ message: "Error en servidor" });
     }
 };
-
 
 /**
  * Buscar tickets por ticketNumber
@@ -541,8 +725,23 @@ export const getTicketsByTicketNumber = async (
         // Solo tickets del usuario autenticado
         whereClause.id_User = id;
 
-        const tickets = await Ticket.findAll({ where: whereClause });
-        return res.json(tickets);
+        const tickets = await Ticket.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'email']
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false
+                }
+            ]
+        });
+
+        const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+        return res.json(ticketsJSON);
     } catch (err) {
         console.log(err)
         res.status(500).json({ message: 'Error en servidor' });
@@ -595,11 +794,23 @@ export const getTicketsByEmpresa = async (
                             ]
                         }
                     ]
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false,
+                    include: [
+                        {
+                            model: CentroCosto,
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
                 }
             ]
         });
 
-        return res.json(tickets);
+        const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+        return res.json(ticketsJSON);
     } catch (err) {
         console.log(err)
         console.error(err);
@@ -625,15 +836,28 @@ export const getTicketsByUser = async (
         const filters = buildTicketFilters(req.query);
         filters.id_User = id_User;
 
-        const tickets = await Ticket.findAll({ where: filters });
+        const tickets = await Ticket.findAll({
+            where: filters,
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'email']
+                },
+                {
+                    model: Pasajero,
+                    attributes: ['id', 'nombre', 'rut', 'correo'],
+                    required: false
+                }
+            ]
+        });
 
-        return res.json(tickets);
+        const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+        return res.json(ticketsJSON);
     } catch (err) {
         console.log(err)
         res.status(500).json({ message: "Error en servidor" });
     }
 };
-
 
 export const checkDisponibilidad = async (
     req: Request<{}, {}, { id_User: number; monto_boleto: number }>,

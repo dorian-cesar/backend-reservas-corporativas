@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Ticket } from '../models/ticket.model';
 import { User } from '../models/user.model';
-import { generateTicketPDF } from '../services/pdf.service';
+import { generateTicketPDFTemplate1, generateTicketPDFTemplate2 } from '../services/pdf.service';
 
 export const getTicketsWithPassengerInfo = async (req: Request, res: Response) => {
     try {
@@ -63,7 +63,8 @@ export const getTicketsWithPassengerInfo = async (req: Request, res: Response) =
 
         // Si el usuario quiere PDF
         if (format === 'pdf') {
-            const pdfBytes = await generateTicketPDF(formattedTickets[0]);
+            // const pdfBytes = await generateTicketPDFTemplate1(formattedTickets[0]);
+            const pdfBytes = await generateTicketPDFTemplate1(formattedTickets[0]);
 
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="boleto-${ticketNumber}.pdf"`);

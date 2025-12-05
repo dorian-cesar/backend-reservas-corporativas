@@ -1,8 +1,7 @@
-// src/models/pasajero.model.ts
-
-import { Table, Column, Model, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, ForeignKey, BelongsTo, HasMany } from 'sequelize-typescript';
 import { Empresa } from './empresa.model';
 import { CentroCosto } from './centro_costo.model';
+import { Ticket } from './ticket.model';
 
 /**
  * Interfaz para el modelo Pasajero.
@@ -60,4 +59,7 @@ export class Pasajero extends Model<IPasajero> {
         targetKey: 'id'
     })
     centroCosto?: CentroCosto;
+
+    @HasMany(() => Ticket, { foreignKey: 'id_pasajero' })
+    tickets!: Ticket[];
 }
