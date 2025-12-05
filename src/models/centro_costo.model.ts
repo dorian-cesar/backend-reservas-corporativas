@@ -1,5 +1,6 @@
-import { Table, Column, Model, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, ForeignKey, BelongsTo, HasMany } from 'sequelize-typescript';
 import { Empresa } from './empresa.model';
+import { Pasajero } from './pasajero.model';
 
 @Table({ tableName: 'centros_costo', timestamps: false })
 export class CentroCosto extends Model {
@@ -24,4 +25,7 @@ export class CentroCosto extends Model {
 
     @BelongsTo(() => Empresa)
     empresa!: Empresa;
+
+    @HasMany(() => Pasajero, { foreignKey: 'id_centro_costo' })
+    pasajeros!: Pasajero[];
 }

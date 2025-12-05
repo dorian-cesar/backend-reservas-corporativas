@@ -3,6 +3,7 @@ export interface IPasajeroCreate {
     rut: string;
     correo: string;
     id_empresa: number;
+    id_centro_costo?: number;
 }
 
 export interface IPasajeroUpdate {
@@ -10,6 +11,7 @@ export interface IPasajeroUpdate {
     rut?: string;
     correo?: string;
     id_empresa?: number;
+    id_centro_costo?: number;
 }
 
 export interface IPasajeroFilter {

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Pasajero } from "../models/pasajero.model";
 import { Empresa } from "../models/empresa.model";
+import { CentroCosto } from "../models/centro_costo.model";
 import { Op } from "sequelize";
 
 /**
@@ -12,11 +13,12 @@ export const getPasajeros = async (
         rut?: string;
         correo?: string;
         id_empresa?: string;
+        id_centro_costo?: string;
     }>,
     res: Response
 ) => {
     try {
-        const { nombre, rut, correo, id_empresa } = req.query;
+        const { nombre, rut, correo, id_empresa, id_centro_costo } = req.query;
 
         const whereClause: any = {};
 
@@ -36,26 +38,33 @@ export const getPasajeros = async (
             whereClause.id_empresa = parseInt(id_empresa, 10);
         }
 
+        if (id_centro_costo) {
+            whereClause.id_centro_costo = parseInt(id_centro_costo, 10);
+        }
+
         const pasajeros = await Pasajero.findAll({
             where: whereClause,
             include: [
                 {
                     model: Empresa,
                     attributes: ['id', 'nombre', 'rut', 'cuenta_corriente', 'estado']
+                },
+                {
+                    model: CentroCosto,
+                    attributes: ['id', 'nombre', 'estado'],
+                    required: false // LEFT JOIN para permitir NULL
                 }
             ],
             order: [['nombre', 'ASC']]
         });
 
         const pasajerosJSON = pasajeros.map(pasajero => pasajero.toJSON());
-
         res.json(pasajerosJSON);
     } catch (err) {
         console.error('Error obteniendo pasajeros:', err);
         res.status(500).json({ message: "Error en servidor", error: (err as Error).message });
     }
 };
-
 /**
  * Obtener pasajero por ID.
  */
@@ -97,11 +106,12 @@ export const createPasajero = async (
         rut: string;
         correo: string;
         id_empresa: number;
+        id_centro_costo?: number;
     }>,
     res: Response
 ) => {
     try {
-        const { nombre, rut, correo, id_empresa } = req.body;
+        const { nombre, rut, correo, id_empresa, id_centro_costo } = req.body;
 
         if (!nombre || !rut || !correo || !id_empresa) {
             return res.status(400).json({ message: "faltan campos obligatorios" });
@@ -113,6 +123,25 @@ export const createPasajero = async (
         }
 
         const empresaJSON = empresa.toJSON();
+
+        if (id_centro_costo) {
+            const centroCosto = await CentroCosto.findOne({
+                where: {
+                    id: id_centro_costo,
+                    empresa_id: id_empresa
+                }
+            });
+
+            if (!centroCosto) {
+                return res.status(400).json({
+                    message: "El centro de costo no existe o no pertenece a la empresa seleccionada",
+                    detalles: {
+                        id_centro_costo,
+                        id_empresa
+                    }
+                });
+            }
+        }
 
         const pasajeroExistente = await Pasajero.findOne({
             where: {
@@ -131,18 +160,54 @@ export const createPasajero = async (
             });
         }
 
+        const pasajeroConMismoCorreo = await Pasajero.findOne({
+            where: {
+                correo: correo
+            }
+        });
+
+        if (pasajeroConMismoCorreo) {
+            const pasajeroConMismoCorreoJSON = pasajeroConMismoCorreo.toJSON();
+            return res.status(400).json({
+                message: "Ya existe un pasajero con este correo electrónico",
+                detalles: {
+                    pasajeroId: pasajeroConMismoCorreoJSON.id,
+                    pasajeroNombre: pasajeroConMismoCorreoJSON.nombre,
+                    empresa: pasajeroConMismoCorreoJSON.id_empresa
+                }
+            });
+        }
+
         const pasajero = await Pasajero.create({
             nombre,
             rut,
             correo,
-            id_empresa
+            id_empresa,
+            id_centro_costo: id_centro_costo || 1
         });
 
-        const pasajeroJSON = pasajero.toJSON();
+        const pasajeroConRelaciones = await Pasajero.findByPk(pasajero.id, {
+            include: [
+                {
+                    model: Empresa,
+                    attributes: ['id', 'nombre', 'rut']
+                },
+                {
+                    model: CentroCosto,
+                    attributes: ['id', 'nombre'],
+                    required: false
+                }
+            ]
+        });
+
+        if (!pasajeroConRelaciones) {
+            return res.status(500).json({ message: "Error al obtener pasajero creado" });
+        }
+
+        const pasajeroJSON = pasajeroConRelaciones.toJSON();
 
         res.status(201).json({
             ...pasajeroJSON,
-            empresa: empresaJSON, // Incluir datos de la empresa
             message: "Pasajero creado exitosamente"
         });
     } catch (err) {
@@ -160,6 +225,7 @@ export const updatePasajero = async (
         rut?: string;
         correo?: string;
         id_empresa?: number;
+        id_centro_costo?: number;
     }>,
     res: Response
 ) => {
@@ -174,13 +240,38 @@ export const updatePasajero = async (
 
         const pasajeroActualJSON = pasajero.toJSON();
 
-        if (data.rut && data.rut !== pasajeroActualJSON.rut) {
+
+        if (data.id_centro_costo !== undefined) {
             const empresaId = data.id_empresa || pasajeroActualJSON.id_empresa;
+            
+            if (data.id_centro_costo === null) {
+                data.id_centro_costo = 1;
+            } else if (data.id_centro_costo) {
+                const centroCosto = await CentroCosto.findOne({
+                    where: {
+                        id: data.id_centro_costo,
+                        empresa_id: empresaId
+                    }
+                });
+                
+                if (!centroCosto) {
+                    return res.status(400).json({ 
+                        message: "El centro de costo no existe o no pertenece a la empresa",
+                        detalles: {
+                            id_centro_costo: data.id_centro_costo,
+                            id_empresa: empresaId
+                        }
+                    });
+                }
+            }
+        }
+
+
+        if (data.rut && data.rut !== pasajeroActualJSON.rut) {
 
             const pasajeroConMismoRut = await Pasajero.findOne({
                 where: {
                     rut: data.rut,
-                    id_empresa: empresaId,
                     id: { [Op.ne]: id }
                 }
             });
@@ -188,7 +279,7 @@ export const updatePasajero = async (
             if (pasajeroConMismoRut) {
                 const pasajeroConMismoRutJSON = pasajeroConMismoRut.toJSON();
                 return res.status(400).json({
-                    message: "Ya existe otro pasajero con este RUT en la empresa",
+                    message: "Ya existe otro pasajero con este RUT",
                     detalles: {
                         pasajeroId: pasajeroConMismoRutJSON.id,
                         pasajeroNombre: pasajeroConMismoRutJSON.nombre
