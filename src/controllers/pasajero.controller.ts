@@ -113,37 +113,31 @@ export const createPasajero = async (
             return res.status(400).json({ message: "faltan campos obligatorios" });
         }
 
+        const rutNormalizado = rut
+            .replace(/[\.\-]/g, '') // Eliminar puntos y guiones
+            .toUpperCase() // Convertir a mayúsculas
+            .trim();
+
+        const correoNormalizado = correo.toLowerCase().trim();
+
         const empresa = await Empresa.findByPk(id_empresa);
         if (!empresa) {
             return res.status(404).json({ message: "Empresa no encontrada" });
         }
 
-        const empresaJSON = empresa.toJSON();
-
-        if (id_centro_costo) {
-            const centroCosto = await CentroCosto.findOne({
-                where: {
-                    id: id_centro_costo,
-                    empresa_id: id_empresa
-                }
-            });
-
-            if (!centroCosto) {
-                return res.status(400).json({
-                    message: "El centro de costo no existe o no pertenece a la empresa seleccionada",
-                    detalles: {
-                        id_centro_costo,
-                        id_empresa
-                    }
-                });
-            }
-        }
-
+        // Buscar pasajero existente con RUT normalizado
         const pasajeroExistente = await Pasajero.findOne({
             where: {
-                rut: rut
+                rut: rutNormalizado
             }
         });
+
+
+        console.log('Buscando pasajero con RUT:', rut);
+        console.log('Resultado de búsqueda:', pasajeroExistente ? 'ENCONTRADO' : 'NO ENCONTRADO');
+        if (pasajeroExistente) {
+            console.log('Pasajero encontrado:', pasajeroExistente.toJSON());
+        }
 
         if (pasajeroExistente) {
             const pasajeroExistenteJSON = pasajeroExistente.toJSON();
@@ -151,14 +145,16 @@ export const createPasajero = async (
                 message: "Ya existe un pasajero con este RUT",
                 detalles: {
                     pasajeroId: pasajeroExistenteJSON.id,
-                    pasajeroNombre: pasajeroExistenteJSON.nombre
+                    pasajeroNombre: pasajeroExistenteJSON.nombre,
+                    rutIngresado: rut,
+                    rutExistente: pasajeroExistenteJSON.rut
                 }
             });
         }
 
         const pasajeroConMismoCorreo = await Pasajero.findOne({
             where: {
-                correo: correo
+                correo: correoNormalizado
             }
         });
 
@@ -175,9 +171,9 @@ export const createPasajero = async (
         }
 
         const pasajero = await Pasajero.create({
-            nombre,
-            rut,
-            correo,
+            nombre: nombre.trim(),
+            rut: rutNormalizado,
+            correo: correoNormalizado,
             id_empresa,
             id_centro_costo: id_centro_costo || 1
         });
@@ -239,7 +235,7 @@ export const updatePasajero = async (
 
         if (data.id_centro_costo !== undefined) {
             const empresaId = data.id_empresa || pasajeroActualJSON.id_empresa;
-            
+
             if (data.id_centro_costo === null) {
                 data.id_centro_costo = 1;
             } else if (data.id_centro_costo) {
@@ -249,9 +245,9 @@ export const updatePasajero = async (
                         empresa_id: empresaId
                     }
                 });
-                
+
                 if (!centroCosto) {
-                    return res.status(400).json({ 
+                    return res.status(400).json({
                         message: "El centro de costo no existe o no pertenece a la empresa",
                         detalles: {
                             id_centro_costo: data.id_centro_costo,
