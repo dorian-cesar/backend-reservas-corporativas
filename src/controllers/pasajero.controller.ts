@@ -113,31 +113,40 @@ export const createPasajero = async (
             return res.status(400).json({ message: "faltan campos obligatorios" });
         }
 
-        const rutNormalizado = rut
-            .replace(/[\.\-]/g, '') // Eliminar puntos y guiones
-            .toUpperCase() // Convertir a mayúsculas
-            .trim();
-
-        const correoNormalizado = correo.toLowerCase().trim();
-
         const empresa = await Empresa.findByPk(id_empresa);
         if (!empresa) {
             return res.status(404).json({ message: "Empresa no encontrada" });
         }
 
-        // Buscar pasajero existente con RUT normalizado
+        const empresaJSON = empresa.toJSON();
+
+        if (id_centro_costo) {
+            const centroCosto = await CentroCosto.findOne({
+                where: {
+                    id: id_centro_costo,
+                    empresa_id: id_empresa
+                }
+            });
+
+            if (!centroCosto) {
+                return res.status(400).json({
+                    message: "El centro de costo no existe o no pertenece a la empresa seleccionada",
+                    detalles: {
+                        id_centro_costo,
+                        id_empresa
+                    }
+                });
+            }
+        }
+
         const pasajeroExistente = await Pasajero.findOne({
             where: {
-                rut: rutNormalizado
+                rut: rut
             }
         });
 
-
-        console.log('Buscando pasajero con RUT:', rut);
-        console.log('Resultado de búsqueda:', pasajeroExistente ? 'ENCONTRADO' : 'NO ENCONTRADO');
-        if (pasajeroExistente) {
-            console.log('Pasajero encontrado:', pasajeroExistente.toJSON());
-        }
+        console.log('Resultado de búsqueda por RUT:', pasajeroExistente ? 'Encontrado' : 'No encontrado');
+        console.log('RUT buscado:', rut);
 
         if (pasajeroExistente) {
             const pasajeroExistenteJSON = pasajeroExistente.toJSON();
@@ -145,16 +154,14 @@ export const createPasajero = async (
                 message: "Ya existe un pasajero con este RUT",
                 detalles: {
                     pasajeroId: pasajeroExistenteJSON.id,
-                    pasajeroNombre: pasajeroExistenteJSON.nombre,
-                    rutIngresado: rut,
-                    rutExistente: pasajeroExistenteJSON.rut
+                    pasajeroNombre: pasajeroExistenteJSON.nombre
                 }
             });
         }
 
         const pasajeroConMismoCorreo = await Pasajero.findOne({
             where: {
-                correo: correoNormalizado
+                correo: correo
             }
         });
 
@@ -170,10 +177,17 @@ export const createPasajero = async (
             });
         }
 
+
+        console.log('RUT recibido:', rut);
+        console.log('Correo recibido:', correo);
+        console.log('Empresa ID:', id_empresa);
+
+
+
         const pasajero = await Pasajero.create({
-            nombre: nombre.trim(),
-            rut: rutNormalizado,
-            correo: correoNormalizado,
+            nombre,
+            rut,
+            correo,
             id_empresa,
             id_centro_costo: id_centro_costo || 1
         });
