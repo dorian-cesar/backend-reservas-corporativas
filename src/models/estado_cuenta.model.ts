@@ -35,47 +35,47 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
 
   @ForeignKey(() => Empresa)
   @Column({ type: DataType.INTEGER, allowNull: false })
-  empresa_id!: number;
+  declare empresa_id: number;
 
   @Column({ type: DataType.STRING(7), allowNull: false })
-  periodo!: string;
+  declare periodo: string;
 
   @Column({ type: DataType.DATE, allowNull: false })
-  fecha_generacion!: Date;
+  declare fecha_generacion: Date;
 
   @Column({ type: DataType.DATE, allowNull: true })
-  fecha_vencimiento!: Date;
+  declare fecha_vencimiento: Date;
 
   @Column({ type: DataType.STRING(19), allowNull: true })
-  fecha_inicio?: string;
+  declare fecha_inicio?: string;
 
   @Column({ type: DataType.DATE, allowNull: true })
-  fecha_facturacion!: Date;
+  declare fecha_facturacion: Date;
 
   @Column({ type: DataType.STRING(19), allowNull: true })
-  fecha_fin?: string;
+  declare fecha_fin?: string;
 
   @Column({ type: DataType.INTEGER, allowNull: false })
-  total_tickets!: number;
+  declare total_tickets: number;
 
   @Column({ type: DataType.INTEGER, allowNull: false })
-  total_tickets_anulados!: number;
+  declare total_tickets_anulados: number;
 
   @Column({ type: DataType.DECIMAL(12, 2), allowNull: false })
-  monto_facturado!: number;
+  declare monto_facturado: number;
 
   @Column({ type: DataType.DECIMAL(12, 2), allowNull: false })
-  suma_devoluciones!: number;
+  declare suma_devoluciones: number;
 
   @Column({ type: DataType.TEXT, allowNull: false })
-  detalle_por_cc!: string;
+  declare detalle_por_cc: string;
 
   @Column({ type: DataType.BOOLEAN, defaultValue: false })
-  pagado!: boolean;
+  declare pagado: boolean;
 
   @Column({ type: DataType.DATE, allowNull: true })
-  fecha_pago?: Date;
+  declare fecha_pago?: Date;
 
   @BelongsTo(() => Empresa)
-  empresa!: Empresa;
+  declare empresa: Empresa;
 }
