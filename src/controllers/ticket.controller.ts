@@ -9,7 +9,7 @@ import { CentroCosto } from "../models/centro_costo.model";
 import { Pasajero } from "../models/pasajero.model"; // Nueva importación
 
 import { sendTicketCancellationEmail, sendTicketConfirmationEmail } from "../services/mail.service";
-import { generateTicketPDFTemplate1, TicketPDFData } from "../services/pdf.service";
+import { generateTicketPDFTemplate1, generateTicketPDFTemplate2, TicketPDFData } from "../services/pdf.service";
 import { Empresa } from "../models/empresa.model";
 
 /**
@@ -308,7 +308,7 @@ export const create = async (
                     }
                 };
                 
-                const pdfBytes = await generateTicketPDFTemplate1(pdfData as TicketPDFData);
+                const pdfBytes = await generateTicketPDFTemplate2(pdfData as TicketPDFData);
                 const pdfBuffer = Buffer.from(pdfBytes);
 
                 await sendTicketConfirmationEmail({
