@@ -87,7 +87,7 @@ describe("Ticket Controller", () => {
         confirmedAt: "2025-11-25T16:38:58.962Z",
         id_User: testUser.id,
         monto_devolucion: 0,
-        nombre_pasajero: "Test User",
+        id_pasajero: 1,
       };
 
       const res = await request(app)
@@ -117,7 +117,7 @@ describe("Ticket Controller", () => {
         confirmedAt: "2025-11-25T16:38:58.962Z",
         id_User: 99999,
         monto_devolucion: 0,
-        nombre_pasajero: "Test User",
+        id_pasajero: 1,
       };
 
       const res = await request(app)
