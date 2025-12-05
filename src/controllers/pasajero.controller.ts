@@ -22,16 +22,12 @@ export const getPasajeros = async (
 
         const whereClause: any = {};
 
-        if (nombre) {
-            whereClause.nombre = { [Op.like]: `%${nombre}%` };
-        }
-
         if (rut) {
-            whereClause.rut = { [Op.like]: `%${rut}%` };
+            whereClause.rut = String(rut);
         }
 
         if (correo) {
-            whereClause.correo = { [Op.like]: `%${correo}%` };
+            whereClause.correo = String(correo);
         }
 
         if (id_empresa) {
