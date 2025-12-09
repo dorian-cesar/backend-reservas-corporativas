@@ -12,6 +12,27 @@ export const getUsers = async (req: Request, res: Response) => {
         const rol = (req.user as any).rol;
         const empresa_id = (req.user as any).empresa_id;
 
+        if (empresa_id === 1) {
+            if (rol === "superuser" || rol === "contralor") {
+                const users = await User.findAll({
+                    where: {
+                        rol: { [Op.ne]: "superuser" }
+                    }
+                });
+                return res.json(users);
+            }
+
+            if (rol === "admin") {
+                const users = await User.findAll({
+                    where: {
+                        empresa_id: 1,
+                        rol: { [Op.ne]: "superuser" }
+                    }
+                });
+                return res.json(users);
+            }
+        }
+
         if (rol === "admin") {
             const users = await User.findAll({
                 where: {
@@ -25,7 +46,10 @@ export const getUsers = async (req: Request, res: Response) => {
         if (rol === "superuser" || rol === "contralor") {
             const users = await User.findAll({
                 where: {
-                    rol: { [Op.ne]: "superuser" }
+                    [Op.and]: [
+                        { rol: { [Op.ne]: "superuser" } },
+                        { empresa_id: { [Op.ne]: 1 } }
+                    ]
                 }
             });
             return res.json(users);
