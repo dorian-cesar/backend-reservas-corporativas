@@ -3,23 +3,62 @@
 import { Request, Response } from "express";
 import { Empresa } from "../models/empresa.model";
 import { IEmpresaCreate, IEmpresaUpdate } from "../interfaces/empresa.interface";
+import { Op } from "sequelize";
 
 /**
  * Listar todas las empresas.
  */
 export const listarEmpresas = async (req: Request, res: Response) => {
-    const empresas = await Empresa.findAll();
-    res.json(empresas);
+    try {
+        const user = req.user as any;
+        const rol = user.rol;
+        const empresa_id = user.empresa_id;
+
+        let whereCondition: any = {};
+
+        if (rol !== "superuser" && empresa_id !== 1) {
+            whereCondition = {
+                id: { [Op.ne]: 1 } // Excluir empresa 1
+            };
+        }
+
+        const empresas = await Empresa.findAll({
+            where: whereCondition,
+            order: [['id', 'ASC']]
+        });
+
+        res.json(empresas);
+    } catch (error) {
+        res.status(500).json({ message: "Error en servidor", error: (error as Error).message });
+    }
 };
 
 /**
  * Obtener una empresa por ID.
  */
 export const obtenerEmpresa = async (req: Request, res: Response) => {
-    const empresa = await Empresa.findByPk(req.params.id);
-    if (!empresa) return res.status(404).json({ message: "No encontrada" });
-    res.json(empresa);
+    try {
+        const id = parseInt(req.params.id);
+        const user = req.user as any;
+        const rol = user.rol;
+        const empresa_id = user.empresa_id;
+
+        // Si se intenta acceder a empresa 1 y el usuario no tiene permisos
+        if (id === 1 && rol !== "superuser" && empresa_id !== 1) {
+            return res.status(403).json({
+                message: "No autorizado para ver esta empresa"
+            });
+        }
+
+        const empresa = await Empresa.findByPk(id);
+        if (!empresa) return res.status(404).json({ message: "No encontrada" });
+
+        res.json(empresa);
+    } catch (error) {
+        res.status(500).json({ message: "Error en servidor", error: (error as Error).message });
+    }
 };
+
 
 /**
  * Crear una empresa.
