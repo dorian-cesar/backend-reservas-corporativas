@@ -34,14 +34,23 @@ export interface PassengerInfo {
 export const sendTicketConfirmationEmail = async (
   passenger: PassengerInfo,
   ticketData: TicketPDFData,
-  pdfBuffer: Buffer
+  pdfBuffer: Buffer,
+  cc?: string | string[]
 ): Promise<void> => {
   try {
-    const userEmail = passenger.email;
+    const userEmail = passenger.email?.toString().trim();
 
     if (!userEmail) {
       throw new Error("User email is required");
     }
+
+    let ccList: string[] = [];
+    if (cc) {
+      if (Array.isArray(cc)) ccList = cc.map(c => c?.toString().trim()).filter(Boolean) as string[];
+      else ccList = [cc.toString().trim()];
+    }
+
+    ccList = Array.from(new Set(ccList.filter(c => c && c.toLowerCase() !== userEmail.toLowerCase())));
 
     const emailData = {
       ticketNumber: ticketData.ticket.ticketNumber,
@@ -57,10 +66,9 @@ export const sendTicketConfirmationEmail = async (
       pdfDownloadUrl: `https://reservas-corporativas.dev-wit.com/api/pdf/${ticketData.ticket.ticketNumber}?format=pdf`
     };
 
-
     const html = generateTicketEmailHTML(emailData);
 
-    const msg = {
+    const msg: any = {
       to: userEmail,
       from: "viajes@pullmanbus.cl",
       subject: `Confirmación de Pasaje - ${ticketData.ticket.ticketNumber}`,
@@ -75,9 +83,12 @@ export const sendTicketConfirmationEmail = async (
       ]
     };
 
-    await sgMail.send(msg);
-    console.log('✅ [Mail Service] Email enviado exitosamente a:', userEmail);
+    if (ccList.length > 0) {
+      msg.cc = ccList;
+    }
 
+    await sgMail.send(msg);
+    console.log('✅ [Mail Service] Email enviado exitosamente a:', userEmail, 'cc:', ccList);
   } catch (error) {
     console.error('❌ [Mail Service] Error enviando email:', error);
     throw new Error(`Error al enviar email: ${error}`);
@@ -89,7 +100,7 @@ export const sendTicketConfirmationEmail = async (
  */
 export const sendTicketCancellationEmail = async (
   passenger: PassengerInfo,
-  ticketData: any 
+  ticketData: any
 ): Promise<void> => {
   try {
     const userEmail = passenger.email;

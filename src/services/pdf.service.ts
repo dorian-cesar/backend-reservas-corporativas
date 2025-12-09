@@ -641,6 +641,14 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
         color: rgb(0.3, 0.3, 0.3),
     });
 
+    page.drawText(ticketData.cliente.email || '', {
+        x: col2X,
+        y: yPosition - 130,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+    });
+
     page.drawText(ticketData.cliente.rut || 'No disponible', {
         x: col3X,
         y: yPosition - 115,
@@ -652,7 +660,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
     // Información del pasajero
     page.drawText('PASAJERO:', {
         x: col1X,
-        y: yPosition - 135,
+        y: yPosition - 150,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -660,7 +668,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.pasajero.nombre, {
         x: col2X,
-        y: yPosition - 135,
+        y: yPosition - 150,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -668,15 +676,15 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.pasajero.rut || 'No disponible', {
         x: col3X,
-        y: yPosition - 135,
+        y: yPosition - 150,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
     });
 
     page.drawText(ticketData.pasajero.correo || '', {
-        x: col4X,
-        y: yPosition - 135,
+        x: col2X,
+        y: yPosition - 165,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -685,7 +693,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
     // Información del viaje
     page.drawText('ORIGEN:', {
         x: col1X,
-        y: yPosition - 165,
+        y: yPosition - 195,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -693,7 +701,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.ticket.origin, {
         x: col2X,
-        y: yPosition - 165,
+        y: yPosition - 195,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -701,7 +709,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('DESTINO:', {
         x: col1X,
-        y: yPosition - 185,
+        y: yPosition - 215,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -709,7 +717,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.ticket.destination, {
         x: col2X,
-        y: yPosition - 185,
+        y: yPosition - 215,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -717,7 +725,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('FECHA VIAJE:', {
         x: col1X,
-        y: yPosition - 215,
+        y: yPosition - 245,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -725,7 +733,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(formatDate(ticketData.ticket.travelDate), {
         x: col2X,
-        y: yPosition - 215,
+        y: yPosition - 245,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -733,7 +741,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('HORA VIAJE:', {
         x: col1X,
-        y: yPosition - 235,
+        y: yPosition - 265,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -741,7 +749,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.ticket.departureTime, {
         x: col2X,
-        y: yPosition - 235,
+        y: yPosition - 265,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -749,7 +757,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('ASIENTO:', {
         x: col1X,
-        y: yPosition - 265,
+        y: yPosition - 295,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -757,7 +765,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.ticket.seatNumbers, {
         x: col2X,
-        y: yPosition - 265,
+        y: yPosition - 295,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -765,7 +773,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('Nº BOLETO:', {
         x: col1X,
-        y: yPosition - 285,
+        y: yPosition - 315,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -773,14 +781,14 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.ticket.pnrNumber || '', {
         x: col2X,
-        y: yPosition - 285,
+        y: yPosition - 315,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
     });
 
     page.drawText('VALOR PAGADO:', {
-        x: col1X,
+        x: col3X,
         y: yPosition - 315,
         size: 13,
         font: fontBold,
@@ -788,7 +796,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
     });
 
     page.drawText(`${formatNumber(ticketData.ticket.monto_boleto)}`, {
-        x: col2X,
+        x: col4X,
         y: yPosition - 315,
         size: 16,
         font: fontBold,

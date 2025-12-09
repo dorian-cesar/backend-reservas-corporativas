@@ -307,15 +307,25 @@ export const create = async (
                         correo: pasajeroData?.correo || userData.email || 'No disponible'
                     }
                 };
-                
+
                 const pdfBytes = await generateTicketPDFTemplate2(pdfData as TicketPDFData);
                 const pdfBuffer = Buffer.from(pdfBytes);
 
-                await sendTicketConfirmationEmail({
-                    email: emailDestino!,
-                    nombre: nombrePasajero,
-                    rut: rutPasajero
-                }, pdfData, pdfBuffer);
+                const destinatarioPrincipal = emailDestino!;
+                const copiaUsuario = userData.email;
+
+                const shouldAddCc = copiaUsuario && copiaUsuario.trim().toLowerCase() !== destinatarioPrincipal.trim().toLowerCase();
+
+                await sendTicketConfirmationEmail(
+                    {
+                        email: destinatarioPrincipal,
+                        nombre: nombrePasajero,
+                        rut: rutPasajero
+                    },
+                    pdfData,
+                    pdfBuffer,
+                    shouldAddCc ? copiaUsuario : undefined
+                );
 
                 emailSent = true;
                 console.log('[MAIL] Email enviado exitosamente a:', emailDestino);
@@ -478,18 +488,18 @@ export const update = async (
                 // Obtener datos para el PDF
                 const empresa = await Empresa.findByPk(userData.empresa_id);
                 const empresaData = empresa ? empresa.toJSON() : null;
-                
+
                 // Obtener datos del pasajero si existe
                 let pasajeroData = null;
                 if (ticketData.id_pasajero) {
                     const pasajero = await Pasajero.findByPk(ticketData.id_pasajero);
                     pasajeroData = pasajero ? pasajero.toJSON() : null;
                 }
-        
+
                 const emailDestino = pasajeroData?.correo || userData.email;
                 const nombrePasajero = pasajeroData?.nombre || userData.nombre;
                 const rutPasajero = pasajeroData?.rut || userData.rut || '';
-        
+
                 if (emailDestino) {
                     // Preparar datos para el PDF
                     const pdfDataForCancellation: any = {
@@ -517,15 +527,15 @@ export const update = async (
                             precio_devolucion: data.monto_devolucion || ticketData.monto_devolucion
                         }
                     };
-        
+
                     console.log('[PDF] Datos para PDF de anulación:', pdfDataForCancellation);
-        
+
                     await sendTicketCancellationEmail({
                         email: emailDestino!,
                         nombre: nombrePasajero,
                         rut: rutPasajero
                     }, pdfDataForCancellation);
-        
+
                     emailAnulacionSent = true;
                     console.log('[MAIL] Email de anulación enviado exitosamente a:', emailDestino);
                 }
