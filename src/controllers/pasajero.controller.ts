@@ -101,13 +101,14 @@ export const createPasajero = async (
         nombre: string;
         rut: string;
         correo: string;
+        telefono?: string;
         id_empresa: number;
         id_centro_costo?: number;
     }>,
     res: Response
 ) => {
     try {
-        const { nombre, rut, correo, id_empresa, id_centro_costo } = req.body;
+        const { nombre, rut, correo, telefono, id_empresa, id_centro_costo } = req.body;
 
         if (!nombre || !rut || !correo || !id_empresa) {
             return res.status(400).json({ message: "faltan campos obligatorios" });
@@ -144,9 +145,6 @@ export const createPasajero = async (
                 rut: rut
             }
         });
-
-        console.log('Resultado de búsqueda por RUT:', pasajeroExistente ? 'Encontrado' : 'No encontrado');
-        console.log('RUT buscado:', rut);
 
         if (pasajeroExistente) {
             const pasajeroExistenteJSON = pasajeroExistente.toJSON();
@@ -188,6 +186,7 @@ export const createPasajero = async (
             nombre,
             rut,
             correo,
+            telefono,
             id_empresa,
             id_centro_costo: id_centro_costo || 1
         });
@@ -230,6 +229,7 @@ export const updatePasajero = async (
         nombre?: string;
         rut?: string;
         correo?: string;
+        telefono?: string;
         id_empresa?: number;
         id_centro_costo?: number;
     }>,
@@ -352,7 +352,8 @@ export const deletePasajero = async (
                 id: pasajeroJSON.id,
                 nombre: pasajeroJSON.nombre,
                 rut: pasajeroJSON.rut,
-                correo: pasajeroJSON.correo
+                correo: pasajeroJSON.correo,
+                telefono: pasajeroJSON.telefono
             }
         });
     } catch (err) {

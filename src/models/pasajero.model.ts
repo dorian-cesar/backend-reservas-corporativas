@@ -19,6 +19,7 @@ export interface IPasajero {
   nombre: string;
   rut: string;
   correo: string;
+  telefono?: string;
   id_empresa: number;
   id_centro_costo?: number;
 }
@@ -39,6 +40,9 @@ export class Pasajero extends Model<IPasajero> {
 
   @Column({ type: DataType.STRING(255), allowNull: false, unique: true })
   declare correo: string;
+
+  @Column({ type: DataType.STRING(20), allowNull: true })
+  declare telefono?: string;
 
   @ForeignKey(() => Empresa)
   @Column({
