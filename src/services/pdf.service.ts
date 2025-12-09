@@ -12,6 +12,8 @@ export interface TicketPDFData {
         ticketStatus: string;
         origin: string;
         destination: string;
+        terminal_origen: string;
+        terminal_destino: string
         travelDate: string;
         departureTime: string;
         seatNumbers: string;
@@ -699,7 +701,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
         color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText(ticketData.ticket.origin, {
+    page.drawText(`${ticketData.ticket.origin} - ${ticketData.ticket.terminal_origen}`, {
         x: col2X,
         y: yPosition - 195,
         size: 12,
@@ -715,7 +717,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
         color: rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText(ticketData.ticket.destination, {
+    page.drawText(`${ticketData.ticket.destination} - ${ticketData.ticket.terminal_destino}`, {
         x: col2X,
         y: yPosition - 215,
         size: 12,

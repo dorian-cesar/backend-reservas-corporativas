@@ -11,6 +11,8 @@ export interface ITicketCreate {
     ticketStatus: TicketStatus;
     origin: string;
     destination: string;
+    terminal_origen?: string;
+    terminal_destino?: string;
     travelDate: Date | string;
     departureTime: string;
     seatNumbers: string;
@@ -31,6 +33,8 @@ export interface ITicketUpdate {
     ticketStatus?: TicketStatus;
     origin?: string;
     destination?: string;
+    terminal_origen?: string;
+    terminal_destino?: string;
     travelDate?: Date | string;
     departureTime?: string;
     seatNumbers?: string;

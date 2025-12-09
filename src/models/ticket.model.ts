@@ -19,7 +19,6 @@ import { Pasajero } from "./pasajero.model";
 export type TicketStatus = "Confirmed" | "Anulado";
 
 export interface ITicket extends ITicketBase {
-  // Relaciones que Sequelize agregará
   user?: User;
   pasajero?: Pasajero;
 }
@@ -33,6 +32,8 @@ export interface ITicketBase {
   ticketStatus: TicketStatus;
   origin: string;
   destination: string;
+  terminal_origen?: string;
+  terminal_destino?: string;
   travelDate: Date;
   departureTime: string;
   seatNumbers: string;
@@ -70,6 +71,12 @@ export class Ticket extends Model<ITicket> {
 
   @Column({ type: DataType.STRING(100), allowNull: false })
   declare destination: string;
+
+  @Column({ type: DataType.STRING(100), allowNull: true })
+  declare terminal_origen?: string;
+
+  @Column({ type: DataType.STRING(100), allowNull: true })
+  declare terminal_destino?: string;
 
   @Column({ type: DataType.DATEONLY, allowNull: false })
   declare travelDate: Date;

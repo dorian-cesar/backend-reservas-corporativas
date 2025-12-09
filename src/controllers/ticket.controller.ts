@@ -21,9 +21,10 @@ import { Empresa } from "../models/empresa.model";
 function buildTicketFilters(query: any): Record<string, any> {
     const filters: Record<string, any> = {};
     const ticketFields = [
-        "id", "ticketNumber", "pnrNumber", "ticketStatus", "origin", "destination", "travelDate",
-        "departureTime", "seatNumbers", "fare", "monto_boleto", "monto_devolucion",
-        "confirmedAt", "id_User", "id_pasajero", // Cambiado: ahora usamos id_pasajero
+        "id", "ticketNumber", "pnrNumber", "ticketStatus", "origin", "destination",
+        "terminal_origen", "terminal_destino",
+        "travelDate", "departureTime", "seatNumbers", "fare", "monto_boleto", "monto_devolucion",
+        "confirmedAt", "id_User", "id_pasajero",
         "created_at", "updated_at"
     ];
 
@@ -122,6 +123,8 @@ export const create = async (
             ticketStatus,
             origin,
             destination,
+            terminal_origen,
+            terminal_destino,
             travelDate,
             departureTime,
             seatNumbers,
@@ -210,6 +213,8 @@ export const create = async (
             ticketStatus,
             origin,
             destination,
+            terminal_origen,
+            terminal_destino,
             travelDate: typeof travelDate === "string" ? new Date(travelDate) : travelDate,
             departureTime,
             seatNumbers,
@@ -277,6 +282,8 @@ export const create = async (
                         ticketStatus: ticketStatus,
                         origin: origin,
                         destination: destination,
+                        terminal_origen: terminal_origen || '',
+                        terminal_destino: terminal_destino || '',
                         travelDate: typeof travelDate === "string" ? travelDate : (travelDate as Date).toISOString().split('T')[0],
                         departureTime: departureTime,
                         seatNumbers: seatNumbers,
