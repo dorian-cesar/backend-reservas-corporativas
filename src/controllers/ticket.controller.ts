@@ -799,7 +799,11 @@ export const getTicketsByEmpresa = async (
         const filters = buildTicketFilters(req.query);
         filters.id_User = userIds;
 
-        const tickets = await Ticket.findAll({
+        const page = Math.max(1, parseInt((req.query.page as string) || "1", 10) || 1);
+        const limit = Math.max(1, parseInt((req.query.limit as string) || "10", 10) || 10);
+        const offset = (page - 1) * limit;
+
+        const result = await Ticket.findAndCountAll({
             where: filters,
             include: [
                 {
@@ -838,14 +842,28 @@ export const getTicketsByEmpresa = async (
                         }
                     ]
                 }
-            ]
+            ],
+            limit,
+            offset,
+            order: [['id', 'ASC']]
         });
 
-        const ticketsJSON = tickets.map(ticket => ticket.toJSON());
-        return res.json(ticketsJSON);
+        const tickets = result.rows.map(t => t.toJSON());
+        const total = result.count;
+
+        return res.json({
+            tickets,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.max(1, Math.ceil(total / limit)),
+                hasNextPage: page < Math.ceil(total / limit),
+                hasPrevPage: page > 1
+            }
+        });
     } catch (err) {
-        console.log(err)
-        console.error(err);
+        console.error("Error getTicketsByEmpresa:", err);
         res.status(500).json({ message: "Error en servidor" });
     }
 };

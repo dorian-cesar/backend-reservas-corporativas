@@ -5,54 +5,151 @@ import { User } from "../models/user.model";
 import { IUserCreate, IUserUpdate } from "../interfaces/user.interface";
 import { Empresa } from "../models/empresa.model";
 import { CentroCosto } from "../models/centro_costo.model";
-import { Op } from "sequelize";
+import { Op, fn, col } from "sequelize";
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
         const rol = (req.user as any).rol;
         const empresa_id = (req.user as any).empresa_id;
 
+        const email = (req.query.email as string) || null;
+
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const offset = (page - 1) * limit;
+
+        let users, total;
+
+        let baseWhere: any = {};
+
+        if (email) {
+            baseWhere.email = email;
+        }
+
         if (empresa_id === 1) {
             if (rol === "superuser" || rol === "contralor") {
-                const users = await User.findAll({
-                    where: {
-                        rol: { [Op.ne]: "superuser" }
+
+                const where: any = {
+                    rol: { [Op.ne]: "superuser" },
+                    ...baseWhere
+                }
+
+                const result = await User.findAndCountAll({
+                    where,
+                    limit,
+                    offset,
+                    order: [['id', 'ASC']]
+                });
+
+                users = result.rows;
+                total = result.count;
+
+                return res.json({
+                    users,
+                    pagination: {
+                        total,
+                        page,
+                        limit,
+                        totalPages: Math.ceil(total / limit),
+                        hasNextPage: page < Math.ceil(total / limit),
+                        hasPrevPage: page > 1
                     }
                 });
-                return res.json(users);
             }
 
             if (rol === "admin") {
-                const users = await User.findAll({
-                    where: {
-                        empresa_id: 1,
-                        rol: { [Op.ne]: "superuser" }
+
+                const where: any = {
+                    empresa_id: 1,
+                    rol: { [Op.ne]: "superuser" },
+                    ...baseWhere
+                }
+
+                const result = await User.findAndCountAll({
+                    where,
+                    limit,
+                    offset,
+                    order: [['id', 'ASC']]
+                });
+
+                users = result.rows;
+                total = result.count;
+
+                return res.json({
+                    users,
+                    pagination: {
+                        total,
+                        page,
+                        limit,
+                        totalPages: Math.ceil(total / limit),
+                        hasNextPage: page < Math.ceil(total / limit),
+                        hasPrevPage: page > 1
                     }
                 });
-                return res.json(users);
             }
         }
 
         if (rol === "admin") {
-            const users = await User.findAll({
-                where: {
-                    empresa_id,
-                    rol: { [Op.ne]: "superuser" }
+
+            const where: any = {
+                empresa_id,
+                rol: { [Op.ne]: "superuser" },
+                ...baseWhere
+            }
+
+            const result = await User.findAndCountAll({
+                where,
+                limit,
+                offset,
+                order: [['id', 'ASC']]
+            });
+
+            users = result.rows;
+            total = result.count;
+            return res.json({
+                users,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    hasNextPage: page < Math.ceil(total / limit),
+                    hasPrevPage: page > 1
                 }
             });
-            return res.json(users);
         }
 
         if (rol === "superuser" || rol === "contralor") {
-            const users = await User.findAll({
-                where: {
-                    [Op.and]: [
-                        { rol: { [Op.ne]: "superuser" } },
-                        { empresa_id: { [Op.ne]: 1 } }
-                    ]
+
+            const where: any = {
+                [Op.and]: [
+                    { rol: { [Op.ne]: "superuser" } },
+                    { empresa_id: { [Op.ne]: 1 } }
+                ],
+                ...baseWhere
+            }
+
+            const result = await User.findAndCountAll({
+                where,
+                limit,
+                offset,
+                order: [['id', 'ASC']]
+            });
+
+            users = result.rows;
+            total = result.count;
+            return res.json({
+                users,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    hasNextPage: page < Math.ceil(total / limit),
+                    hasPrevPage: page > 1
                 }
             });
-            return res.json(users);
+
         }
 
         return res.status(403).json({ message: "No autorizado" });
