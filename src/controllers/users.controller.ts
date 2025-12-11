@@ -12,6 +12,7 @@ export const getUsers = async (req: Request, res: Response) => {
         const rol = (req.user as any).rol;
         const empresa_id = (req.user as any).empresa_id;
 
+        const filterEmpresaId = req.query.empresa_id ? parseInt(req.query.empresa_id as string) : null;
         const email = (req.query.email as string) || null;
 
         const page = parseInt(req.query.page as string) || 1;
@@ -26,13 +27,16 @@ export const getUsers = async (req: Request, res: Response) => {
             baseWhere.email = email;
         }
 
+        if (filterEmpresaId !== null) {
+            baseWhere.empresa_id = filterEmpresaId;
+        }
+
         if (empresa_id === 1) {
             if (rol === "superuser" || rol === "contralor") {
-
                 const where: any = {
                     rol: { [Op.ne]: "superuser" },
                     ...baseWhere
-                }
+                };
 
                 const result = await User.findAndCountAll({
                     where,
@@ -58,11 +62,24 @@ export const getUsers = async (req: Request, res: Response) => {
             }
 
             if (rol === "admin") {
-
                 const where: any = {
                     empresa_id: 1,
                     rol: { [Op.ne]: "superuser" },
                     ...baseWhere
+                };
+
+                if (filterEmpresaId !== null && filterEmpresaId !== 1) {
+                    return res.json({
+                        users: [],
+                        pagination: {
+                            total: 0,
+                            page,
+                            limit,
+                            totalPages: 0,
+                            hasNextPage: false,
+                            hasPrevPage: page > 1
+                        }
+                    });
                 }
 
                 const result = await User.findAndCountAll({
@@ -90,11 +107,24 @@ export const getUsers = async (req: Request, res: Response) => {
         }
 
         if (rol === "admin") {
-
             const where: any = {
-                empresa_id,
+                empresa_id: empresa_id,
                 rol: { [Op.ne]: "superuser" },
                 ...baseWhere
+            };
+
+            if (filterEmpresaId !== null && filterEmpresaId !== empresa_id) {
+                return res.json({
+                    users: [],
+                    pagination: {
+                        total: 0,
+                        page,
+                        limit,
+                        totalPages: 0,
+                        hasNextPage: false,
+                        hasPrevPage: page > 1
+                    }
+                });
             }
 
             const result = await User.findAndCountAll({
@@ -120,13 +150,26 @@ export const getUsers = async (req: Request, res: Response) => {
         }
 
         if (rol === "superuser" || rol === "contralor") {
-
             const where: any = {
                 [Op.and]: [
                     { rol: { [Op.ne]: "superuser" } },
                     { empresa_id: { [Op.ne]: 1 } }
                 ],
                 ...baseWhere
+            };
+
+            if (filterEmpresaId === 1) {
+                return res.json({
+                    users: [],
+                    pagination: {
+                        total: 0,
+                        page,
+                        limit,
+                        totalPages: 0,
+                        hasNextPage: false,
+                        hasPrevPage: page > 1
+                    }
+                });
             }
 
             const result = await User.findAndCountAll({
@@ -149,7 +192,6 @@ export const getUsers = async (req: Request, res: Response) => {
                     hasPrevPage: page > 1
                 }
             });
-
         }
 
         return res.status(403).json({ message: "No autorizado" });

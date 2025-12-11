@@ -14,11 +14,21 @@ export const getPasajeros = async (
         correo?: string;
         id_empresa?: string;
         id_centro_costo?: string;
+        page?: string;
+        limit?: string;
     }>,
     res: Response
 ) => {
     try {
-        const { nombre, rut, correo, id_empresa, id_centro_costo } = req.query;
+        const { rut, correo, id_empresa, id_centro_costo } = req.query;
+
+        const page = req.query.page ? parseInt(req.query.page as string) : undefined;
+        const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+
+        let offset: number | undefined;
+        if (page && limit) {
+            offset = (page - 1) * limit;
+        }
 
         const whereClause: any = {};
 
@@ -38,7 +48,7 @@ export const getPasajeros = async (
             whereClause.id_centro_costo = parseInt(id_centro_costo, 10);
         }
 
-        const pasajeros = await Pasajero.findAll({
+        const queryOptions: any = {
             where: whereClause,
             include: [
                 {
@@ -52,13 +62,56 @@ export const getPasajeros = async (
                 }
             ],
             order: [['nombre', 'ASC']]
-        });
+        };
+
+        if (limit !== undefined) {
+            queryOptions.limit = limit;
+        }
+
+        if (offset !== undefined) {
+            queryOptions.offset = offset;
+        }
+
+        let total: number | undefined;
+        let pasajeros;
+
+        // Si hay paginación, obtener el total
+        if (page !== undefined && limit !== undefined) {
+            total = await Pasajero.count({
+                where: whereClause
+            });
+
+            pasajeros = await Pasajero.findAll(queryOptions);
+        } else {
+            // Sin paginación, solo obtener los datos
+            pasajeros = await Pasajero.findAll(queryOptions);
+        }
 
         const pasajerosJSON = pasajeros.map(pasajero => pasajero.toJSON());
-        res.json(pasajerosJSON);
+
+        // Formato de respuesta según si hay paginación o no
+        if (page !== undefined && limit !== undefined && total !== undefined) {
+            res.json({
+                pasajeros: pasajerosJSON,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    hasNextPage: page < Math.ceil(total / limit),
+                    hasPrevPage: page > 1
+                }
+            });
+        } else {
+            res.json(pasajerosJSON);
+        }
+
     } catch (err) {
         console.error('Error obteniendo pasajeros:', err);
-        res.status(500).json({ message: "Error en servidor", error: (err as Error).message });
+        res.status(500).json({
+            message: "Error en servidor",
+            error: (err as Error).message
+        });
     }
 };
 /**
