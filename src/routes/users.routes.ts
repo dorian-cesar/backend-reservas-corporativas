@@ -13,22 +13,22 @@ import { onlySuperUser } from "../middleware/role.middleware";
 const router = Router();
 
 // Listar usuarios
-router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), getUsers);
+router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), getUsers);
 
 // Obtener información completa de un usuario por ID
-router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor"), getUserById);
+router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor", "auditoria"), getUserById);
 
 // Crear usuario
-router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), create);
+router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), create);
 
 // Actualizar usuario
-router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), update);
+router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), update);
 
 // Eliminar usuario
 router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), remove);
 
 // Activar/desactivar usuario
-router.patch("/:id/estado", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), setEstado);
+router.patch("/:id/estado", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), setEstado);
 
 // Ejemplo de ruta solo para superuser
 router.post("/superuser-only", authenticateJWT, onlySuperUser, (req, res) => {

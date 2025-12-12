@@ -32,7 +32,7 @@ export const getUsers = async (req: Request, res: Response) => {
         }
 
         if (empresa_id === 1) {
-            if (rol === "superuser" || rol === "contralor") {
+            if (rol === "superuser" || rol === "contralor" || rol === "auditoria") {
                 const where: any = {
                     rol: { [Op.ne]: "superuser" },
                     ...baseWhere
@@ -149,7 +149,7 @@ export const getUsers = async (req: Request, res: Response) => {
             });
         }
 
-        if (rol === "superuser" || rol === "contralor") {
+        if (rol === "superuser" || rol === "contralor" || rol === "auditoria") {
             const where: any = {
                 [Op.and]: [
                     { rol: { [Op.ne]: "superuser" } },
