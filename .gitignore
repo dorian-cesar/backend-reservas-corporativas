@@ -5,3 +5,5 @@ test
 /.idea
 /dist/
 /reservas-corporativas.bat
+uploads/users
+uploads/passengers

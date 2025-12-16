@@ -1,0 +1,7 @@
+nombre,rut,email,rol,empresa_id,centro_costo_id,estado
+user 1,1234,abc@gmail.com,subusuario,1,1,1
+user 2,12345,dfg@gmail.com,subusuario,1,1,1
+user 3,123456,hij@gmail.com,subusuario,1,1,1
+user 4,1234567,klm@gmail.com,subusuario,1,1,1
+user 5,12345678,nop@gmail.com,subusuario,1,1,1
+user 6,123456789,qrs@gmail.com,subusuario,1,1,1
