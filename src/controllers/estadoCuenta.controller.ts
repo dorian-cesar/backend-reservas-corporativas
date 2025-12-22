@@ -4,6 +4,7 @@ import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { Op } from "sequelize";
 import { Ticket } from "../models/ticket.model";
 import { User } from "../models/user.model";
+import { Pasajero } from "../models/pasajero.model";
 
 
 /**
@@ -154,6 +155,11 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
                     model: User,
                     where: { empresa_id: empresaId },
                     attributes: ['id', 'nombre', 'email', 'empresa_id', 'centro_costo_id']
+                },
+                {
+                    model: Pasajero,
+                    required: false,
+                    attributes: ['id', 'nombre', 'rut', 'correo', 'telefono']
                 }
             ],
             where: {
