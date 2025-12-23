@@ -6,6 +6,7 @@ import { IUserCreate, IUserUpdate } from "../interfaces/user.interface";
 import { Empresa } from "../models/empresa.model";
 import { CentroCosto } from "../models/centro_costo.model";
 import { Op, fn, col } from "sequelize";
+import { sanitizeUser } from "../utils/sanitizeUser";
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -45,7 +46,7 @@ export const getUsers = async (req: Request, res: Response) => {
                     order: [['id', 'ASC']]
                 });
 
-                users = result.rows;
+                users = result.rows.map(u => sanitizeUser(u));
                 total = result.count;
 
                 return res.json({
@@ -89,7 +90,7 @@ export const getUsers = async (req: Request, res: Response) => {
                     order: [['id', 'ASC']]
                 });
 
-                users = result.rows;
+                users = result.rows.map(u => sanitizeUser(u));
                 total = result.count;
 
                 return res.json({
@@ -134,7 +135,7 @@ export const getUsers = async (req: Request, res: Response) => {
                 order: [['id', 'ASC']]
             });
 
-            users = result.rows;
+            users = result.rows.map(u => sanitizeUser(u));
             total = result.count;
             return res.json({
                 users,
@@ -179,7 +180,7 @@ export const getUsers = async (req: Request, res: Response) => {
                 order: [['id', 'ASC']]
             });
 
-            users = result.rows;
+            users = result.rows.map(u => sanitizeUser(u));
             total = result.count;
             return res.json({
                 users,
@@ -230,10 +231,7 @@ export const getUserById = async (req: Request<{ id: string }>, res: Response) =
             return res.status(404).json({ message: "Usuario no existe" });
         }
 
-        const userData = user.toJSON();
-        delete userData.password;
-
-        res.json(userData);
+        res.json(sanitizeUser(user));
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
     }
@@ -266,10 +264,7 @@ export const create = async (
             estado: estado !== undefined ? estado : true,
         });
 
-        const userData = user.toJSON();
-        delete userData.password;
-
-        res.status(201).json(userData);
+        res.status(201).json(sanitizeUser(user));
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
     }
@@ -301,9 +296,7 @@ export const update = async (
 
         const updated = await User.findByPk(id);
         if (updated) {
-            const updatedData = updated.toJSON();
-            delete updatedData.password;
-            res.json(updatedData);
+            res.json(sanitizeUser(updated));
         } else {
             res.status(404).json({ message: "Usuario no existe" });
         }
@@ -343,10 +336,7 @@ export const setEstado = async (req: Request<{ id: string }, {}, { estado: boole
         user.estado = estado;
         await user.save();
 
-        const userData = user.toJSON();
-        delete userData.password;
-
-        res.json(userData);
+        res.json(sanitizeUser(user));
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
     }

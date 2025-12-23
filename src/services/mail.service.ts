@@ -28,6 +28,35 @@ export interface PassengerInfo {
 }
 
 
+export const sendEmail = async (
+  nombre: string,
+  email: string,
+  code: string
+): Promise<void> => {
+  try {
+    const userEmail = email.toString().trim();
+
+    if (!userEmail) {
+      throw new Error("User email is required");
+    }
+
+
+    const html = generateEmailHTML(nombre, code);
+
+    const msg: any = {
+      to: userEmail,
+      from: "viajes@pullmanbus.cl",
+      subject: `Codigo de verificación`,
+      html
+    };
+    await sgMail.send(msg);
+    console.log('[Mail Service] Email de verificación enviado exitosamente a:', userEmail);
+  } catch (error) {
+    console.error('[Mail Service] Error enviando email de verificación:', error);
+    throw new Error(`Error al enviar email: ${error}`);
+  }
+};
+
 /**
  * Envía email de confirmación de ticket con PDF adjunto
  */
@@ -510,6 +539,38 @@ function generateCancellationEmailHTML(data: TicketEmailData): string {
 </body>
 </html>
   `;
+}
+
+function generateEmailHTML(nombre: string, code: string) {
+  return `
+  <!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .code { font-size: 32px; font-weight: bold; letter-spacing: 5px; 
+                background: #f0f0f0; padding: 15px; text-align: center; 
+                margin: 20px 0; border-radius: 5px; }
+        .footer { margin-top: 30px; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Código de Verificación</h2>
+        <p>Hola ${nombre || 'Usuario'},</p>
+        <p>Se ha solicitado un inicio de sesión en tu cuenta. Usa este código para completar la verificación:</p>
+        <div class="code">${code}</div>
+        <p>Este código expirará en <strong>10 minutos</strong>.</p>
+        <p>Si no solicitaste este código, por favor ignora este mensaje.</p>
+        <div class="footer">
+            <p>© ${new Date().getFullYear()}</p>
+        </div>
+    </div>
+</body>
+</html>
+
+  `
 }
 
 /**
