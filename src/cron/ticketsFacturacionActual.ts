@@ -123,8 +123,10 @@ export const ticketsFacturacionActual = async () => {
         COUNT(T.monto_boleto) AS total,
         SUM(T.monto_boleto) AS monto
       FROM tickets T
-      JOIN users U ON T.id_User = U.id
-      WHERE U.empresa_id = :empresaId
+      
+      JOIN pasajeros P ON T.id_pasajero = P.id
+      WHERE P.id_empresa = :empresaId
+
         AND T.confirmedAt BETWEEN :inicio AND :fin
     `;
 
