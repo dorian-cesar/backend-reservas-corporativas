@@ -23,6 +23,7 @@ export interface IUser {
   rut?: string;
   email: string;
   password?: string;
+  twoFactorSecret?: string;
   rol?: Rol;
   empresa_id?: number;
   centro_costo_id?: number;
@@ -47,6 +48,9 @@ export class User extends Model<IUser> {
 
   @Column({ type: DataType.STRING(255), allowNull: false })
   declare password: string;
+
+  @Column({ type: DataType.STRING(100), allowNull: true })
+  declare twoFactorSecret?: string;
 
   @Column({
     type: DataType.ENUM(
