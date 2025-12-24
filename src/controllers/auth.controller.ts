@@ -5,12 +5,8 @@ import { signJwt } from "../utils/jwt";
 import { CentroCosto } from "../models/centro_costo.model";
 import { Empresa } from "../models/empresa.model";
 import { sendEmail } from "../services/mail.service";
+import { validatePasswordForNewLogin, isPasswordExpired } from "../services/password.service";
 
-/**
- * Controlador para el inicio de sesión de usuarios.
- * @param req Solicitud HTTP entrante.
- * @param res Respuesta HTTP saliente.
- */
 
 const generateCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -31,9 +27,33 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Credenciales inválidas" });
     }
 
-    // Verifica el password usando bcrypt
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ message: "Credenciales inválidas" });
+
+
+    if (user.newLogin) {
+      const passwordValidation = validatePasswordForNewLogin(password, user.email);
+
+      if (!passwordValidation.isValid) {
+        return res.status(403).json({
+          message: "Se requiere actualización de contraseña",
+          requiresPasswordUpdate: true,
+          reason: "new_login_policy",
+          validationError: passwordValidation.message,
+          userId: user.id
+        });
+      }
+
+      if (isPasswordExpired(user.lastChangePassWord)) {
+        return res.status(403).json({
+          message: "Tu contraseña ha expirado. Debes cambiarla para continuar.",
+          requiresPasswordUpdate: true,
+          reason: "password_expired",
+          userId: user.id,
+          daysExpired: getDaysExpired(user.lastChangePassWord)
+        });
+      }
+    }
 
     if (user.rol === "superuser") {
       const payload = {
@@ -181,6 +201,8 @@ export const verifyTwoFactorCode = async (req: Request, res: Response) => {
       ...userData
     } = userJSON;
 
+    console.log("Verificación exitosa para usuario:", user.email);
+
     res.json({
       token,
       user: userData,
@@ -226,4 +248,15 @@ export const resendVerificationCode = async (req: Request, res: Response) => {
     console.log(err);
     res.status(500).json({ message: "Error en servidor" });
   }
+};
+
+const getDaysExpired = (lastChangePassWord?: Date): number => {
+  if (!lastChangePassWord) return 90;
+
+  const now = new Date();
+  const passwordDate = new Date(lastChangePassWord);
+  const daysSinceChange = Math.floor(
+    (now.getTime() - passwordDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return daysSinceChange - 90;
 };

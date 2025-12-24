@@ -24,12 +24,14 @@ export interface IUser {
   email: string;
   password?: string;
   twoFactorSecret?: string;
+  newLogin?: boolean;
   rol?: Rol;
   empresa_id?: number;
   centro_costo_id?: number;
   estado?: boolean;
   created_at?: Date;
   updated_at?: Date;
+  lastChangePassWord?: Date;
 }
 
 @Table({ tableName: "users", timestamps: false })
@@ -51,6 +53,9 @@ export class User extends Model<IUser> {
 
   @Column({ type: DataType.STRING(100), allowNull: true })
   declare twoFactorSecret?: string;
+
+  @Column({ type: DataType.BOOLEAN, defaultValue: false })
+  declare newLogin?: boolean;
 
   @Column({
     type: DataType.ENUM(
@@ -81,6 +86,9 @@ export class User extends Model<IUser> {
 
   @Column({ type: DataType.DATE, allowNull: true, defaultValue: DataType.NOW })
   declare updated_at?: Date;
+
+  @Column({ type: DataType.DATE, allowNull: true })
+  declare lastChangePassWord?: Date;
 
   @BelongsTo(() => Empresa)
   declare empresa?: Empresa;

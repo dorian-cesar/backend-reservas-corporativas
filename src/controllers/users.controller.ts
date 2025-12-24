@@ -262,6 +262,7 @@ export const create = async (
             empresa_id: targetEmpresaId,
             centro_costo_id,
             estado: estado !== undefined ? estado : true,
+            lastChangePassWord: new Date()
         });
 
         res.status(201).json(sanitizeUser(user));
@@ -284,8 +285,13 @@ export const update = async (
         if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
             return res.status(403).json({ message: "No autorizado" });
 
-        if (data.password) data.password = await bcrypt.hash(data.password, 10);
-        else data.password = user.password;
+        if (data.password) {
+            data.password = await bcrypt.hash(data.password, 10);
+            data.lastChangePassWord = new Date();
+        } else {
+            data.password = user.password;
+            data.lastChangePassWord = user.lastChangePassWord;
+        }
 
         if (data.rol === "superuser" && (req.user as any).rol !== "superuser")
             return res.status(403).json({ message: "No puedes asignar rol superuser" });
@@ -339,5 +345,109 @@ export const setEstado = async (req: Request<{ id: string }, {}, { estado: boole
         res.json(sanitizeUser(user));
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
+    }
+};
+
+export const setNewLogin = async (
+    req: Request<{ id: string }, {}, { newLogin: boolean }>,
+    res: Response
+) => {
+    try {
+        const id = req.params.id;
+        const { newLogin } = req.body;
+
+        const user = await User.findByPk(id);
+        if (!user) {
+            return res.status(404).json({ message: "Usuario no existe" });
+        }
+
+        // Verificar permisos
+        const userRol = (req.user as any).rol;
+        const userEmpresaId = (req.user as any).empresa_id;
+
+        if (userRol !== "superuser") {
+            return res.status(403).json({ message: "No autorizado para modificar usuarios" });
+        }
+
+        if (user.rol === "superuser" && userRol !== "superuser") {
+            return res.status(403).json({ message: "No puedes modificar usuarios superuser" });
+        }
+
+        await user.update({ newLogin });
+
+        const updatedUser = await User.findByPk(id);
+        res.json({
+            success: true,
+            message: `newLogin ${newLogin ? 'activado' : 'desactivado'} correctamente`,
+            user: sanitizeUser(updatedUser!)
+        });
+    } catch (err) {
+        console.error("Error en setNewLogin:", err);
+        res.status(500).json({ message: "Error en servidor" });
+    }
+};
+
+export const setNewLoginForEmpresa = async (
+    req: Request<{ empresaId: string }, {}, { newLogin: boolean }>,
+    res: Response
+) => {
+    try {
+        const empresaId = parseInt(req.params.empresaId);
+        const { newLogin } = req.body;
+
+        if (isNaN(empresaId)) {
+            return res.status(400).json({
+                success: false,
+                message: "ID de empresa inválido"
+            });
+        }
+
+        const userRol = (req.user as any).rol;
+        if (userRol !== "superuser") {
+            return res.status(403).json({
+                success: false,
+                message: "No autorizado. Solo el superuser puede modificar usuarios de toda una empresa."
+            });
+        }
+
+        // Verificar que la empresa exista
+        const empresa = await Empresa.findByPk(empresaId);
+        if (!empresa) {
+            return res.status(404).json({
+                success: false,
+                message: "Empresa no encontrada"
+            });
+        }
+
+        const whereCondition: any = {
+            empresa_id: empresaId,
+            rol: { [Op.ne]: "superuser" }
+        };
+
+        const [affectedCount] = await User.update(
+            { newLogin },
+            { where: whereCondition }
+        );
+
+
+        res.json({
+            success: true,
+            message: `newLogin ${newLogin ? 'activado' : 'desactivado'} para ${affectedCount} usuarios de la empresa "${empresa.nombre}"`,
+            empresa: {
+                id: empresa.id,
+                nombre: empresa.nombre
+            },
+            statistics: {
+                totalAffected: affectedCount,
+                newLoginStatus: newLogin,
+            }
+        });
+    } catch (err) {
+        console.error("Error en setNewLoginForEmpresa:", err);
+        res.status(500).json({
+            success: false,
+            message: "Error en servidor",
+            error: err instanceof Error ? err.message : "Error desconocido"
+        });
     }
 };
