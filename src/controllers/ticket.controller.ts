@@ -799,11 +799,23 @@ export const getTicketsByEmpresa = async (
         const filters = buildTicketFilters(req.query);
         filters.id_User = userIds;
 
-        const page = Math.max(1, parseInt((req.query.page as string) || "1", 10) || 1);
-        const limit = Math.max(1, parseInt((req.query.limit as string) || "10", 10) || 10);
-        const offset = (page - 1) * limit;
+        const exportAll = req.query.exportAll === 'true';
 
-        const result = await Ticket.findAndCountAll({
+        const page = Math.max(
+            1,
+            parseInt(req.query.page as string, 10) || 1
+        );
+
+        const paginatedLimit = Math.max(
+            1,
+            parseInt(req.query.limit as string, 10) || 10
+        );
+
+        const limit = exportAll ? undefined : paginatedLimit;
+        const offset = exportAll ? undefined : (page - 1) * paginatedLimit;
+
+        // Si es para exportación, obtener todos sin límite
+        const queryOptions: any = {
             where: filters,
             include: [
                 {
@@ -843,22 +855,34 @@ export const getTicketsByEmpresa = async (
                     ]
                 }
             ],
-            limit,
-            offset,
             order: [['id', 'ASC']]
-        });
+        };
+
+        // Solo agregar limit y offset si no es para exportación
+        if (!exportAll) {
+            queryOptions.limit = limit;
+            queryOptions.offset = offset;
+        }
+
+        const result = await Ticket.findAndCountAll(queryOptions);
 
         const tickets = result.rows.map(t => t.toJSON());
         const total = result.count;
+
+        // Si es para exportación, retornar solo los tickets sin paginación
+        if (exportAll) {
+            return res.json(tickets);
+        }
+
 
         return res.json({
             tickets,
             pagination: {
                 total,
                 page,
-                limit,
-                totalPages: Math.max(1, Math.ceil(total / limit)),
-                hasNextPage: page < Math.ceil(total / limit),
+                limit: paginatedLimit,
+                totalPages: Math.max(1, Math.ceil(total / paginatedLimit)),
+                hasNextPage: page < Math.ceil(total / paginatedLimit),
                 hasPrevPage: page > 1
             }
         });
@@ -867,7 +891,6 @@ export const getTicketsByEmpresa = async (
         res.status(500).json({ message: "Error en servidor" });
     }
 };
-
 /**
  * Buscar tickets por usuario.
  */
