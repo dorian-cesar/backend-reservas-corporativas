@@ -4,6 +4,7 @@ import { Request, Response } from "express";
 import { Empresa } from "../models/empresa.model";
 import { IEmpresaCreate, IEmpresaUpdate } from "../interfaces/empresa.interface";
 import { Op } from "sequelize";
+import { UserEmpresa } from "../models/user_empresa.model";
 
 /**
  * Listar todas las empresas.
@@ -12,21 +13,47 @@ export const listarEmpresas = async (req: Request, res: Response) => {
     try {
         const user = req.user as any;
         const rol = user.rol;
+        const user_id = user.id;
         const empresa_id = user.empresa_id;
 
         let whereCondition: any = {};
+        let empresas;
 
-        if (rol !== "superuser" && empresa_id !== 1) {
-            whereCondition = {
-                id: { [Op.ne]: 1 } // Excluir empresa 1
-            };
+        if (rol === "admin") {
+            const userEmpresas = await UserEmpresa.findAll({
+                where: { user_id },
+                attributes: ["empresa_id"]
+            });
+
+            const empresaIds = userEmpresas.map(ue => ue.empresa_id);
+            if (empresaIds.length === 0) {
+                return res.json([]);
+            }
+
+            empresas = await Empresa.findAll({
+                where: {
+                    id: {
+                        [Op.in]: empresaIds
+                    }
+                },
+                order: [['id', 'ASC']]
+            });
+        } else if (rol === "superuser") {
+            empresas = await Empresa.findAll({
+                order: [['id', 'ASC']]
+            });
+        } else {
+            if (empresa_id !== 1) {
+                whereCondition = {
+                    id: { [Op.ne]: 1 } // Excluir empresa 1
+                };
+            }
+
+            empresas = await Empresa.findAll({
+                where: whereCondition,
+                order: [['id', 'ASC']]
+            });
         }
-
-        const empresas = await Empresa.findAll({
-            where: whereCondition,
-            order: [['id', 'ASC']]
-        });
-
         res.json(empresas);
     } catch (error) {
         res.status(500).json({ message: "Error en servidor", error: (error as Error).message });

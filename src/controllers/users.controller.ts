@@ -4,14 +4,17 @@ import * as bcrypt from "bcrypt";
 import { User } from "../models/user.model";
 import { IUserCreate, IUserUpdate } from "../interfaces/user.interface";
 import { Empresa } from "../models/empresa.model";
+import { UserEmpresa } from "../models/user_empresa.model";
 import { CentroCosto } from "../models/centro_costo.model";
 import { Op, fn, col } from "sequelize";
 import { sanitizeUser } from "../utils/sanitizeUser";
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
-        const rol = (req.user as any).rol;
-        const empresa_id = (req.user as any).empresa_id;
+        const user = req.user as any;
+        const rol = user.rol;
+        const user_id = user.id;
+        const empresa_id = user.empresa_id;
 
         const filterEmpresaId = req.query.empresa_id ? parseInt(req.query.empresa_id as string) : null;
         const email = (req.query.email as string) || null;
@@ -28,7 +31,29 @@ export const getUsers = async (req: Request, res: Response) => {
             baseWhere.email = email;
         }
 
+        let userEmpresasIds: number[] = [];
+        if (rol === "admin") {
+            const userEmpresas = await UserEmpresa.findAll({
+                where: { user_id },
+                attributes: ['empresa_id']
+            });
+            userEmpresasIds = userEmpresas.map(ue => ue.empresa_id);
+        }
+
         if (filterEmpresaId !== null) {
+            if (rol === "admin" && !userEmpresasIds.includes(filterEmpresaId)) {
+                return res.json({
+                    users: [],
+                    pagination: {
+                        total: 0,
+                        page,
+                        limit,
+                        totalPages: 0,
+                        hasNextPage: false,
+                        hasPrevPage: page > 1
+                    }
+                });
+            }
             baseWhere.empresa_id = filterEmpresaId;
         }
 
@@ -63,13 +88,7 @@ export const getUsers = async (req: Request, res: Response) => {
             }
 
             if (rol === "admin") {
-                const where: any = {
-                    empresa_id: 1,
-                    rol: { [Op.ne]: "superuser" },
-                    ...baseWhere
-                };
-
-                if (filterEmpresaId !== null && filterEmpresaId !== 1) {
+                if (userEmpresasIds.length === 0) {
                     return res.json({
                         users: [],
                         pagination: {
@@ -82,6 +101,14 @@ export const getUsers = async (req: Request, res: Response) => {
                         }
                     });
                 }
+
+                const where: any = {
+                    empresa_id: {
+                        [Op.in]: userEmpresasIds
+                    },
+                    rol: { [Op.ne]: "superuser" },
+                    ...baseWhere
+                };
 
                 const result = await User.findAndCountAll({
                     where,
@@ -108,13 +135,7 @@ export const getUsers = async (req: Request, res: Response) => {
         }
 
         if (rol === "admin") {
-            const where: any = {
-                empresa_id: empresa_id,
-                rol: { [Op.ne]: "superuser" },
-                ...baseWhere
-            };
-
-            if (filterEmpresaId !== null && filterEmpresaId !== empresa_id) {
+            if (userEmpresasIds.length === 0) {
                 return res.json({
                     users: [],
                     pagination: {
@@ -127,6 +148,14 @@ export const getUsers = async (req: Request, res: Response) => {
                     }
                 });
             }
+
+            const where: any = {
+                empresa_id: {
+                    [Op.in]: userEmpresasIds
+                },
+                rol: { [Op.ne]: "superuser" },
+                ...baseWhere
+            };
 
             const result = await User.findAndCountAll({
                 where,
@@ -248,7 +277,6 @@ export const create = async (
         if (rol === "superuser" && (req.user as any).rol !== "superuser")
             return res.status(403).json({ message: "Solo el superuser puede crear superusers" });
 
-        // Si es admin, fuerza empresa_id al del admin
         let targetEmpresaId = empresa_id;
         if ((req.user as any).rol === "admin") targetEmpresaId = (req.user as any).empresa_id;
 
