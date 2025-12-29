@@ -46,20 +46,19 @@ export class CSVEmpresaService {
                 };
 
                 let existing;
-                if (createPayload.rut && createPayload.cuenta_corriente) {
+                if (createPayload.cuenta_corriente) {
                     existing = await Empresa.findOne({
                         where: {
-                            rut: createPayload.rut,
                             cuenta_corriente: createPayload.cuenta_corriente
                         },
                     });
                 }
 
-                if (!existing) {
-                    existing = await Empresa.findOne({
-                        where: { nombre: createPayload.nombre },
-                    });
-                }
+                // if (!existing) {
+                //     existing = await Empresa.findOne({
+                //         where: { nombre: createPayload.nombre },
+                //     });
+                // }
 
                 if (existing) {
                     console.log(`Empresa existente: ${createPayload.nombre}${createPayload.rut ? ` (RUT: ${createPayload.rut})` : ''}`);

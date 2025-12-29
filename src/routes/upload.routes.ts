@@ -41,4 +41,13 @@ router.post(
     CSVController.uploadEmpresa
 )
 
+router.post(
+    "/csv",
+    authenticateJWT,
+    authorizeRoles("superuser"),
+    uploadUsersCSV.single("file"),
+    CSVController.uploadGeneric
+);
+
+
 export default router;

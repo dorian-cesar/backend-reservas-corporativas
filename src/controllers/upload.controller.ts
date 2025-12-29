@@ -141,4 +141,49 @@ export class CSVController {
             });
         }
     }
+
+    static async uploadGeneric(req: Request, res: Response) {
+        const type = req.query.type as string;
+
+        if (!req.file) {
+            return res.status(400).json({ message: "Archivo CSV requerido" });
+        }
+
+        try {
+            switch (type) {
+                case "users": {
+                    const result = await userService.processFile(req.file.path);
+                    return res.json({ message: "CSV users OK", result });
+                }
+
+                case "passengers": {
+                    const result = await passengerService.processFile(req.file.path);
+                    return res.json({ message: "CSV passengers OK", result });
+                }
+
+                case "centros-costo": {
+                    const result = await centroCostoService.processFile(req.file.path);
+                    return res.json({ message: "CSV centros de costo OK", result });
+                }
+
+                case "empresas": {
+                    const result = await empresaService.processFile(req.file.path);
+                    return res.json({ message: "CSV empresas OK", result });
+                }
+
+                default:
+                    return res.status(400).json({
+                        message: "Tipo inválido",
+                        allowed: ["users", "passengers", "centros-costo", "empresas"],
+                    });
+            }
+        } catch (error: any) {
+            console.error("Error CSV genérico:", error);
+            return res.status(500).json({
+                message: "Error procesando CSV",
+                error: error.message,
+            });
+        }
+    }
+
 }
