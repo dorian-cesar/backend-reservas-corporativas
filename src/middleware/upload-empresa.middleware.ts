@@ -31,7 +31,7 @@ export const uploadEmpresaCSV = multer({
         }
         cb(null, true);
     },
-    limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB límite
-    },
+    // limits: {
+    //     fileSize: 5 * 1024 * 1024, // 5MB límite
+    // },
 });
