@@ -33,20 +33,24 @@ export class CSVUserService {
                     throw new Error("nombre y email son obligatorios");
                 }
 
+                const normalizedEmail = mapped.email.toLowerCase().trim();
+
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(mapped.email)) {
+                if (!emailRegex.test(normalizedEmail)) {
                     throw new Error("email no válido");
                 }
 
-                const passwordBase = mapped.rut?.replace(/\D/g, "") ||
-                    mapped.email.split("@")[0] ||
+                const emailUsername = normalizedEmail.split("@")[0];
+                const passwordBase =
+                    emailUsername ||
+                    mapped.rut?.replace(/\D/g, "") ||
                     "password123";
 
                 const hashedPassword = await bcrypt.hash(passwordBase, 10);
 
                 const createPayload: IUserCreate = {
                     nombre: mapped.nombre,
-                    email: mapped.email.toLowerCase().trim(),
+                    email: normalizedEmail,
                     rut: mapped.rut,
                     rol: mapped.rol || "subusuario",
                     empresa_id: mapped.empresa_id,
