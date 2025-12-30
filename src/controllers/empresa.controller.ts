@@ -37,7 +37,14 @@ export const listarEmpresas = async (req: Request, res: Response) => {
 
             const empresaIds = userEmpresas.map(ue => ue.empresa_id);
 
-            if (empresaIds.length === 0) {
+            const finalEmpresaIds =
+                empresaIds.length > 0
+                    ? empresaIds
+                    : empresa_id
+                        ? [empresa_id]
+                        : [];
+
+            if (finalEmpresaIds.length === 0) {
                 return res.json(
                     page && limit
                         ? { data: [], pagination: { total: 0, page, limit, totalPages: 0 } }
@@ -47,7 +54,7 @@ export const listarEmpresas = async (req: Request, res: Response) => {
 
             whereCondition.id = {
                 ...(whereCondition.id || {}),
-                [Op.in]: empresaIds
+                [Op.in]: finalEmpresaIds
             };
         }
 
