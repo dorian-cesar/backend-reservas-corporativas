@@ -4,6 +4,7 @@ import { Request, Response } from "express";
 import { Empresa } from "../models/empresa.model";
 import { IEmpresaCreate, IEmpresaUpdate } from "../interfaces/empresa.interface";
 import { Op } from "sequelize";
+import { UserEmpresa } from "../models/user_empresa.model";
 
 /**
  * Listar todas las empresas.
@@ -12,26 +13,96 @@ export const listarEmpresas = async (req: Request, res: Response) => {
     try {
         const user = req.user as any;
         const rol = user.rol;
+        const user_id = user.id;
         const empresa_id = user.empresa_id;
+
+        const page = req.query.page ? Number(req.query.page) : null;
+        const limit = req.query.limit ? Number(req.query.limit) : null;
+        const search = req.query.search ? String(req.query.search).trim() : null;
 
         let whereCondition: any = {};
 
-        if (rol !== "superuser" && empresa_id !== 1) {
-            whereCondition = {
-                id: { [Op.ne]: 1 } // Excluir empresa 1
+        if (search) {
+            whereCondition[Op.or] = [
+                { nombre: { [Op.like]: `%${search}%` } },
+                { cuenta_corriente: { [Op.like]: `%${search}%` } }
+            ];
+        }
+
+        if (rol === "admin") {
+            const userEmpresas = await UserEmpresa.findAll({
+                where: { user_id },
+                attributes: ["empresa_id"]
+            });
+
+            const empresaIds = userEmpresas.map(ue => ue.empresa_id);
+
+            const finalEmpresaIds =
+                empresaIds.length > 0
+                    ? empresaIds
+                    : empresa_id
+                        ? [empresa_id]
+                        : [];
+
+            if (finalEmpresaIds.length === 0) {
+                return res.json(
+                    page && limit
+                        ? { data: [], pagination: { total: 0, page, limit, totalPages: 0 } }
+                        : []
+                );
+            }
+
+            whereCondition.id = {
+                ...(whereCondition.id || {}),
+                [Op.in]: finalEmpresaIds
             };
         }
 
-        const empresas = await Empresa.findAll({
+        if (rol !== "superuser" && empresa_id !== 1) {
+            whereCondition.id = {
+                ...(whereCondition.id || {}),
+                [Op.ne]: 1
+            };
+        }
+
+        if (!page || !limit) {
+            const empresas = await Empresa.findAll({
+                where: whereCondition,
+                order: [["id", "ASC"]]
+            });
+
+            return res.json(empresas);
+        }
+
+        const offset = (page - 1) * limit;
+
+        const { rows, count } = await Empresa.findAndCountAll({
             where: whereCondition,
-            order: [['id', 'ASC']]
+            order: [["id", "ASC"]],
+            limit,
+            offset
         });
 
-        res.json(empresas);
+        return res.json({
+            data: rows,
+            pagination: {
+                total: count,
+                page,
+                limit,
+                totalPages: Math.max(1, Math.ceil(count / limit)),
+                hasNextPage: page < Math.ceil(count / limit),
+                hasPrevPage: page > 1
+            }
+        });
+
     } catch (error) {
-        res.status(500).json({ message: "Error en servidor", error: (error as Error).message });
+        return res.status(500).json({
+            message: "Error en servidor",
+            error: (error as Error).message
+        });
     }
 };
+
 
 /**
  * Obtener una empresa por ID.
