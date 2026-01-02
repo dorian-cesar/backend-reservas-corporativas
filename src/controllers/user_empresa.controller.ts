@@ -3,6 +3,7 @@ import { UserEmpresa } from "../models/user_empresa.model";
 import { User } from "../models/user.model";
 import { Empresa } from "../models/empresa.model";
 import { Op } from "sequelize";
+import { sequelize } from "../database";
 
 export const assignEmpresaToUser = async (req: Request, res: Response) => {
     try {
@@ -154,39 +155,28 @@ export const assignMultipleEmpresasToUser = async (req: Request, res: Response) 
             return res.status(404).json({ message: "Una o más empresas no existen" });
         }
 
-        // Verificar relaciones existentes
-        const existingRelations = await UserEmpresa.findAll({
-            where: {
-                user_id,
-                empresa_id: {
-                    [Op.in]: empresa_ids
-                }
+        await sequelize.transaction(async (t) => {
+            await UserEmpresa.destroy({
+                where: { user_id },
+                transaction: t
+            });
+
+            if (empresa_ids.length > 0) {
+                const relationsToCreate = empresa_ids.map((empresa_id: number) => ({
+                    user_id,
+                    empresa_id
+                }));
+
+                await UserEmpresa.bulkCreate(relationsToCreate, {
+                    transaction: t
+                });
             }
         });
 
-        const existingIds = existingRelations.map(er => er.empresa_id);
-        const newIds = empresa_ids.filter((id: number) => {
-            return !existingIds.includes(id);
-        });
-
-        if (newIds.length === 0) {
-            return res.status(400).json({
-                message: "Todas las empresas ya están asignadas a este usuario"
-            });
-        }
-
-        // Crear las nuevas relaciones
-        const relationsToCreate = newIds.map((empresa_id: number) => ({
-            user_id,
-            empresa_id
-        }));
-
-        await UserEmpresa.bulkCreate(relationsToCreate);
-
-        res.status(201).json({
-            message: `${newIds.length} empresas asignadas al usuario correctamente`,
-            assigned: newIds,
-            already_assigned: existingIds
+        res.status(200).json({
+            message: "Empresas asignadas al usuario correctamente",
+            assigned: empresa_ids,
+            total: empresa_ids.length
         });
     } catch (err) {
         console.error(err);
