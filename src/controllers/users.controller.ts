@@ -38,6 +38,10 @@ export const getUsers = async (req: Request, res: Response) => {
                 attributes: ['empresa_id']
             });
             userEmpresasIds = userEmpresas.map(ue => ue.empresa_id);
+
+            if (userEmpresasIds.length === 0 && empresa_id) {
+                userEmpresasIds.push(empresa_id);
+            }
         }
 
         if (filterEmpresaId !== null) {
