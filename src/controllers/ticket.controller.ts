@@ -161,15 +161,15 @@ export const create = async (
             }
 
             const pasajeroJSON = pasajero.toJSON();
-            if (pasajeroJSON.id_empresa !== userData.empresa_id) {
-                return res.status(400).json({
-                    message: "El pasajero no pertenece a la misma empresa que el usuario",
-                    detalles: {
-                        empresa_pasajero: pasajeroJSON.id_empresa,
-                        empresa_usuario: userData.empresa_id
-                    }
-                });
-            }
+            // if (pasajeroJSON.id_empresa !== userData.empresa_id) {
+            //     return res.status(400).json({
+            //         message: "El pasajero no pertenece a la misma empresa que el usuario",
+            //         detalles: {
+            //             empresa_pasajero: pasajeroJSON.id_empresa,
+            //             empresa_usuario: userData.empresa_id
+            //         }
+            //     });
+            // }
             pasajeroData = pasajeroJSON;
         }
 
