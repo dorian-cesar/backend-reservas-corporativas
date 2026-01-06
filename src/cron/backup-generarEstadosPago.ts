@@ -1,13 +1,11 @@
 // src/cron/generarEstadosPagoEmpresas.ts
 
-import { connectDB } from "../database";
 import { Empresa } from "../models/empresa.model";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { Ticket } from "../models/ticket.model";
 import { User } from "../models/user.model";
 import { CentroCosto } from "../models/centro_costo.model";
-import { Pasajero } from "../models/pasajero.model";
 import { Op } from "sequelize";
 
 /**
@@ -20,10 +18,8 @@ import { Op } from "sequelize";
  * Se añaden logs detallados para depuración.
  *
  * Ahora incluye fecha_facturacion y fecha_vencimiento calculadas en base a los días configurados en la empresa.
- * USANDO id_empresa DIRECTO de tickets
  */
 export const generarEstadosPagoEmpresas = async () => {
-    await connectDB();
     const hoy = new Date();
     const periodoActual = `${hoy.getFullYear()}-${(hoy.getMonth() + 1).toString().padStart(2, '0')}`;
 
@@ -34,34 +30,40 @@ export const generarEstadosPagoEmpresas = async () => {
     console.log(`[${new Date().toISOString()}] Empresas encontradas: ${empresas.length}`);
 
     for (const empresa of empresas) {
-        const empresaId = empresa.id;
-        const empresaNombre = empresa.nombre;
-        const diaFacturacion = empresa.dia_facturacion || 1;
-        const diaVencimiento = empresa.dia_vencimiento || 1;
+        const empresaId = empresa.get('id');
+        const diaFacturacion = empresa.get('dia_facturacion') || 1;
+        const diaVencimiento = empresa.get('dia_vencimiento') || 1;
+        console.log(`[${new Date().toISOString()}] Procesando empresa ID: ${empresaId}, Día facturación: ${diaFacturacion}, Día vencimiento: ${diaVencimiento}`);
 
-        console.log(`[${new Date().toISOString()}] Procesando empresa ID: ${empresaId} (${empresaNombre}), Día facturación: ${diaFacturacion}, Día vencimiento: ${diaVencimiento}`);
+        // Buscar usuarios de la empresa
+        const users = await User.findAll({
+            where: { empresa_id: empresaId }
+        });
+        const userIds = users.map(u => u.id);
+        console.log(`[${new Date().toISOString()}] Usuarios encontrados para empresa ${empresaId}: ${userIds.length}`);
 
-        // Buscar el primer y último ticket de la empresa USANDO id_empresa DIRECTO
+        // Buscar el primer y último ticket de la empresa
         const primerTicket = await Ticket.findOne({
-            where: { id_empresa: empresaId },
+            where: { id_User: { [Op.in]: userIds } },
             order: [['created_at', 'ASC']]
         });
-
         const ultimoTicket = await Ticket.findOne({
-            where: { id_empresa: empresaId },
+            where: { id_User: { [Op.in]: userIds } },
             order: [['created_at', 'DESC']]
         });
 
         if (primerTicket) {
-            console.log(`[${new Date().toISOString()}] Primer ticket: #${primerTicket.ticketNumber} - ${primerTicket.created_at}`);
+            console.log(`[${new Date().toISOString()}] Primer ticket: #${primerTicket.get('ticketNumber')} - ${primerTicket.get('created_at')}`);
         } else {
             console.log(`[${new Date().toISOString()}] No hay tickets para empresa ${empresaId}`);
         }
 
         // Si no hay tickets, igual debe generar estados de cuenta vacíos desde la fecha de creación de la empresa
         let fechaInicio: Date;
-        if (primerTicket && primerTicket.created_at) {
-            fechaInicio = new Date(primerTicket.created_at);
+        if (primerTicket && primerTicket.get('created_at')) {
+            fechaInicio = new Date(String(primerTicket.get('created_at')));
+        } else if (empresa.get('created_at')) {
+            fechaInicio = new Date(String(empresa.get('created_at')));
         } else {
             fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0);
         }
@@ -100,7 +102,6 @@ export const generarEstadosPagoEmpresas = async () => {
             fechaIter = new Date(siguientePeriodo);
             periodosGenerados++;
         }
-
         if (periodosGenerados === 0) {
             const inicioPeriodo = new Date(hoy.getFullYear(), hoy.getMonth(), diaFacturacion, 0, 0, 0);
             const siguientePeriodo = new Date(inicioPeriodo);
@@ -121,6 +122,8 @@ export const generarEstadosPagoEmpresas = async () => {
 
         console.log(`[${new Date().toISOString()}] Periodos generados para empresa ${empresaId}: ${periodos.map(p => p.periodo).join(', ')}`);
 
+        // Eliminar lógica que pasa los tickets a la cuenta corriente
+
         // Procesar cada periodo histórico para EstadoCuenta y cargo global
         for (const { periodo, inicio, fin, esPeriodoActual } of periodos) {
             console.log(`[${new Date().toISOString()}] === Procesando periodo ${periodo} (inicio: ${inicio.toISOString()}, fin: ${fin.toISOString()}) ===`);
@@ -139,29 +142,17 @@ export const generarEstadosPagoEmpresas = async () => {
             fecha_facturacion = new Date(anioSiguiente, mesSiguiente, diaFacturacion, 0, 0, 0, 0);
             fecha_vencimiento = new Date(anioSiguiente, mesSiguiente, diaVencimiento, 0, 0, 0, 0);
 
-            // Buscar todos los tickets del periodo USANDO id_empresa DIRECTO
+            // Buscar todos los tickets del periodo
             const tickets = await Ticket.findAll({
                 where: {
-                    id_empresa: empresaId,
+                    id_User: { [Op.in]: userIds },
                     ticketStatus: { [Op.in]: ['Confirmed', 'Anulado'] },
-                    // Usando created_at como en el backup original
                     created_at: {
                         [Op.gte]: inicio,
                         [Op.lt]: fin
                     }
-                },
-                include: [
-                    {
-                        model: Pasajero,
-                        include: [{
-                            model: CentroCosto,
-                            attributes: ['id', 'nombre']
-                        }],
-                        required: false
-                    }
-                ]
+                }
             });
-
             console.log(`[${new Date().toISOString()}] Tickets en periodo ${periodo}: ${tickets.length}`);
 
             // Cálculo usando monto_boleto y monto_devolucion directamente de los tickets
@@ -171,14 +162,14 @@ export const generarEstadosPagoEmpresas = async () => {
             let monto_abonos = 0;
 
             for (const ticket of tickets) {
-                const ticketStatus = ticket.ticketStatus;
+                const ticketStatus = ticket.get('ticketStatus');
                 if (ticketStatus === 'Confirmed') {
                     total_tickets += 1;
-                    monto_cargos += Number(ticket.monto_boleto) || 0;
+                    monto_cargos += Number(ticket.get('monto_boleto')) || 0;
                 }
                 if (ticketStatus === 'Anulado') {
                     total_tickets_anulados += 1;
-                    monto_abonos += Number(ticket.monto_devolucion) || 0;
+                    monto_abonos += Number(ticket.get('monto_devolucion')) || 0;
                 }
             }
 
@@ -186,46 +177,36 @@ export const generarEstadosPagoEmpresas = async () => {
 
             console.log(`[${new Date().toISOString()}] Periodo ${periodo}: total_tickets=${total_tickets}, total_tickets_anulados=${total_tickets_anulados}, monto_cargos=${monto_cargos}, monto_abonos=${monto_abonos}, monto_facturado=${monto_facturado}`);
 
-            // Detalle por centro de costo - USANDO CENTRO DE COSTO DEL PASAJERO
-            const detallePorCC: Record<string, {
-                nombre: string,
-                total_tickets: number,
-                total_anulados: number,
-                monto_facturado: number
-            }> = {};
-
-            // Inicializar con centro de costo "Sin asignar"
-            detallePorCC["Sin asignar"] = {
-                nombre: "Sin asignar",
-                total_tickets: 0,
-                total_anulados: 0,
-                monto_facturado: 0
-            };
-
-            for (const ticket of tickets) {
-                const pasajero = ticket.pasajero;
-                const centroCostoNombre = pasajero?.centroCosto?.nombre || "Sin asignar";
-
-                if (!detallePorCC[centroCostoNombre]) {
-                    detallePorCC[centroCostoNombre] = {
-                        nombre: centroCostoNombre,
+            // Detalle por centro de costo
+            const ccMap: Record<number, { nombre: string, total_tickets: number, total_anulados: number, monto_facturado: number }> = {};
+            for (const user of users) {
+                if (!user.centro_costo_id) continue;
+                if (!ccMap[user.centro_costo_id]) {
+                    const cc = await CentroCosto.findByPk(user.centro_costo_id);
+                    ccMap[user.centro_costo_id] = {
+                        nombre: cc ? cc.nombre : 'Sin nombre',
                         total_tickets: 0,
                         total_anulados: 0,
                         monto_facturado: 0
                     };
                 }
-
-                if (ticket.ticketStatus === 'Confirmed') {
-                    detallePorCC[centroCostoNombre].total_tickets += 1;
-                    detallePorCC[centroCostoNombre].monto_facturado += Number(ticket.monto_boleto) || 0;
+            }
+            for (const ticket of tickets) {
+                const user = users.find(u => u.id === ticket.id_User);
+                if (!user || !user.centro_costo_id) continue;
+                const cc = ccMap[user.centro_costo_id];
+                const ticketStatus = ticket.get('ticketStatus');
+                if (ticketStatus === 'Confirmed') {
+                    cc.total_tickets += 1;
+                    cc.monto_facturado += Number(ticket.get('monto_boleto')) || 0;
                 }
-                if (ticket.ticketStatus === 'Anulado') {
-                    detallePorCC[centroCostoNombre].total_anulados += 1;
-                    detallePorCC[centroCostoNombre].monto_facturado -= Number(ticket.monto_devolucion) || 0;
+                if (ticketStatus === 'Anulado') {
+                    cc.total_anulados += 1;
+                    cc.monto_facturado -= Number(ticket.get('monto_devolucion')) || 0;
                 }
             }
 
-            console.log(`[${new Date().toISOString()}] Detalle por centro de costo para periodo ${periodo}: ${JSON.stringify(detallePorCC)}`);
+            console.log(`[${new Date().toISOString()}] Detalle por centro de costo para periodo ${periodo}: ${JSON.stringify(ccMap)}`);
 
             // Buscar si ya existe EstadoCuenta para este periodo y empresa
             let estadoCuenta = await EstadoCuenta.findOne({
@@ -242,7 +223,7 @@ export const generarEstadosPagoEmpresas = async () => {
                     total_tickets,
                     total_tickets_anulados,
                     monto_facturado,
-                    detalle_por_cc: JSON.stringify(detallePorCC),
+                    detalle_por_cc: JSON.stringify(ccMap),
                     fecha_facturacion,
                     fecha_vencimiento
                 });
@@ -256,7 +237,7 @@ export const generarEstadosPagoEmpresas = async () => {
                     total_tickets,
                     total_tickets_anulados,
                     monto_facturado,
-                    detalle_por_cc: JSON.stringify(detallePorCC),
+                    detalle_por_cc: JSON.stringify(ccMap),
                     pagado: false,
                     fecha_facturacion,
                     fecha_vencimiento

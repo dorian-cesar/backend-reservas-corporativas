@@ -6,6 +6,7 @@ import {
     update,
     remove,
     setEstado, getUserById,
+    cambiarEmpresaActual
 } from "../controllers/users.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 import { onlySuperUser } from "../middleware/role.middleware";
@@ -29,6 +30,8 @@ router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), rem
 
 // Activar/desactivar usuario
 router.patch("/:id/estado", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), setEstado);
+
+router.patch("/cambiar-empresa", authenticateJWT, authorizeRoles("superuser", "admin"), cambiarEmpresaActual);
 
 // Ejemplo de ruta solo para superuser
 router.post("/superuser-only", authenticateJWT, onlySuperUser, (req, res) => {

@@ -22,6 +22,7 @@ export interface ITicketCreate {
     confirmedAt: Date | string;
     id_User: number;
     id_pasajero?: number;
+    id_empresa?: number; // NUEVO CAMPO
 }
 
 /**
@@ -44,4 +45,5 @@ export interface ITicketUpdate {
     confirmedAt?: Date | string;
     id_User?: number;
     id_pasajero?: number;
+    id_empresa?: number; // NUEVO CAMPO
 }

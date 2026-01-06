@@ -8,6 +8,7 @@ import { UserEmpresa } from "../models/user_empresa.model";
 import { CentroCosto } from "../models/centro_costo.model";
 import { Op, fn, col } from "sequelize";
 import { sanitizeUser } from "../utils/sanitizeUser";
+import { signJwt } from "../utils/jwt";
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -371,5 +372,137 @@ export const setEstado = async (req: Request<{ id: string }, {}, { estado: boole
         res.json(sanitizeUser(user));
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
+    }
+};
+
+export const cambiarEmpresaActual = async (req: Request, res: Response) => {
+    try {
+        const user = req.user as any;
+        const userId = user.id;
+        const userRol = user.rol;
+
+        const { nueva_empresa_id } = req.body;
+
+        if (userRol !== "admin") {
+            return res.status(403).json({
+                message: "Solo los administradores pueden cambiar su empresa actual"
+            });
+        }
+
+        if (!nueva_empresa_id) {
+            return res.status(400).json({
+                message: "El ID de la nueva empresa es requerido"
+            });
+        }
+
+        // Buscar el usuario
+        const usuario = await User.findByPk(userId);
+        if (!usuario) {
+            return res.status(404).json({ message: "Usuario no encontrado" });
+        }
+
+        const nuevaEmpresa = await Empresa.findByPk(nueva_empresa_id);
+        if (!nuevaEmpresa) {
+            return res.status(404).json({
+                message: "La empresa seleccionada no existe"
+            });
+        }
+
+        const tieneAcceso = await UserEmpresa.findOne({
+            where: {
+                user_id: userId,
+                empresa_id: nueva_empresa_id
+            }
+        });
+
+        if (!tieneAcceso) {
+            if (usuario.empresa_id !== nueva_empresa_id) {
+                return res.status(403).json({
+                    message: "No tienes acceso a esta empresa",
+                    detalles: {
+                        usuarioId: userId,
+                        empresaActual: usuario.empresa_id,
+                        empresaSolicitada: nueva_empresa_id
+                    }
+                });
+            }
+        }
+
+        const empresaAnterior = usuario.empresa_id;
+
+        await usuario.update({
+            empresa_id: nueva_empresa_id,
+            updated_at: new Date()
+        });
+
+        // Obtener datos actualizados
+        const usuarioActualizado = await User.findByPk(userId, {
+            include: [
+                {
+                    model: Empresa,
+                    as: "empresa"
+                },
+                {
+                    model: CentroCosto,
+                    as: "centroCosto"
+                }
+            ]
+        });
+
+        if (!usuarioActualizado) {
+            return res.status(404).json({ message: "Usuario no encontrado después de actualizar" });
+        }
+
+        // Generar nuevo token con los datos actualizados
+        const nuevoPayload = {
+            id: usuarioActualizado.id,
+            email: usuarioActualizado.email,
+            rol: usuarioActualizado.rol,
+            empresa_id: usuarioActualizado.empresa_id,
+            centro_costo_id: usuarioActualizado.centro_costo_id,
+        };
+
+        const nuevoToken = signJwt(nuevoPayload);
+
+        // Preparar datos para la respuesta
+        const userSanitizado = sanitizeUser(usuarioActualizado);
+
+        // Extraer datos de empresa y centro de costo
+        let empresaData = null;
+        if (usuarioActualizado.empresa) {
+            empresaData = usuarioActualizado.empresa.toJSON();
+        }
+
+        let centroCostoData = null;
+        if (usuarioActualizado.centroCosto) {
+            centroCostoData = usuarioActualizado.centroCosto.toJSON();
+        }
+
+        console.log(`Usuario ${userId} cambió de empresa: ${empresaAnterior} -> ${nueva_empresa_id}`, {
+            usuario: usuario.nombre,
+            empresaAnterior,
+            empresaNueva: nueva_empresa_id,
+            fecha: new Date().toISOString()
+        });
+
+        res.json({
+            message: "Empresa actualizada correctamente",
+            token: nuevoToken, // Nuevo token
+            usuario: userSanitizado,
+            empresa: empresaData,
+            centroCosto: centroCostoData,
+            cambios: {
+                empresa_anterior: empresaAnterior,
+                empresa_nueva: nueva_empresa_id,
+                fecha_cambio: new Date()
+            }
+        });
+
+    } catch (err) {
+        console.error("Error al cambiar empresa:", err);
+        res.status(500).json({
+            message: "Error en servidor",
+            error: (err as Error).message
+        });
     }
 };

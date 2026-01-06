@@ -133,7 +133,8 @@ export const create = async (
             monto_devolucion,
             confirmedAt,
             id_User,
-            id_pasajero
+            id_pasajero,
+            id_empresa
         } = req.body;
 
         // Validar que el usuario existe
@@ -141,6 +142,58 @@ export const create = async (
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
         const userData = user.toJSON();
+
+        let empresaTicketId = id_empresa;
+
+        if (!empresaTicketId) {
+            // Si no viene en el request, usar la empresa del usuario
+            empresaTicketId = userData.empresa_id;
+        }
+
+        if (!empresaTicketId) {
+            return res.status(400).json({
+                message: "No se puede determinar la empresa del ticket",
+                detalles: {
+                    userId: userData.id,
+                    userName: userData.nombre,
+                    empresaDesdeRequest: id_empresa,
+                    empresaDesdeUsuario: userData.empresa_id
+                }
+            });
+        }
+
+        const empresa = await Empresa.findByPk(empresaTicketId);
+        if (!empresa) {
+            return res.status(400).json({
+                message: "La empresa no existe",
+                detalles: {
+                    empresaId: empresaTicketId
+                }
+            });
+        }
+
+        const empresaData = empresa.toJSON();
+
+        // Validar límite de monto máximo
+        if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
+            const montoActual = empresaData.monto_acumulado || 0;
+            const montoMaximo = empresaData.monto_maximo;
+            const montoNuevo = montoActual + monto_boleto;
+
+            if (montoNuevo > montoMaximo) {
+                return res.status(400).json({
+                    message: `La empresa ha excedido su límite de gasto. Límite: $${montoMaximo}, Actual: $${montoActual}, Nuevo ticket: $${monto_boleto}`,
+                    detalles: {
+                        monto_maximo: montoMaximo,
+                        monto_acumulado: montoActual,
+                        monto_ticket: monto_boleto,
+                        monto_nuevo_total: montoNuevo,
+                        disponible: montoMaximo - montoActual
+                    }
+                });
+            }
+        }
+
 
         if (!userData.empresa_id) {
             return res.status(400).json({
@@ -172,19 +225,6 @@ export const create = async (
             // }
             pasajeroData = pasajeroJSON;
         }
-
-        const empresa = await Empresa.findByPk(userData.empresa_id);
-        if (!empresa) {
-            return res.status(400).json({
-                message: "La empresa asignada al usuario no existe",
-                detalles: {
-                    userId: userData.id,
-                    empresaId: userData.empresa_id
-                }
-            });
-        }
-
-        const empresaData = empresa.toJSON();
 
         // Validar límite de monto máximo
         if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
@@ -223,7 +263,8 @@ export const create = async (
             monto_devolucion: monto_devolucion || 0,
             confirmedAt: typeof confirmedAt === "string" ? new Date(confirmedAt) : confirmedAt,
             id_User,
-            id_pasajero
+            id_pasajero,
+            id_empresa: empresaTicketId
         });
 
         try {
@@ -239,6 +280,7 @@ export const create = async (
 
             console.log('Monto acumulado actualizado correctamente:', {
                 empresaId: empresaActualizada.id,
+                empresaNombre: empresaActualizada.nombre,
                 montoActualizado: empresaActualizada.monto_acumulado
             });
         } catch (error) {
@@ -403,6 +445,11 @@ export const update = async (
                     model: Pasajero,
                     attributes: ['id', 'nombre', 'rut', 'correo'],
                     required: false
+                },
+                {
+                    model: Empresa,
+                    attributes: ['id', 'nombre', 'rut'],
+                    required: false
                 }
             ]
         });
@@ -449,6 +496,22 @@ export const update = async (
                             empresa_pasajero: pasajeroJSON.id_empresa,
                             empresa_usuario: userData.empresa_id
                         }
+                    });
+                }
+            }
+        }
+
+        if (updateData.id_empresa !== undefined) {
+            if (updateData.id_empresa === null) {
+                // Permitir establecer como null
+                updateData.id_empresa = null;
+            } else {
+                // Validar que la empresa existe
+                const empresa = await Empresa.findByPk(updateData.id_empresa);
+                if (!empresa) {
+                    return res.status(404).json({
+                        message: "Empresa no encontrada",
+                        empresaId: updateData.id_empresa
                     });
                 }
             }
@@ -790,14 +853,8 @@ export const getTicketsByEmpresa = async (
     try {
         const id_empresa = parseInt(req.params.id_empresa, 10);
 
-        const users = await User.findAll({ where: { empresa_id: id_empresa } });
-        if (!users.length) {
-            return res.status(404).json({ message: "No existen usuarios para la empresa indicada" });
-        }
-        const userIds = users.map(u => u.id);
-
         const filters = buildTicketFilters(req.query);
-        filters.id_User = userIds;
+        filters.id_empresa = id_empresa;
 
         const exportAll = req.query.exportAll === 'true';
 
@@ -820,39 +877,17 @@ export const getTicketsByEmpresa = async (
             include: [
                 {
                     model: User,
-                    attributes: [
-                        'id',
-                        'nombre',
-                        'rut',
-                        'email',
-                        'rol',
-                        'empresa_id',
-                        'centro_costo_id',
-                        'estado',
-                        'created_at',
-                        'updated_at'
-                    ],
-                    include: [
-                        {
-                            model: CentroCosto,
-                            attributes: [
-                                'id',
-                                'nombre',
-                                'empresa_id'
-                            ]
-                        }
-                    ]
+                    attributes: ['id', 'nombre', 'email', 'empresa_id']
+                },
+                {
+                    model: Empresa,
+                    attributes: ['id', 'nombre', 'rut', 'cuenta_corriente'],
+                    required: true
                 },
                 {
                     model: Pasajero,
                     attributes: ['id', 'nombre', 'rut', 'correo'],
-                    required: false,
-                    include: [
-                        {
-                            model: CentroCosto,
-                            attributes: ['id', 'nombre']
-                        }
-                    ]
+                    required: false
                 }
             ],
             order: [['id', 'ASC']]

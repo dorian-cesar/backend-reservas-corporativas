@@ -5,6 +5,7 @@ import { Op } from "sequelize";
 import { Ticket } from "../models/ticket.model";
 import { User } from "../models/user.model";
 import { Pasajero } from "../models/pasajero.model";
+import { Empresa } from "../models/empresa.model";
 
 
 /**
@@ -148,13 +149,39 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
             });
         }
 
-        // 3. BUSCAR TICKETS CON confirmedAt EN EL RANGO DE FECHAS
+        const whereCondition: any = {
+            // Usar confirmedAt en lugar de travelDate
+            confirmedAt: {
+                [Op.between]: [inicio, fin]
+            }
+        };
+        
+        if (empresaId) {
+            // Verificar si la empresa existe primero
+            const empresa = await Empresa.findByPk(empresaId);
+            if (empresa) {
+                // Filtrar por id_empresa
+                whereCondition.id_empresa = empresaId;
+            } else {
+                // Si la empresa no existe, devolver error o tickets sin empresa
+                return res.status(404).json({ 
+                    message: "Empresa no encontrada",
+                    empresaId 
+                });
+            }
+        } else {
+            // Si no hay empresaId, buscar tickets sin empresa asignada
+            whereCondition.id_empresa = null;
+        }
+
+        // 4. BUSCAR TICKETS
         const tickets = await Ticket.findAll({
+            where: whereCondition,
             include: [
                 {
-                    model: User,
-                    where: { empresa_id: empresaId },
-                    attributes: ['id', 'nombre', 'email', 'empresa_id', 'centro_costo_id']
+                    model: Empresa,
+                    attributes: ['id', 'nombre', 'rut'],
+                    required: empresaId ? true : false
                 },
                 {
                     model: Pasajero,
@@ -162,12 +189,6 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
                     attributes: ['id', 'nombre', 'rut', 'correo', 'telefono']
                 }
             ],
-            where: {
-                // IMPORTANTE: Usar confirmedAt en lugar de travelDate
-                confirmedAt: {
-                    [Op.between]: [inicio, fin]
-                }
-            },
             order: [["confirmedAt", "DESC"]],
         });
 

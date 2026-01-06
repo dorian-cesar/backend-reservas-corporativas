@@ -12,6 +12,7 @@ import {
 } from "sequelize-typescript";
 import { User } from "./user.model";
 import { Pasajero } from "./pasajero.model";
+import { Empresa } from "./empresa.model";
 
 /**
  * Estado posible del ticket.
@@ -21,7 +22,9 @@ export type TicketStatus = "Confirmed" | "Anulado";
 export interface ITicket extends ITicketBase {
   user?: User;
   pasajero?: Pasajero;
+  empresa?: Empresa;
 }
+
 /**
  * Interfaz para el modelo Ticket.
  */
@@ -43,6 +46,7 @@ export interface ITicketBase {
   confirmedAt: Date;
   id_User: number;
   id_pasajero?: number;
+  id_empresa?: number | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -106,10 +110,19 @@ export class Ticket extends Model<ITicket> {
   @ForeignKey(() => Pasajero)
   @Column({
     type: DataType.INTEGER,
-    allowNull: true, // Permite NULL para compatibilidad con tickets existentes
+    allowNull: true,
     field: "id_pasajero",
   })
   declare id_pasajero?: number;
+
+  @ForeignKey(() => Empresa)
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: true,
+    defaultValue: null,
+    field: "id_empresa",
+  })
+  declare id_empresa?: number | null;
 
   @BelongsTo(() => User)
   user?: User;
@@ -119,6 +132,12 @@ export class Ticket extends Model<ITicket> {
     targetKey: "id",
   })
   pasajero?: Pasajero;
+
+  @BelongsTo(() => Empresa, {
+    foreignKey: "id_empresa",
+    targetKey: "id",
+  })
+  empresa?: Empresa;
 
   @CreatedAt
   @Column({ type: DataType.DATE, allowNull: true })
