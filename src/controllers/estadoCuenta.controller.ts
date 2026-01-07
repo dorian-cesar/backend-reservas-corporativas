@@ -6,6 +6,7 @@ import { Ticket } from "../models/ticket.model";
 import { User } from "../models/user.model";
 import { Pasajero } from "../models/pasajero.model";
 import { Empresa } from "../models/empresa.model";
+import { CentroCosto } from "../models/centro_costo.model";
 
 
 /**
@@ -102,12 +103,15 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
     try {
         const { id } = req.params;
 
+        const page = req.query.page ? parseInt(req.query.page as string, 10) : null;
+        const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
+        const offset = page && limit ? (page - 1) * limit : undefined;
+
         const estado = await EstadoCuenta.findByPk(id);
         if (!estado) return res.status(404).json({ message: "Estado de cuenta no encontrado" });
 
         const estadoData = estado.toJSON();
 
-        // 1. VERIFICAR QUE TENGA FECHAS VÁLIDAS
         if (!estadoData.fecha_inicio || !estadoData.fecha_fin) {
             return res.status(400).json({
                 message: "El estado de cuenta no tiene fechas de período definidas",
@@ -120,7 +124,6 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
 
         const empresaId = estadoData.empresa_id;
 
-        // 2. CONVERTIR FECHAS STRING A DATE
         let inicio: Date;
         let fin: Date;
 
@@ -128,7 +131,6 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
             inicio = new Date(estadoData.fecha_inicio);
             fin = new Date(estadoData.fecha_fin);
 
-            // Validar que las fechas sean válidas
             if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
                 return res.status(400).json({
                     message: "Fechas inválidas en el estado de cuenta",
@@ -139,7 +141,6 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
                 });
             }
 
-            // Asegurar que fin sea el final del día
             fin.setHours(23, 59, 59, 999);
 
         } catch (error) {
@@ -150,47 +151,68 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
         }
 
         const whereCondition: any = {
-            // Usar confirmedAt en lugar de travelDate
             confirmedAt: {
                 [Op.between]: [inicio, fin]
             }
         };
-        
+
         if (empresaId) {
-            // Verificar si la empresa existe primero
             const empresa = await Empresa.findByPk(empresaId);
             if (empresa) {
-                // Filtrar por id_empresa
                 whereCondition.id_empresa = empresaId;
             } else {
-                // Si la empresa no existe, devolver error o tickets sin empresa
-                return res.status(404).json({ 
+                return res.status(404).json({
                     message: "Empresa no encontrada",
-                    empresaId 
+                    empresaId
                 });
             }
         } else {
-            // Si no hay empresaId, buscar tickets sin empresa asignada
             whereCondition.id_empresa = null;
         }
 
-        // 4. BUSCAR TICKETS
-        const tickets = await Ticket.findAll({
+        const queryOptions: any = {
             where: whereCondition,
             include: [
                 {
+                    model: User,
+                    attributes: ['id', 'nombre', 'rut', 'email'],
+                    required: false
+                },
+                {
                     model: Empresa,
-                    attributes: ['id', 'nombre', 'rut'],
+                    attributes: ['id', 'nombre', 'rut', 'cuenta_corriente'],
                     required: empresaId ? true : false
                 },
                 {
                     model: Pasajero,
                     required: false,
-                    attributes: ['id', 'nombre', 'rut', 'correo', 'telefono']
+                    attributes: ['id', 'nombre', 'rut', 'correo', 'telefono', 'id_centro_costo'],
+                    include: [{ model: CentroCosto, required: false }]
                 }
             ],
             order: [["confirmedAt", "DESC"]],
-        });
+        };
+
+        if (page && limit) {
+            queryOptions.limit = limit;
+            queryOptions.offset = offset;
+        }
+
+        const tickets = await Ticket.findAll(queryOptions);
+
+        if (page && limit) {
+            const total = await Ticket.count({ where: whereCondition });
+
+            return res.json({
+                data: tickets,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        }
 
         return res.json(tickets);
 
