@@ -54,15 +54,19 @@ export const getTickets = async (req: Request, res: Response) => {
     try {
         const rol = (req.user as any).rol;
         const empresa_id = (req.user as any).empresa_id;
+        const userId = (req.user as any).id;
 
-        // Construcción de filtros dinámicos
         const filters = buildTicketFilters(req.query);
 
-        if (rol === "admin") {
-            // Solo tickets de usuarios de la empresa del admin
-            const users = await User.findAll({ where: { empresa_id } });
-            const userIds = users.map(u => u.id);
-            filters.id_User = userIds;
+        if (rol === "empresa" || rol === "subusuario") {
+            // Usuarios de empresa solo ven sus propios tickets
+            filters.id_User = userId; // Solo tickets del usuario autenticado
+            const user = await User.findByPk(userId);
+
+            if (user && user.empresa_id) {
+                filters.id_empresa = user.empresa_id;
+            }
+
             const tickets = await Ticket.findAll({
                 where: filters,
                 include: [
@@ -73,6 +77,11 @@ export const getTickets = async (req: Request, res: Response) => {
                     {
                         model: Pasajero,
                         attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    },
+                    {
+                        model: Empresa,
+                        attributes: ['id', 'nombre', 'rut'],
                         required: false
                     }
                 ]
@@ -93,6 +102,36 @@ export const getTickets = async (req: Request, res: Response) => {
                     {
                         model: Pasajero,
                         attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    },
+                    {
+                        model: Empresa,
+                        attributes: ['id', 'nombre', 'rut'],
+                        required: false
+                    }
+                ]
+            });
+
+            const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+            return res.json(ticketsJSON);
+        }
+
+        if (rol === "admin" && filters) {
+            const tickets = await Ticket.findAll({
+                where: filters,
+                include: [
+                    {
+                        model: User,
+                        attributes: ['id', 'nombre', 'email', 'empresa_id']
+                    },
+                    {
+                        model: Pasajero,
+                        attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    },
+                    {
+                        model: Empresa,
+                        attributes: ['id', 'nombre', 'rut'],
                         required: false
                     }
                 ]
