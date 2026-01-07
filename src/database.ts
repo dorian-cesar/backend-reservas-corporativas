@@ -2,7 +2,7 @@
 
 import { Sequelize } from "sequelize-typescript";
 import "./models/associations";
-import {EstadoCuenta} from "./models/estado_cuenta.model";
+import { EstadoCuenta } from "./models/estado_cuenta.model";
 
 import { Empresa } from "./models/empresa.model";
 import { CentroCosto } from "./models/centro_costo.model";
@@ -11,6 +11,7 @@ import { CuentaCorriente } from "./models/cuenta_corriente.model";
 import { Ticket } from "./models/ticket.model";
 import * as dotenv from "dotenv";
 import { Pasajero } from "./models/pasajero.model";
+import { UserEmpresa } from "./models/user_empresa.model";
 
 dotenv.config();
 
@@ -21,7 +22,7 @@ export const sequelize = new Sequelize({
     username: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "multiempresa_db",
-    models: [Empresa, CentroCosto, User, CuentaCorriente, Ticket, EstadoCuenta, Pasajero],
+    models: [Empresa, CentroCosto, User, CuentaCorriente, Ticket, EstadoCuenta, Pasajero, UserEmpresa],
     logging: false,
 });
 

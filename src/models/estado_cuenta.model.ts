@@ -64,7 +64,7 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
   @Column({ type: DataType.DECIMAL(12, 2), allowNull: false })
   declare monto_facturado: number;
 
-  @Column({ type: DataType.DECIMAL(12, 2), allowNull: false })
+  @Column({ type: DataType.DECIMAL(12, 2), allowNull: false, defaultValue: 0 })
   declare suma_devoluciones: number;
 
   @Column({ type: DataType.TEXT, allowNull: false })

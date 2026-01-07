@@ -54,15 +54,19 @@ export const getTickets = async (req: Request, res: Response) => {
     try {
         const rol = (req.user as any).rol;
         const empresa_id = (req.user as any).empresa_id;
+        const userId = (req.user as any).id;
 
-        // Construcción de filtros dinámicos
         const filters = buildTicketFilters(req.query);
 
-        if (rol === "admin") {
-            // Solo tickets de usuarios de la empresa del admin
-            const users = await User.findAll({ where: { empresa_id } });
-            const userIds = users.map(u => u.id);
-            filters.id_User = userIds;
+        if (rol === "empresa" || rol === "subusuario") {
+            // Usuarios de empresa solo ven sus propios tickets
+            filters.id_User = userId; // Solo tickets del usuario autenticado
+            const user = await User.findByPk(userId);
+
+            if (user && user.empresa_id) {
+                filters.id_empresa = user.empresa_id;
+            }
+
             const tickets = await Ticket.findAll({
                 where: filters,
                 include: [
@@ -73,6 +77,11 @@ export const getTickets = async (req: Request, res: Response) => {
                     {
                         model: Pasajero,
                         attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    },
+                    {
+                        model: Empresa,
+                        attributes: ['id', 'nombre', 'rut'],
                         required: false
                     }
                 ]
@@ -93,6 +102,36 @@ export const getTickets = async (req: Request, res: Response) => {
                     {
                         model: Pasajero,
                         attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    },
+                    {
+                        model: Empresa,
+                        attributes: ['id', 'nombre', 'rut'],
+                        required: false
+                    }
+                ]
+            });
+
+            const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+            return res.json(ticketsJSON);
+        }
+
+        if (rol === "admin" && filters) {
+            const tickets = await Ticket.findAll({
+                where: filters,
+                include: [
+                    {
+                        model: User,
+                        attributes: ['id', 'nombre', 'email', 'empresa_id']
+                    },
+                    {
+                        model: Pasajero,
+                        attributes: ['id', 'nombre', 'rut', 'correo'],
+                        required: false
+                    },
+                    {
+                        model: Empresa,
+                        attributes: ['id', 'nombre', 'rut'],
                         required: false
                     }
                 ]
@@ -133,7 +172,8 @@ export const create = async (
             monto_devolucion,
             confirmedAt,
             id_User,
-            id_pasajero
+            id_pasajero,
+            id_empresa
         } = req.body;
 
         // Validar que el usuario existe
@@ -141,6 +181,58 @@ export const create = async (
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
         const userData = user.toJSON();
+
+        let empresaTicketId = id_empresa;
+
+        if (!empresaTicketId) {
+            // Si no viene en el request, usar la empresa del usuario
+            empresaTicketId = userData.empresa_id;
+        }
+
+        if (!empresaTicketId) {
+            return res.status(400).json({
+                message: "No se puede determinar la empresa del ticket",
+                detalles: {
+                    userId: userData.id,
+                    userName: userData.nombre,
+                    empresaDesdeRequest: id_empresa,
+                    empresaDesdeUsuario: userData.empresa_id
+                }
+            });
+        }
+
+        const empresa = await Empresa.findByPk(empresaTicketId);
+        if (!empresa) {
+            return res.status(400).json({
+                message: "La empresa no existe",
+                detalles: {
+                    empresaId: empresaTicketId
+                }
+            });
+        }
+
+        const empresaData = empresa.toJSON();
+
+        // Validar límite de monto máximo
+        if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
+            const montoActual = empresaData.monto_acumulado || 0;
+            const montoMaximo = empresaData.monto_maximo;
+            const montoNuevo = montoActual + monto_boleto;
+
+            if (montoNuevo > montoMaximo) {
+                return res.status(400).json({
+                    message: `La empresa ha excedido su límite de gasto. Límite: $${montoMaximo}, Actual: $${montoActual}, Nuevo ticket: $${monto_boleto}`,
+                    detalles: {
+                        monto_maximo: montoMaximo,
+                        monto_acumulado: montoActual,
+                        monto_ticket: monto_boleto,
+                        monto_nuevo_total: montoNuevo,
+                        disponible: montoMaximo - montoActual
+                    }
+                });
+            }
+        }
+
 
         if (!userData.empresa_id) {
             return res.status(400).json({
@@ -161,30 +253,17 @@ export const create = async (
             }
 
             const pasajeroJSON = pasajero.toJSON();
-            if (pasajeroJSON.id_empresa !== userData.empresa_id) {
-                return res.status(400).json({
-                    message: "El pasajero no pertenece a la misma empresa que el usuario",
-                    detalles: {
-                        empresa_pasajero: pasajeroJSON.id_empresa,
-                        empresa_usuario: userData.empresa_id
-                    }
-                });
-            }
+            // if (pasajeroJSON.id_empresa !== userData.empresa_id) {
+            //     return res.status(400).json({
+            //         message: "El pasajero no pertenece a la misma empresa que el usuario",
+            //         detalles: {
+            //             empresa_pasajero: pasajeroJSON.id_empresa,
+            //             empresa_usuario: userData.empresa_id
+            //         }
+            //     });
+            // }
             pasajeroData = pasajeroJSON;
         }
-
-        const empresa = await Empresa.findByPk(userData.empresa_id);
-        if (!empresa) {
-            return res.status(400).json({
-                message: "La empresa asignada al usuario no existe",
-                detalles: {
-                    userId: userData.id,
-                    empresaId: userData.empresa_id
-                }
-            });
-        }
-
-        const empresaData = empresa.toJSON();
 
         // Validar límite de monto máximo
         if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
@@ -223,7 +302,8 @@ export const create = async (
             monto_devolucion: monto_devolucion || 0,
             confirmedAt: typeof confirmedAt === "string" ? new Date(confirmedAt) : confirmedAt,
             id_User,
-            id_pasajero
+            id_pasajero,
+            id_empresa: empresaTicketId
         });
 
         try {
@@ -239,6 +319,7 @@ export const create = async (
 
             console.log('Monto acumulado actualizado correctamente:', {
                 empresaId: empresaActualizada.id,
+                empresaNombre: empresaActualizada.nombre,
                 montoActualizado: empresaActualizada.monto_acumulado
             });
         } catch (error) {
@@ -403,6 +484,11 @@ export const update = async (
                     model: Pasajero,
                     attributes: ['id', 'nombre', 'rut', 'correo'],
                     required: false
+                },
+                {
+                    model: Empresa,
+                    attributes: ['id', 'nombre', 'rut'],
+                    required: false
                 }
             ]
         });
@@ -449,6 +535,22 @@ export const update = async (
                             empresa_pasajero: pasajeroJSON.id_empresa,
                             empresa_usuario: userData.empresa_id
                         }
+                    });
+                }
+            }
+        }
+
+        if (updateData.id_empresa !== undefined) {
+            if (updateData.id_empresa === null) {
+                // Permitir establecer como null
+                updateData.id_empresa = null;
+            } else {
+                // Validar que la empresa existe
+                const empresa = await Empresa.findByPk(updateData.id_empresa);
+                if (!empresa) {
+                    return res.status(404).json({
+                        message: "Empresa no encontrada",
+                        empresaId: updateData.id_empresa
                     });
                 }
             }
@@ -790,75 +892,71 @@ export const getTicketsByEmpresa = async (
     try {
         const id_empresa = parseInt(req.params.id_empresa, 10);
 
-        const users = await User.findAll({ where: { empresa_id: id_empresa } });
-        if (!users.length) {
-            return res.status(404).json({ message: "No existen usuarios para la empresa indicada" });
-        }
-        const userIds = users.map(u => u.id);
-
         const filters = buildTicketFilters(req.query);
-        filters.id_User = userIds;
+        filters.id_empresa = id_empresa;
 
-        const page = Math.max(1, parseInt((req.query.page as string) || "1", 10) || 1);
-        const limit = Math.max(1, parseInt((req.query.limit as string) || "10", 10) || 10);
-        const offset = (page - 1) * limit;
+        const exportAll = req.query.exportAll === 'true';
 
-        const result = await Ticket.findAndCountAll({
+        const page = Math.max(
+            1,
+            parseInt(req.query.page as string, 10) || 1
+        );
+
+        const paginatedLimit = Math.max(
+            1,
+            parseInt(req.query.limit as string, 10) || 10
+        );
+
+        const limit = exportAll ? undefined : paginatedLimit;
+        const offset = exportAll ? undefined : (page - 1) * paginatedLimit;
+
+        // Si es para exportación, obtener todos sin límite
+        const queryOptions: any = {
             where: filters,
             include: [
                 {
                     model: User,
-                    attributes: [
-                        'id',
-                        'nombre',
-                        'rut',
-                        'email',
-                        'rol',
-                        'empresa_id',
-                        'centro_costo_id',
-                        'estado',
-                        'created_at',
-                        'updated_at'
-                    ],
-                    include: [
-                        {
-                            model: CentroCosto,
-                            attributes: [
-                                'id',
-                                'nombre',
-                                'empresa_id'
-                            ]
-                        }
-                    ]
+                    attributes: ['id', 'nombre', 'email', 'empresa_id']
+                },
+                {
+                    model: Empresa,
+                    attributes: ['id', 'nombre', 'rut', 'cuenta_corriente'],
+                    required: true
                 },
                 {
                     model: Pasajero,
                     attributes: ['id', 'nombre', 'rut', 'correo'],
-                    required: false,
-                    include: [
-                        {
-                            model: CentroCosto,
-                            attributes: ['id', 'nombre']
-                        }
-                    ]
+                    required: false
                 }
             ],
-            limit,
-            offset,
             order: [['id', 'ASC']]
-        });
+        };
+
+        // Solo agregar limit y offset si no es para exportación
+        if (!exportAll) {
+            queryOptions.limit = limit;
+            queryOptions.offset = offset;
+        }
+
+        const result = await Ticket.findAndCountAll(queryOptions);
 
         const tickets = result.rows.map(t => t.toJSON());
         const total = result.count;
+
+        // Si es para exportación, retornar solo los tickets sin paginación
+        if (exportAll) {
+            return res.json(tickets);
+        }
+
 
         return res.json({
             tickets,
             pagination: {
                 total,
                 page,
-                limit,
-                totalPages: Math.max(1, Math.ceil(total / limit)),
-                hasNextPage: page < Math.ceil(total / limit),
+                limit: paginatedLimit,
+                totalPages: Math.max(1, Math.ceil(total / paginatedLimit)),
+                hasNextPage: page < Math.ceil(total / paginatedLimit),
                 hasPrevPage: page > 1
             }
         });
@@ -867,7 +965,6 @@ export const getTicketsByEmpresa = async (
         res.status(500).json({ message: "Error en servidor" });
     }
 };
-
 /**
  * Buscar tickets por usuario.
  */

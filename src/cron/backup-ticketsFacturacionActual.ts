@@ -52,7 +52,8 @@ export const ticketsFacturacionActual = async () => {
     /** 1️⃣ Validar día */
     if (!diaFacturacion || diaFacturacion !== diaHoy) {
       console.log(
-        `Empresa ${nombre}: hoy ${diaHoy}, factura día ${diaFacturacion ?? "N/A"
+        `Empresa ${nombre}: hoy ${diaHoy}, factura día ${
+          diaFacturacion ?? "N/A"
         }, se omite.`
       );
       continue;
@@ -106,12 +107,12 @@ export const ticketsFacturacionActual = async () => {
       continue;
     }
 
-    // /** 4️⃣ Usuarios */
-    // const users = await User.findAll({ where: { empresa_id: empresaId } });
-    // if (users.length === 0) {
-    //   console.log("Sin usuarios, se omite");
-    //   continue;
-    // }
+    /** 4️⃣ Usuarios */
+    const users = await User.findAll({ where: { empresa_id: empresaId } });
+    if (users.length === 0) {
+      console.log("Sin usuarios, se omite");
+      continue;
+    }
 
     /** 5️⃣ SQL Agregado */
     const sql = `
@@ -135,16 +136,6 @@ export const ticketsFacturacionActual = async () => {
     });
 
     const data = result[0] || {};
-
-    const totalTickets =
-      Number(data.confirmados || 0) + Number(data.anulados || 0);
-
-    if (totalTickets === 0) {
-      console.log(
-        `Empresa ${nombre}: sin tickets en el período, no se genera estado.`
-      );
-      continue;
-    }
 
     /** 6️⃣ Guardar estado */
     await EstadoCuenta.create({

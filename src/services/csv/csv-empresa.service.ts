@@ -1,11 +1,10 @@
 import fs from "fs";
 import csv from "csv-parser";
-import bcrypt from "bcrypt";
-import { User } from "../../models/user.model";
-import { mapCSVRow } from "./csv-user.mapper";
-import { IUserCreate, IUserUpdate } from "../../interfaces/user.interface";
+import { Empresa } from "../../models/empresa.model";
+import { mapCSVRow } from "./csv-empresa.mapper";
+import { IEmpresaCreate } from "../../interfaces/empresa.interface";
 
-export class CSVUserService {
+export class CSVEmpresaService {
     async processFile(
         filePath: string
     ): Promise<{ success: number; errors: string[] }> {
@@ -29,48 +28,46 @@ export class CSVUserService {
             try {
                 const mapped = mapCSVRow(row);
 
-                if (!mapped.nombre || !mapped.email) {
-                    throw new Error("nombre y email son obligatorios");
+                if (!mapped.nombre) {
+                    throw new Error("nombre es obligatorio");
                 }
 
-                const normalizedEmail = mapped.email.toLowerCase().trim();
-
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(normalizedEmail)) {
-                    throw new Error("email no válido");
-                }
-
-                const emailUsername = normalizedEmail.split("@")[0];
-                const passwordBase =
-                    emailUsername ||
-                    mapped.rut?.replace(/\D/g, "") ||
-                    "password123";
-
-                const hashedPassword = await bcrypt.hash(passwordBase, 10);
-
-                const createPayload: IUserCreate = {
-                    nombre: mapped.nombre,
-                    email: normalizedEmail,
+                const createPayload: IEmpresaCreate = {
+                    nombre: mapped.nombre.trim(),
                     rut: mapped.rut,
-                    rol: mapped.rol || "subusuario",
-                    empresa_id: mapped.empresa_id,
-                    centro_costo_id: mapped.centro_costo_id,
+                    cuenta_corriente: mapped.cuenta_corriente,
                     estado: mapped.estado ?? true,
-                    password: hashedPassword,
+                    recargo: mapped.recargo ?? 0,
+                    porcentaje_devolucion: mapped.porcentaje_devolucion ?? 0.0,
+                    dia_facturacion: mapped.dia_facturacion,
+                    dia_vencimiento: mapped.dia_vencimiento,
+                    monto_maximo: mapped.monto_maximo,
+                    monto_acumulado: mapped.monto_acumulado ?? 0,
                 };
 
-                const existing = await User.findOne({
-                    where: { email: createPayload.email },
-                });
-
-                if (existing) {
-                    console.log(`Usuario existente: ${createPayload.email}`);
-                    continue;
-                } else {
-                    await User.create(createPayload);
+                let existing;
+                if (createPayload.cuenta_corriente) {
+                    existing = await Empresa.findOne({
+                        where: {
+                            cuenta_corriente: createPayload.cuenta_corriente
+                        },
+                    });
                 }
 
-                success++;
+                // if (!existing) {
+                //     existing = await Empresa.findOne({
+                //         where: { nombre: createPayload.nombre },
+                //     });
+                // }
+
+                if (existing) {
+                    console.log(`Empresa existente: ${createPayload.nombre}${createPayload.rut ? ` (RUT: ${createPayload.rut})` : ''}`);
+                    continue;
+                } else {
+                    await Empresa.create(createPayload as any);
+                    success++;
+                }
+
             } catch (err: any) {
                 console.error(`Error en fila ${rowNumber}:`, err.message);
                 errors.push(`Fila ${rowNumber}: ${err.message} - Datos: ${JSON.stringify(row)}`);

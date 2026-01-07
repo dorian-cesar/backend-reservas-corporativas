@@ -4,6 +4,7 @@ export const USER_FIELD_MAP: Record<string, keyof IUser> = {
     nombre: "nombre",
     nombres: "nombre",
     name: "nombre",
+    nombre_completo: "nombre",
 
     rut: "rut",
     dni: "rut",
@@ -17,6 +18,7 @@ export const USER_FIELD_MAP: Record<string, keyof IUser> = {
 
     empresa_id: "empresa_id",
     id_empresa: "empresa_id",
+    empresa: "empresa_id",
 
     centro_costo_id: "centro_costo_id",
     id_centro_costo: "centro_costo_id",
