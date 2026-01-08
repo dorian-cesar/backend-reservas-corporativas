@@ -47,8 +47,7 @@ export const sendEmailForm = async (
 
     const html = generateEmailFormHTML(userNombre, userApellido, userEmail, telefono, servicio, mensaje);
     const msg: any = {
-      to: 'jsandoval@wit.la',
-      cc: 'dwigodski@wit.la',
+      to: 'contacto@pullmanviajes.cl',
       from: "viajes@pullmanbus.cl",
       subject: `Solicitud de Cotización`,
       html
