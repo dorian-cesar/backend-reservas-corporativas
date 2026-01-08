@@ -23,13 +23,26 @@ dotenv.config();
 const PORT = process.env.PORT || 4000;
 const app = express();
 
+const allowedOrigins = [
+    "https://www.pullmanviajes.cl",
+    "https://pullmanviajes.cl",
+    "https://reservas-corporativas.pullmanbus.cl",
+];
+
 app.use(cors({
-    origin: [
-        "https://www.pullmanviajes.cl/",
-        "https://pullmanviajes.cl/",
-        "https://reservas-corporativas.pullmanbus.cl/"
-    ],
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = `El origen ${origin} no tiene permiso de acceso.`;
+            console.warn(msg);
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 app.use(express.json());
