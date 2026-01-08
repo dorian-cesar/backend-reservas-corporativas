@@ -6,12 +6,31 @@ import { ICentroCostoCreate, ICentroCostoUpdate } from "../interfaces/centroCost
 export const listarCentrosCosto = async (req: Request, res: Response) => {
     try {
         const { empresa_id } = req.params;
+        const { includeInactives } = req.query;
+
+        const where: any = {};
+        
+        if (empresa_id) {
+            const empresaIdNum = parseInt(empresa_id);
+            if (!isNaN(empresaIdNum)) {
+                where.empresa_id = empresaIdNum;
+            }
+        }
+
+        const include = includeInactives === 'true';
+        
+        if (!include) {
+            where.estado = true;
+        }
+
         const centros = await CentroCosto.findAll({
-            where: { empresa_id },
+            where,
             order: [["nombre", "ASC"]],
         });
+        
         res.json(centros);
     } catch (err) {
+        console.error("Error al listar centros de costo:", err);
         res.status(500).json({ message: "Error en servidor" });
     }
 };

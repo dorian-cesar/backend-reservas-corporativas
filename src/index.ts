@@ -5,6 +5,7 @@ import usersRoutes from "./routes/users.routes";
 import centroCostoRoutes from "./routes/centro_costo.routes";
 import cuentaCorrienteRoutes from "./routes/cuenta_corriente.routes";
 import { connectDB } from "./database";
+import cors from "cors";
 import * as dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "../swagger.json";
@@ -15,11 +16,22 @@ import dashboardRoutes from "./routes/dashboard.routes"
 import pasajeroRoutes from "./routes/pasajeros.routes"
 import uploadRoutes from "./routes/upload.routes";
 import userEmpresaRoutes from "./routes/user_empresa.routes";
+import emailFormRoutes from "./routes/cotizacion.routes"
 
 dotenv.config();
 
 const PORT = process.env.PORT || 4000;
 const app = express();
+
+app.use(cors({
+    origin: [
+        "https://www.pullmanviajes.cl/",
+        "https://pullmanviajes.cl/",
+        "https://reservas-corporativas.pullmanbus.cl/"
+    ],
+    credentials: true,
+}));
+
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
@@ -34,6 +46,7 @@ app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/pasajeros", pasajeroRoutes)
 app.use("/api/upload/", uploadRoutes)
 app.use("/api/user-empresa/", userEmpresaRoutes)
+app.use("/api/email/", emailFormRoutes)
 
 // Documentación Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));

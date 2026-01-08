@@ -2,6 +2,7 @@ import sgMail from "@sendgrid/mail";
 import * as dotenv from "dotenv";
 import { TicketPDFData } from "./pdf.service";
 import { User } from "../models/user.model";
+import { error } from "console";
 
 dotenv.config();
 
@@ -25,6 +26,40 @@ export interface PassengerInfo {
   email: string;
   nombre: string;
   rut?: string;
+}
+
+export const sendEmailForm = async (
+  nombre: string,
+  apellido: string,
+  email: string,
+  telefono: string,
+  servicio: string,
+  mensaje: string
+): Promise<void> => {
+  try {
+    if (!nombre || !apellido || !email || !telefono || !servicio || !mensaje) {
+      throw new Error("Todos los campos son requeridos");
+    }
+
+    const userNombre = nombre.toString().trim();
+    const userApellido = apellido.toString().trim();
+    const userEmail = email.toString().trim();
+
+    const html = generateEmailFormHTML(userNombre, userApellido, userEmail, telefono, servicio, mensaje);
+    const msg: any = {
+      to: 'jsandoval@wit.la',
+      cc: 'dwigodski@wit.la',
+      from: "viajes@pullmanbus.cl",
+      subject: `Solicitud de Cotización`,
+      html
+    };
+    await sgMail.send(msg);
+    console.log('[Mail Service] Email de formulario enviado exitosamente');
+  } catch (error) {
+    console.error('[Mail Service] Error enviando email de formulario:', error);
+    throw new Error(`Error al enviar email: ${error}`);
+  }
+
 }
 
 
@@ -57,9 +92,6 @@ export const sendEmail = async (
   }
 };
 
-/**
- * Envía email de confirmación de ticket con PDF adjunto
- */
 export const sendTicketConfirmationEmail = async (
   passenger: PassengerInfo,
   ticketData: TicketPDFData,
@@ -124,9 +156,6 @@ export const sendTicketConfirmationEmail = async (
   }
 };
 
-/**
- * Envía email de anulación de ticket
- */
 export const sendTicketCancellationEmail = async (
   passenger: PassengerInfo,
   ticketData: any
@@ -170,9 +199,6 @@ export const sendTicketCancellationEmail = async (
   }
 };
 
-/**
- * Genera HTML para email de confirmación
- */
 function generateTicketEmailHTML(data: TicketEmailData): string {
   return `
 <!doctype html>
@@ -399,9 +425,6 @@ function generateTicketEmailHTML(data: TicketEmailData): string {
   `;
 }
 
-/**
- * Genera HTML para email de anulación
- */
 function generateCancellationEmailHTML(data: TicketEmailData): string {
   return `
 <!doctype html>
@@ -573,9 +596,107 @@ function generateEmailHTML(nombre: string, code: string) {
   `
 }
 
-/**
- * Formatea fecha para email
- */
+function generateEmailFormHTML(
+  nombre: string,
+  apellido: string,
+  email: string,
+  telefono: string,
+  servicio: string,
+  mensaje: string
+) {
+  return `
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <title>Solicitud de Cotización</title>
+</head>
+
+<body style="margin:0; padding:0; background-color:#f5f5f5; font-family: Arial, Helvetica, sans-serif; color:#333;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <table width="600" cellpadding="0" cellspacing="0" role="presentation"
+          style="width:600px; max-width:600px; background-color:#ffffff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding:20px 24px; border-bottom:1px solid #e5e5e5;">
+              <div style="font-size:18px; font-weight:700; color:#333;">
+                Nueva Solicitud de Cotización - Pullman Viajes
+              </div>
+              <div style="font-size:13px; color:#666; margin-top:4px;">
+                Formulario enviado desde el <a href="https://www.pullmanviajes.cl/">sitio web</a>
+              </div>
+              
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding:24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                
+                <tr>
+                  <td style="padding:8px 0; font-size:14px;">
+                    <strong>Nombre:</strong> ${nombre} ${apellido}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:8px 0; font-size:14px;">
+                    <strong>Email:</strong> ${email}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:8px 0; font-size:14px;">
+                    <strong>Teléfono:</strong> ${telefono}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:8px 0; font-size:14px;">
+                    <strong>Tipo de servicio:</strong> ${servicio}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:16px 0 6px; font-size:14px;">
+                    <strong>Mensaje:</strong>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:12px; background:#f9f9f9; border-radius:6px; font-size:14px; line-height:1.6;">
+                    ${mensaje.replace(/\n/g, "<br/>")}
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 24px; background:#fafafa; border-top:1px solid #e5e5e5;">
+              <div style="font-size:11px; color:#666; text-align:center;">
+                Correo generado automáticamente
+              </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
+
 function formatDateForEmail(dateString: string): string {
   try {
     const date = new Date(dateString);
