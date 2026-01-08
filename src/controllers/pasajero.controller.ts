@@ -217,22 +217,8 @@ export const createPasajero = async (
         });
 
         if (pasajeroConMismoCorreo) {
-            const pasajeroConMismoCorreoJSON = pasajeroConMismoCorreo.toJSON();
-            return res.status(400).json({
-                message: "Ya existe un pasajero con este correo electrónico",
-                detalles: {
-                    pasajeroId: pasajeroConMismoCorreoJSON.id,
-                    pasajeroNombre: pasajeroConMismoCorreoJSON.nombre,
-                    empresa: pasajeroConMismoCorreoJSON.id_empresa
-                }
-            });
+            console.log('creando pasajero con correo existente: ', rut, correo)
         }
-
-
-        console.log('RUT recibido:', rut);
-        console.log('Correo recibido:', correo);
-        console.log('Empresa ID:', id_empresa);
-
 
 
         const pasajero = await Pasajero.create({
