@@ -20,7 +20,13 @@ export const listarEmpresas = async (req: Request, res: Response) => {
         const limit = req.query.limit ? Number(req.query.limit) : null;
         const search = req.query.search ? String(req.query.search).trim() : null;
 
+        const includeInactives = req.query.includeInactives === 'true';
+
         let whereCondition: any = {};
+
+        if (!includeInactives) {
+            whereCondition.estado = true;
+        }
 
         if (search) {
             whereCondition[Op.or] = [
