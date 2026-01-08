@@ -23,7 +23,7 @@ dotenv.config();
 const PORT = process.env.PORT || 4000;
 const app = express();
 
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 const allowedOrigins = [
     "https://www.pullmanviajes.cl",
