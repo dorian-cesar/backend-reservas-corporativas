@@ -929,7 +929,7 @@ export const getTicketsByEmpresa = async (
                     required: false
                 }
             ],
-            order: [['id', 'ASC']]
+            order: [['id', 'DESC']]
         };
 
         // Solo agregar limit y offset si no es para exportación
