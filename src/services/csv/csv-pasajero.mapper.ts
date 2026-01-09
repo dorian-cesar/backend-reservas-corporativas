@@ -15,6 +15,7 @@ export const PASAJERO_FIELD_MAP: Record<string, keyof IPasajero> = {
 
     id_empresa: "id_empresa",
     empresa: "id_empresa",
+    empresa_id: "id_empresa",
 
     id_centro_costo: "id_centro_costo",
     centro_costo: "id_centro_costo",
