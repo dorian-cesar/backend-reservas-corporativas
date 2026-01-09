@@ -10,6 +10,8 @@ export interface IUserCreate {
     empresa_id?: number;
     centro_costo_id?: number;
     estado?: boolean;
+    newLogin?: boolean;
+    lastChangePassWord?: Date;
 }
 
 export interface IUserUpdate {
@@ -21,4 +23,6 @@ export interface IUserUpdate {
     empresa_id?: number;
     centro_costo_id?: number;
     estado?: boolean;
+    newLogin?: boolean;
+    lastChangePassWord?: Date;
 }

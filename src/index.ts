@@ -15,6 +15,7 @@ import estadoCuentaRoutes from "./routes/estadoCuenta.routes"
 import dashboardRoutes from "./routes/dashboard.routes"
 import pasajeroRoutes from "./routes/pasajeros.routes"
 import uploadRoutes from "./routes/upload.routes";
+import passwordRoutes from "./routes/password.routes"
 import userEmpresaRoutes from "./routes/user_empresa.routes";
 import emailFormRoutes from "./routes/cotizacion.routes"
 
@@ -60,6 +61,7 @@ app.use('/api/pdf', pdfRoutes);
 app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/pasajeros", pasajeroRoutes)
 app.use("/api/upload/", uploadRoutes)
+app.use("/api/password", passwordRoutes)
 app.use("/api/user-empresa/", userEmpresaRoutes)
 app.use("/api/email/", emailFormRoutes)
 
