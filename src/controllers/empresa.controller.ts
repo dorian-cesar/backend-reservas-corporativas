@@ -248,3 +248,48 @@ export const resetMontoAcumulado = async (
         });
     }
 };
+
+export const setNewLoginForEmpresa = async (
+    req: Request<{ id: string }, {}, { newLogin: boolean }>,
+    res: Response
+) => {
+    try {
+        const empresaId = parseInt(req.params.id);
+        const { newLogin } = req.body;
+
+        if (isNaN(empresaId)) {
+            return res.status(400).json({
+                success: false,
+                message: "ID de empresa inválido"
+            });
+        }
+
+        const empresa = await Empresa.findByPk(empresaId);
+        if (!empresa) {
+            return res.status(404).json({
+                success: false,
+                message: "Empresa no encontrada"
+            });
+        }
+
+        // Guardar el valor en la empresa
+        await empresa.update({ newLogin });
+
+        return res.json({
+            success: true,
+            message: `newLogin ${newLogin ? 'activado' : 'desactivado'} para la empresa "${empresa.nombre}"`,
+            empresa: {
+                id: empresa.id,
+                nombre: empresa.nombre,
+                newLogin
+            }
+        });
+    } catch (err) {
+        console.error("Error en setNewLoginForEmpresa:", err);
+        res.status(500).json({
+            success: false,
+            message: "Error en servidor",
+            error: err instanceof Error ? err.message : "Error desconocido"
+        });
+    }
+};

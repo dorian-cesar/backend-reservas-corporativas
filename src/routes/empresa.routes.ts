@@ -6,6 +6,7 @@ import {
     actualizarEmpresa,
     eliminarEmpresa,
     resetMontoAcumulado,
+    setNewLoginForEmpresa
 } from "../controllers/empresa.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
@@ -26,5 +27,7 @@ router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contra
 
 // Eliminar una empresa
 router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), eliminarEmpresa);
+
+router.patch('/:id/new-login', authenticateJWT, authorizeRoles("superuser"), setNewLoginForEmpresa);
 
 export default router;

@@ -285,6 +285,14 @@ export const create = async (
         let targetEmpresaId = empresa_id;
         if ((req.user as any).rol === "admin") targetEmpresaId = (req.user as any).empresa_id;
 
+        let userNewLogin = false;
+        if (targetEmpresaId) {
+            const empresa = await Empresa.findByPk(targetEmpresaId);
+            if (empresa && empresa.newLogin) {
+                userNewLogin = true;
+            }
+        }
+
         const hashed = await bcrypt.hash(password, 10);
         const user = await User.create({
             nombre,
@@ -295,7 +303,8 @@ export const create = async (
             empresa_id: targetEmpresaId,
             centro_costo_id,
             estado: estado !== undefined ? estado : true,
-            lastChangePassWord: new Date()
+            lastChangePassWord: new Date(),
+            newLogin: userNewLogin
         });
 
         res.status(201).json(sanitizeUser(user));
@@ -311,12 +320,17 @@ export const update = async (
     try {
         const id = req.params.id;
         const data = req.body;
-        const user = await User.findByPk(id);
+        const user = await User.findByPk(id, {
+            include: [{
+                model: Empresa,
+                as: "empresa"
+            }]
+        });
 
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
-        if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
-            return res.status(403).json({ message: "No autorizado" });
+        // if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
+        //     return res.status(403).json({ message: "No autorizado" });
 
         if (data.password) {
             data.password = await bcrypt.hash(data.password, 10);
@@ -330,6 +344,14 @@ export const update = async (
             return res.status(403).json({ message: "No puedes asignar rol superuser" });
 
         if ((req.user as any).rol === "admin") data.empresa_id = user.empresa_id;
+
+        // Si se está cambiando la empresa, verificar el newLogin de la nueva empresa
+        if (data.empresa_id && data.empresa_id !== user.empresa_id) {
+            const nuevaEmpresa = await Empresa.findByPk(data.empresa_id);
+            if (nuevaEmpresa && nuevaEmpresa.newLogin && user.rol !== "superuser") {
+                data.newLogin = true;
+            }
+        }
 
         await user.update(data);
 

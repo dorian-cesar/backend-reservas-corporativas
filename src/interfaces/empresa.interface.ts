@@ -11,6 +11,7 @@ export interface IEmpresaCreate {
     dia_vencimiento?: number;
     monto_maximo?: number;
     monto_acumulado?: number;
+    newLogin?: boolean;
 }
 
 export interface IEmpresaUpdate {
@@ -24,4 +25,5 @@ export interface IEmpresaUpdate {
     dia_vencimiento?: number;
     monto_maximo?: number;
     monto_acumulado?: number;
+    newLogin?: boolean;
 }
