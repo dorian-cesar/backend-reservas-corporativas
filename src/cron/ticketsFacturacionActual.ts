@@ -4,6 +4,7 @@ import { Empresa } from "../models/empresa.model";
 import { Ticket } from "../models/ticket.model";
 import { User } from "../models/user.model";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
+import { CuentaCorriente } from "../models/cuenta_corriente.model"; // <-- Añadir esta importación
 import { QueryTypes } from "sequelize";
 
 /** Limita día al último del mes si no existe (ej 31 en febrero) */
@@ -106,13 +107,6 @@ export const ticketsFacturacionActual = async () => {
       continue;
     }
 
-    // /** 4️⃣ Usuarios */
-    // const users = await User.findAll({ where: { empresa_id: empresaId } });
-    // if (users.length === 0) {
-    //   console.log("Sin usuarios, se omite");
-    //   continue;
-    // }
-
     /** 5️⃣ SQL Agregado */
     const sql = `
       SELECT
@@ -146,9 +140,9 @@ export const ticketsFacturacionActual = async () => {
       continue;
     }
 
-    /** 6️⃣ Guardar estado */
-    await EstadoCuenta.create({
-      empresa_id: empresaId, // ✅ ahora SI es number
+    /** 6️⃣ Guardar estado de cuenta */
+    const estadoCuenta = await EstadoCuenta.create({
+      empresa_id: empresaId,
       periodo: diaFacturacion.toString(),
       fecha_inicio: inicioStr,
       fecha_fin: finStr,
@@ -161,7 +155,34 @@ export const ticketsFacturacionActual = async () => {
       pagado: false,
     });
 
-    console.log(`✅ Estado creado para ${nombre}`);
+    /** 7️⃣ Crear cargo en cuenta corriente */
+    if (estadoCuenta && estadoCuenta.id) {
+      const ultimoMovimiento = await CuentaCorriente.findOne({
+        where: { empresa_id: empresaId },
+        order: [["fecha_movimiento", "DESC"]],
+      });
+
+      let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
+
+      // Calcular nuevo saldo (cargo disminuye el saldo)
+      saldoActual = saldoActual - Number(data.monto || 0);
+
+      await CuentaCorriente.create({
+        empresa_id: empresaId,
+        tipo_movimiento: "cargo",
+        monto: Number(data.monto || 0),
+        descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} periodo ${estadoCuenta.periodo}`,
+        saldo: saldoActual,
+        referencia: `CARGO-EDC-${estadoCuenta.id}`,
+        pagado: false,
+        fecha_movimiento: new Date()
+      });
+
+      console.log(`✅ Estado creado para ${nombre} (ID: ${estadoCuenta.id})`);
+      console.log(`✅ Cargo en cuenta corriente creado por $${Number(data.monto || 0)}`);
+    } else {
+      console.error(`❌ Error al crear estado de cuenta para ${nombre}`);
+    }
   }
 
   console.log(`[${new Date().toISOString()}] === FIN FACTURACIÓN ===`);

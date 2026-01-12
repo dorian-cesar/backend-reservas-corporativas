@@ -19,6 +19,7 @@ export interface ICuentaCorriente {
   descripcion?: string;
   saldo: number;
   referencia?: string;
+  pagado?: boolean;
 }
 
 @Table({ tableName: "cuenta_corriente", timestamps: false })
@@ -47,6 +48,9 @@ export class CuentaCorriente extends Model<ICuentaCorriente> {
 
   @Column({ type: DataType.STRING(100), allowNull: true })
   declare referencia?: string;
+
+  @Column({ type: DataType.BOOLEAN, defaultValue: false })
+  declare pagado: boolean;
 
   @BelongsTo(() => Empresa)
   declare empresa: Empresa;
