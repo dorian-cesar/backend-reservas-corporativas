@@ -4,6 +4,7 @@ import {
     obtenerMovimiento,
     crearMovimiento,
     eliminarMovimiento,
+    pagarMovimiento
 } from "../controllers/cuenta_corriente.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
@@ -17,6 +18,7 @@ router.get("/:id", authenticateJWT, authorizeRoles("admin", "superuser", "contra
 
 // Crear un movimiento
 router.post("/", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), crearMovimiento);
+router.post("/pagar-cargo", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "auditoria"), pagarMovimiento);
 
 // Eliminar un movimiento
 router.delete("/:id", authenticateJWT, authorizeRoles("superuser"), eliminarMovimiento);
