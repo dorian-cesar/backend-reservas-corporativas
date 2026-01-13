@@ -186,14 +186,15 @@ export const getUsers = async (req: Request, res: Response) => {
 
         if (rol === "superuser" || rol === "contralor" || rol === "auditoria") {
             const where: any = {
-                [Op.and]: [
-                    { rol: { [Op.ne]: "superuser" } },
-                    { empresa_id: { [Op.ne]: 1 } }
-                ],
+                rol: { [Op.ne]: "superuser" },
                 ...baseWhere
             };
 
-            if (filterEmpresaId === 1) {
+            if (rol !== "superuser") {
+                where.empresa_id = { [Op.ne]: 1 };
+            }
+
+            if (filterEmpresaId === 1 && rol !== "superuser") {
                 return res.json({
                     users: [],
                     pagination: {
