@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { degrees, PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 
@@ -516,8 +516,8 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     const barcodeImg = await pdfDoc.embedPng(barcodePng);
     const scaled = barcodeImg.scale(1); // puedes ajustar a gusto
-    
 
+    const watermarkText = "NO REEMBOLSABLE";
 
 
     page.drawText('BOLETO ELECTRÓNICO', {
@@ -816,6 +816,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
     });
 
 
+
     yPosition -= 360;
 
     page.drawText('Este boleto es válido únicamente para la fecha y hora indicadas.', {
@@ -857,7 +858,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
         y: yPosition - 50,
         width: 200,   // ← bien largo
         height: 15,   // ← bien bajito
-      });
+    });
 
 
     page.drawText('codigoSeguridad', {
@@ -992,21 +993,21 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
 export async function generateBarcodePng(text: string): Promise<Buffer> {
     if (!text || text.trim() === "") {
-      throw new Error("generateWideBarcode: texto requerido.");
+        throw new Error("generateWideBarcode: texto requerido.");
     }
-  
+
     // Código de barras tipo boarding-pass (largo y bajito)
     return await bwipjs.toBuffer({
-      bcid: "code128",     // Tipo de código
-      text,
-      scaleX: 3,           // ← Más grande horizontalmente
-      scaleY: 1,           // ← Más delgado verticalmente
-      height: 8,           // ← MUY bajo
-      includetext: false,  // No mostrar texto debajo
-      paddingwidth: 0,
-      paddingheight: 0,
+        bcid: "code128",     // Tipo de código
+        text,
+        scaleX: 3,           // ← Más grande horizontalmente
+        scaleY: 1,           // ← Más delgado verticalmente
+        height: 8,           // ← MUY bajo
+        includetext: false,  // No mostrar texto debajo
+        paddingwidth: 0,
+        paddingheight: 0,
     });
-  }
+}
 
 // Función auxiliar para formatear fechas
 function formatDate(dateString: string): string {
