@@ -15,7 +15,8 @@
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "populateTicket": "ts-node src/script/populateEmpresaInTickets.ts",
     "generarEstados": "ts-node src/cron/ticketsFacturacionActual.ts",
-    "update-centros": "ts-node src/script/update-centros-costo-from-csv.ts"
+    "update-centros": "ts-node src/script/update-centros-costo-from-csv.ts",
+    "tickets-facturacion-actual": "ts-node src/cron/ticketsFacturacionActual.ts"
   },
   "author": "Tu Nombre",
   "license": "MIT",
