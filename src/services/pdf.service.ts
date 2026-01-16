@@ -558,15 +558,15 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
     const col3X = margin + colWidth * 2 + 10;
     const col4X = margin + colWidth * 3 + 10;
     // -----------------------------------------------------------------------
-    page.drawText(watermarkText, {
-        x: width / 2 - 200,
-        y: height - 200,
-        size: 48,
-        font: fontBold,
-        color: rgb(0.8, 0.8, 0.8),
-        opacity: 0.7,
-        rotate: degrees(-45),
-    });
+    // page.drawText(watermarkText, {
+    //     x: width / 2 - 200,
+    //     y: height - 200,
+    //     size: 48,
+    //     font: fontBold,
+    //     color: rgb(0.8, 0.8, 0.8),
+    //     opacity: 0.7,
+    //     rotate: degrees(-45),
+    // });
 
 
     page.drawText('Datos del Servicio', {
@@ -817,7 +817,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
 
 
-    yPosition -= 370;
+    yPosition -= 360;
 
     page.drawText('Este boleto es válido únicamente para la fecha y hora indicadas.', {
         x: margin,
@@ -845,9 +845,9 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawRectangle({
         x: margin,
-        y: yPosition - 230,
+        y: yPosition - 185,
         width: width - margin * 2,
-        height: 190,
+        height: 165,
         borderColor: rgb(0.5, 0.5, 0.5),
         borderWidth: 1,
     });
@@ -855,7 +855,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawImage(barcodeImg, {
         x: col2X - 10,
-        y: yPosition - 80,
+        y: yPosition - 50,
         width: 200,   // ← bien largo
         height: 15,   // ← bien bajito
     });
@@ -863,7 +863,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('codigoSeguridad', {
         x: col2X + 40,
-        y: yPosition - 100,
+        y: yPosition - 70,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -871,7 +871,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.ticket.pnrNumber || '', {
         x: col2X + 60,
-        y: yPosition - 120,
+        y: yPosition - 90,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -879,7 +879,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('FECHA:', {
         x: col1X,
-        y: yPosition - 150,
+        y: yPosition - 120,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -888,7 +888,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(formatDate(ticketData.ticket.travelDate), {
         x: col2X,
-        y: yPosition - 150,
+        y: yPosition - 120,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -896,7 +896,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('HORA VIAJE:', {
         x: col1X,
-        y: yPosition - 170,
+        y: yPosition - 140,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -904,7 +904,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(ticketData.ticket.departureTime, {
         x: col2X,
-        y: yPosition - 170,
+        y: yPosition - 140,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -913,7 +913,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('T. ORIGEN:', {
         x: col3X,
-        y: yPosition - 150,
+        y: yPosition - 120,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -921,7 +921,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(`${ticketData.ticket.terminal_origen}`, {
         x: col4X - 50,
-        y: yPosition - 150,
+        y: yPosition - 120,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -929,7 +929,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('T. DESTINO:', {
         x: col3X,
-        y: yPosition - 170,
+        y: yPosition - 140,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -937,7 +937,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(`${ticketData.ticket.terminal_destino}`, {
         x: col4X - 50,
-        y: yPosition - 170,
+        y: yPosition - 140,
         size: 12,
         font: font,
         color: rgb(0.3, 0.3, 0.3),
@@ -945,7 +945,7 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText('A PAGAR  :', {
         x: col2X,
-        y: yPosition - 200,
+        y: yPosition - 170,
         size: 12,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
@@ -953,25 +953,37 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
 
     page.drawText(`${formatNumber(ticketData.ticket.monto_boleto)}`, {
         x: col3X,
-        y: yPosition - 200,
+        y: yPosition - 170,
         size: 15,
         font: fontBold,
         color: rgb(0.3, 0.3, 0.3),
     });
 
-
-
-
-
-    // Pie de página
-    const footerY = 50;
-
     page.drawText('Copia Empresa', {
         x: col4X,
-        y: footerY,
+        y: yPosition - 210,
         size: 11,
         font: fontBold,
         color: rgb(252 / 255, 107 / 255, 3 / 255),
+    });
+
+    yPosition = yPosition - 210;
+
+    page.drawRectangle({
+        x: margin,
+        y: yPosition - 60,
+        width: width - margin * 2,
+        height: 50,
+        borderColor: rgb(0.5, 0.5, 0.5),
+        borderWidth: 1,
+    });
+
+    page.drawText('CONVENIO RESERVAS CORPORATIVAS (CUENTAS CORRIENTES) – NO ANULAR O DEVOLVER\nEN BOLETERÍAS.', {
+        x: col1X,
+        y: yPosition - 35,
+        size: 10,
+        font: fontBold,
+        lineHeight: 12
     });
 
     const pdfBytes = await pdfDoc.save();
