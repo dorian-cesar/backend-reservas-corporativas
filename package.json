@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "generar-estados-pago": "ts-node src/cron/generarEstadosPagoEmpresas.run.ts",
+    "generar-cuentas-corrientes": "ts-node src/cron/generarCuentasCorrientes.ts",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "tsc && node dist/index.js",
