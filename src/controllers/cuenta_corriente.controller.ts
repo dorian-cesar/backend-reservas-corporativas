@@ -141,7 +141,7 @@ export const eliminarMovimiento = async (req: Request, res: Response) => {
 
 export const pagarMovimiento = async (req: Request, res: Response) => {
     try {
-        const { movimientoId, monto } = req.body;
+        const { movimientoId, monto, referenciaPago } = req.body;
 
         // Validaciones básicas
         if (!movimientoId || !monto) {
@@ -184,7 +184,7 @@ export const pagarMovimiento = async (req: Request, res: Response) => {
             empresa_id: movimiento.empresa_id,
             tipo_movimiento: "abono",
             monto: Number(monto),
-            descripcion: `Pago de ${movimiento.descripcion || `cargo #${movimiento.id}`}`,
+            descripcion: referenciaPago ? referenciaPago : `Pago de ${movimiento.descripcion || `cargo #${movimiento.id}`}`,
             saldo: nuevoSaldo,
             referencia: `ABONO-PAGO-${movimiento.id}`,
             fecha_movimiento: new Date()
