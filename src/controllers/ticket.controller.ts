@@ -916,7 +916,7 @@ export const getTicketsByEmpresa = async (
             include: [
                 {
                     model: User,
-                    attributes: ['id', 'nombre', 'email', 'empresa_id']
+                    attributes: ['id', 'nombre', 'rut', 'email', 'empresa_id']
                 },
                 {
                     model: Empresa,
@@ -926,7 +926,7 @@ export const getTicketsByEmpresa = async (
                 {
                     model: Pasajero,
                     attributes: ['id', 'nombre', 'rut', 'correo'],
-                    required: false
+                    include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }],
                 }
             ],
             order: [['id', 'DESC']]

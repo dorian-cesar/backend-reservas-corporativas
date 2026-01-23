@@ -4,8 +4,6 @@
   "description": "Backend multiempresa para reservas corporativas Pullman Bus - WIT",
   "main": "dist/index.js",
   "scripts": {
-    "generar-estados-pago": "ts-node src/cron/generarEstadosPagoEmpresas.run.ts",
-    "generar-cuentas-corrientes": "ts-node src/cron/generarCuentasCorrientes.ts",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "tsc && node dist/index.js",
@@ -17,6 +15,7 @@
     "populateTicket": "ts-node src/script/populateEmpresaInTickets.ts",
     "generarEstados": "ts-node src/cron/ticketsFacturacionActual.ts",
     "update-centros": "ts-node src/script/update-centros-costo-from-csv.ts",
+    "generar-cuentas-corrientes": "ts-node src/script/generarCuentasCorrientes.ts",
     "tickets-facturacion-actual": "ts-node src/cron/ticketsFacturacionActual.ts"
   },
   "author": "Tu Nombre",

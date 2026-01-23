@@ -22,6 +22,7 @@ export interface IEstadoCuenta {
   total_tickets: number;
   total_tickets_anulados: number;
   monto_facturado: number;
+  porcentaje_descuento?: number; // Solo el porcentaje
   detalle_por_cc: string; // JSON con detalle por centro de costo
   pagado: boolean;
   fecha_pago?: Date;
@@ -75,6 +76,9 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
 
   @Column({ type: DataType.DATE, allowNull: true })
   declare fecha_pago?: Date;
+
+  @Column({ type: DataType.DECIMAL(5, 2), allowNull: true })
+  declare porcentaje_descuento?: number;
 
   @BelongsTo(() => Empresa)
   declare empresa: Empresa;
