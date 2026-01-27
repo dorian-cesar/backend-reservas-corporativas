@@ -1,4 +1,4 @@
-import { degrees, PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { degrees, drawRectangle, grayscale, PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 
@@ -42,6 +42,36 @@ export interface TicketPDFData {
         nombre: string;
         rut: string | null;
         correo: string;
+    };
+}
+
+export interface EDPPDFData {
+    edp: {
+        numero_edp: string;
+        fecha_generacion: string | null;
+        periodo_reservas: string | null;
+    };
+    empresa: {
+        id: number;
+        nombre: string;
+        rut: string;
+        cuenta_corriente: string | null;
+    };
+    resumen: {
+        tickets_generados: number;
+        tickets_anulados: number;
+        suma_devoluciones: number;
+        monto_bruto_facturado: number;
+    };
+    centros_costo: Array<{
+        id: number;
+        nombre: string;
+        cantidad_tickets: number;
+        monto_facturado: number;
+    }>;
+    totales: {
+        cantidad_tickets: number;
+        monto_facturado: number;
     };
 }
 
@@ -990,6 +1020,540 @@ export const generateTicketPDFTemplate2 = async (ticketData: TicketPDFData): Pro
     return pdfBytes;
 };
 
+export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> => {
+    const pdfDoc = await PDFDocument.create();
+    const { width, height } = { width: 595, height: 842 };
+
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    const margin = 40;
+    const tableMargin = 20;
+    const maxRowsPerPage = 20;
+    let rowHeight = 20;
+    const headerHeight = 60;
+
+    let currentPage = pdfDoc.addPage([595, 842]);
+    let yPosition = height - margin;
+
+    const addNewPage = () => {
+        currentPage = pdfDoc.addPage([595, 842]);
+        yPosition = height - margin;
+        return currentPage;
+    };
+
+    const drawPageHeader = async (page: any, isFirstPage: boolean = false) => {
+        let localY = height - margin;
+
+        const logoPath = path.resolve(__dirname, '../assets/logo-pullman-nuevo.png');
+        const logoBytes = fs.readFileSync(logoPath);
+        const logoImage = await pdfDoc.embedPng(logoBytes);
+        const logoDims = logoImage.scale(0.05);
+
+        page.drawImage(logoImage, {
+            x: margin,
+            y: localY - logoDims.height,
+            width: logoDims.width,
+            height: logoDims.height,
+        });
+
+        localY -= 60;
+
+        if (isFirstPage) {
+            page.drawText(`ESTADO DE PAGO (EDP) N° [${edpData.edp.numero_edp}]`, {
+                x: width / 2 - 130,
+                y: localY,
+                size: 16,
+                font: fontBold,
+                color: rgb(0, 0, 0),
+            });
+        } else {
+            page.drawText(`EDP N° ${edpData.edp.numero_edp} - Continuación...`, {
+                x: margin,
+                y: localY,
+                size: 12,
+                font: fontBold,
+                color: rgb(0.5, 0.5, 0.5),
+            });
+        }
+
+        return localY - 40;
+    };
+
+    yPosition = await drawPageHeader(currentPage, true);
+
+    const col1X = margin;
+    const col2X = col1X + 150;
+
+    currentPage.drawRectangle({
+        x: col1X,
+        y: yPosition - 90,
+        width: width - margin * 2,
+        height: 110,
+        borderWidth: 1,
+        borderColor: grayscale(0.7),
+        opacity: 0.6,
+        borderOpacity: 0.8,
+    })
+
+    // Nombre Empresa
+    currentPage.drawText('Nombre Empresa', {
+        x: col1X,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    currentPage.drawText(`: ${edpData.empresa.nombre}`, {
+        x: col2X,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 20;
+
+    // Rut Empresa
+    currentPage.drawText('Rut Empresa', {
+        x: col1X,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    currentPage.drawText(`: ${edpData.empresa.rut}`, {
+        x: col2X,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 20;
+
+    // Cuenta Corriente
+    currentPage.drawText('Cuenta Corriente', {
+        x: col1X,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    currentPage.drawText(`: ${edpData.empresa.cuenta_corriente || 'No disponible'}`, {
+        x: col2X,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 20;
+
+    // Fecha de Generación
+    currentPage.drawText('Fecha de Generación', {
+        x: col1X,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    currentPage.drawText(`: ${edpData.edp.fecha_generacion || 'No disponible'}`, {
+        x: col2X,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 20;
+
+    // Período de Reservas
+    currentPage.drawText('Período de Reservas', {
+        x: col1X,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    currentPage.drawText(`: ${edpData.edp.periodo_reservas || 'No disponible'}`, {
+        x: col2X,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 40;
+
+    currentPage.drawRectangle({
+        x: col1X,
+        y: yPosition - 100,
+        width: width - margin * 2,
+        height: 120,
+        borderWidth: 1,
+        borderColor: grayscale(0.7),
+        opacity: 0.6,
+        borderOpacity: 0.8,
+    })
+
+    currentPage.drawRectangle({
+        x: col1X,
+        y: yPosition - 10,
+        width: width - margin * 2,
+        height: 30,
+        color: rgb(0.95, 0.95, 0.95),
+        opacity: 1,
+    })
+
+    currentPage.drawText('Resumen de Operacional', {
+        x: margin,
+        y: yPosition,
+        size: 12,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 30;
+
+    // Total Tickets Generados
+    currentPage.drawText(`Total Tickets Generados: ${edpData.resumen.tickets_generados}`, {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 20;
+
+    // Total Tickets Anulados
+    currentPage.drawText(`Total Tickets Anulados: ${edpData.resumen.tickets_anulados}`, {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 20;
+
+    // Suma de Devoluciones
+    currentPage.drawText(`Suma de Devoluciones: $${formatNumber(edpData.resumen.suma_devoluciones)}`, {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 20;
+
+    // Monto Bruto Facturado
+    currentPage.drawText(`Monto Bruto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 40;
+
+    currentPage.drawRectangle({
+        x: col1X,
+        y: yPosition - 10,
+        width: width - margin * 2,
+        height: 30,
+        color: rgb(0.95, 0.95, 0.95),
+        opacity: 1,
+    })
+
+    currentPage.drawRectangle({
+        x: col1X,
+        y: yPosition - 350,
+        width: width - margin * 2,
+        height: 370,
+        borderWidth: 1,
+        borderColor: grayscale(0.7),
+        opacity: 0.6,
+        borderOpacity: 0.8,
+    })
+
+    // Desglose por Centros de Costos
+    currentPage.drawText('Desglose por Centros de Costos', {
+        x: margin,
+        y: yPosition,
+        size: 12,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 30;
+
+    const tableWidth = width - margin * 2;
+    const colWidth = (tableWidth - tableMargin * 2) / 3;
+
+    const colCentroX = margin;
+    const colCantidadX = colCentroX + colWidth;
+    const colMontoX = colCantidadX + colWidth;
+
+    const drawTableHeaders = (page: any, posY: number) => {
+        page.drawText('Centro de Costos', {
+            x: colCentroX,
+            y: posY,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+
+        page.drawText('Cantidad de Tickets', {
+            x: colCantidadX,
+            y: posY,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+
+        page.drawText('Monto Facturado', {
+            x: colMontoX,
+            y: posY,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+
+        const lineY = posY - 10;
+        page.drawLine({
+            start: { x: margin + tableMargin, y: lineY },
+            end: { x: width - margin, y: lineY },
+            thickness: 1,
+            color: rgb(0.8, 0.8, 0.8),
+        });
+
+        return posY - 20;
+    };
+
+    yPosition = drawTableHeaders(currentPage, yPosition);
+
+    const totalCentros = edpData.centros_costo.length;
+    let centrosProcessed = 0;
+    let rowsInCurrentPage = 0;
+
+    const centrosOrdenados = [...edpData.centros_costo].sort((a, b) => b.monto_facturado - a.monto_facturado);
+
+    rowHeight = rowHeight - 5
+
+    currentPage.drawRectangle({
+        x: margin,
+        y: yPosition - (maxRowsPerPage * rowHeight) - 10, // Ajusta según sea necesario
+        width: tableWidth,
+        height: (maxRowsPerPage * rowHeight) + 20,
+        borderWidth: 1,
+        borderColor: grayscale(0.7),
+        opacity: 0.6,
+        borderOpacity: 0.8,
+    });
+
+    for (const centro of centrosOrdenados) {
+        // Verificar si necesitas nueva página ANTES de dibujar la fila
+        if (rowsInCurrentPage >= maxRowsPerPage) {
+            // Agregar nueva página
+            addNewPage();
+            yPosition = await drawPageHeader(currentPage, false);
+
+            // Espacio antes de la tabla
+            yPosition -= 20;
+
+            // Dibujar encabezados en nueva página
+            yPosition = drawTableHeaders(currentPage, yPosition);
+
+            const actualRowsInPage = Math.min(maxRowsPerPage, centrosOrdenados.length - centrosProcessed + rowsInCurrentPage);
+            const tableHeight = (actualRowsInPage * rowHeight);
+            
+            currentPage.drawRectangle({
+                x: margin,
+                y: yPosition - tableHeight,
+                width: tableWidth,
+                height: tableHeight,
+                borderWidth: 1,
+                borderColor: grayscale(0.7),
+                opacity: 0.6,
+                borderOpacity: 0.8,
+            });
+
+            rowsInCurrentPage = 0;
+        }
+
+        // Dibujar fondo de fila
+        const isEven = rowsInCurrentPage % 2 === 0;
+        currentPage.drawRectangle({
+            x: margin,
+            y: yPosition - rowHeight + 10,
+            width: tableWidth,
+            height: rowHeight,
+            color: isEven ? rgb(0.95, 0.95, 0.95) : rgb(1, 1, 1),
+            opacity: 1,
+        });
+
+        // Dibujar contenido de la fila
+        currentPage.drawText(centro.nombre, {
+            x: colCentroX,
+            y: yPosition,
+            size: 10,
+            font,
+        });
+
+        currentPage.drawText(centro.cantidad_tickets.toString(), {
+            x: colCantidadX,
+            y: yPosition,
+            size: 10,
+            font,
+        });
+
+        currentPage.drawText(`$${formatNumber(centro.monto_facturado)}`, {
+            x: colMontoX,
+            y: yPosition,
+            size: 10,
+            font,
+        });
+
+        yPosition -= rowHeight;
+        rowsInCurrentPage++;
+        centrosProcessed++;
+    }
+
+    // Dibujar línea antes de totales
+    currentPage.drawLine({
+        start: { x: margin + tableMargin, y: yPosition + 10 },
+        end: { x: width - margin - tableMargin, y: yPosition + 10 },
+        thickness: 1,
+        color: rgb(0.8, 0.8, 0.8),
+    });
+
+    yPosition -= 10;
+
+    // Fila de totales (siempre en la última página)
+    currentPage.drawText('TOTALES', {
+        x: colCentroX,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    currentPage.drawText(edpData.totales.cantidad_tickets.toString(), {
+        x: colCantidadX,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    currentPage.drawText(`$${formatNumber(edpData.totales.monto_facturado)}`, {
+        x: colMontoX,
+        y: yPosition,
+        size: 10,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 60;
+
+    // Firma de conformidad (solo en la última página)
+    if (yPosition > 100) { // Verificar que haya espacio
+        currentPage.drawText('Firma de conformidad', {
+            x: margin,
+            y: yPosition,
+            size: 12,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+
+        yPosition -= 40;
+
+        currentPage.drawText('Firma Responsable', {
+            x: margin,
+            y: yPosition,
+            size: 10,
+            font: font,
+            color: rgb(0, 0, 0),
+        });
+
+        yPosition -= 20;
+
+        // Línea para firma
+        currentPage.drawLine({
+            start: { x: margin, y: yPosition },
+            end: { x: margin + 200, y: yPosition },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+        });
+    } else {
+        // Si no hay espacio, crear una nueva página para la firma
+        addNewPage();
+        yPosition = await drawPageHeader(currentPage, false);
+
+        currentPage.drawText('Firma de conformidad', {
+            x: margin,
+            y: yPosition,
+            size: 12,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+
+        yPosition -= 40;
+
+        currentPage.drawText('Firma Responsable', {
+            x: margin,
+            y: yPosition,
+            size: 10,
+            font: font,
+            color: rgb(0, 0, 0),
+        });
+
+        yPosition -= 20;
+
+        // Línea para firma
+        currentPage.drawLine({
+            start: { x: margin, y: yPosition },
+            end: { x: margin + 200, y: yPosition },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+        });
+    }
+
+    // Agregar número de página en el pie de cada página
+    const totalPages = pdfDoc.getPages().length;
+    pdfDoc.getPages().forEach((page, index) => {
+        const pageNumber = index + 1;
+        page.drawText(`Página ${pageNumber} de ${totalPages}`, {
+            x: width - margin - 80,
+            y: margin - 10,
+            size: 8,
+            font: font,
+            color: rgb(0.5, 0.5, 0.5),
+        });
+
+        // Agregar información de la empresa en pie de página
+        page.drawText(`Empresa: ${edpData.empresa.nombre}`, {
+            x: margin,
+            y: margin - 10,
+            size: 8,
+            font: font,
+            color: rgb(0.5, 0.5, 0.5),
+        });
+    });
+
+    // Guardar el PDF
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+}
 
 export async function generateBarcodePng(text: string): Promise<Buffer> {
     if (!text || text.trim() === "") {

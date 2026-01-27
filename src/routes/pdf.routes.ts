@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { getTicketsWithPassengerInfo } from '../controllers/pdf.controller';
+import { getTicketsWithPassengerInfo, generarPDFEstadoCuenta } from '../controllers/pdf.controller';
 
 const router = Router();
 
 router.get('/:ticketNumber', getTicketsWithPassengerInfo);
+router.get('/:id/edp', generarPDFEstadoCuenta);
 
 export default router;
