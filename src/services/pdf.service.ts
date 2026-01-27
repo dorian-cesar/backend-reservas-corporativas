@@ -1335,7 +1335,7 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
 
         const lineY = posY - 10;
         page.drawLine({
-            start: { x: margin + tableMargin, y: lineY },
+            start: { x: margin, y: lineY },
             end: { x: width - margin, y: lineY },
             thickness: 1,
             color: rgb(0.8, 0.8, 0.8),
