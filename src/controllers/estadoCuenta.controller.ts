@@ -42,6 +42,12 @@ export const listarEstadosCuenta = async (req: Request, res: Response) => {
 
         const estados = await EstadoCuenta.findAll({
             where,
+            include: [
+                {
+                    model: Empresa,
+                    attributes: ['id', 'nombre', 'rut', 'cuenta_corriente', 'estado']
+                }
+            ],
             order: [["fecha_generacion", "DESC"]],
         });
 
