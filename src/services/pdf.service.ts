@@ -1029,7 +1029,7 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
 
     const margin = 40;
     const tableMargin = 20;
-    const maxRowsPerPage = 20;
+    const bottomMargin = 80;
     let rowHeight = 20;
     const headerHeight = 60;
 
@@ -1042,19 +1042,36 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
         return currentPage;
     };
 
+    const getAvailableRows = (currentY: number) => {
+        const availableHeight = currentY - bottomMargin;
+        return Math.floor(availableHeight / rowHeight);
+    };
+
     const drawPageHeader = async (page: any, isFirstPage: boolean = false) => {
         let localY = height - margin;
 
-        const logoPath = path.resolve(__dirname, '../assets/logo-pullman-nuevo.png');
-        const logoBytes = fs.readFileSync(logoPath);
-        const logoImage = await pdfDoc.embedPng(logoBytes);
-        const logoDims = logoImage.scale(0.05);
+        const logoPathPullman = path.resolve(__dirname, '../assets/logo-pullman-nuevo.png');
+        const logoBytesPullman = fs.readFileSync(logoPathPullman);
+        const logoImagePullman = await pdfDoc.embedPng(logoBytesPullman);
+        const logoDimsPullman = logoImagePullman.scale(0.05);
 
-        page.drawImage(logoImage, {
+        page.drawImage(logoImagePullman, {
             x: margin,
-            y: localY - logoDims.height,
-            width: logoDims.width,
-            height: logoDims.height,
+            y: localY - logoDimsPullman.height,
+            width: logoDimsPullman.width,
+            height: logoDimsPullman.height,
+        });
+
+        const logoPathWit = path.resolve(__dirname, '../assets/logo-wit-dark-full.png');
+        const logoBytesWit = fs.readFileSync(logoPathWit);
+        const logoImageWit = await pdfDoc.embedPng(logoBytesWit);
+        const logoDimsWit = logoImageWit.scale(0.02);
+
+        page.drawImage(logoImageWit, {
+            x: width - margin - logoDimsWit.width,
+            y: localY - logoDimsWit.height,
+            width: logoDimsWit.width,
+            height: logoDimsWit.height,
         });
 
         localY -= 60;
@@ -1207,7 +1224,7 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
         y: yPosition - 10,
         width: width - margin * 2,
         height: 30,
-        color: rgb(0.95, 0.95, 0.95),
+        color: rgb(0.85, 0.85, 0.85),
         opacity: 1,
     })
 
@@ -1270,22 +1287,10 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
         y: yPosition - 10,
         width: width - margin * 2,
         height: 30,
-        color: rgb(0.95, 0.95, 0.95),
+        color: rgb(0.85, 0.85, 0.85),
         opacity: 1,
     })
 
-    currentPage.drawRectangle({
-        x: col1X,
-        y: yPosition - 350,
-        width: width - margin * 2,
-        height: 370,
-        borderWidth: 1,
-        borderColor: grayscale(0.7),
-        opacity: 0.6,
-        borderOpacity: 0.8,
-    })
-
-    // Desglose por Centros de Costos
     currentPage.drawText('Desglose por Centros de Costos', {
         x: margin,
         y: yPosition,
@@ -1343,65 +1348,34 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
 
     const totalCentros = edpData.centros_costo.length;
     let centrosProcessed = 0;
-    let rowsInCurrentPage = 0;
 
     const centrosOrdenados = [...edpData.centros_costo].sort((a, b) => b.monto_facturado - a.monto_facturado);
 
     rowHeight = rowHeight - 5
 
-    currentPage.drawRectangle({
-        x: margin,
-        y: yPosition - (maxRowsPerPage * rowHeight) - 10, // Ajusta según sea necesario
-        width: tableWidth,
-        height: (maxRowsPerPage * rowHeight) + 20,
-        borderWidth: 1,
-        borderColor: grayscale(0.7),
-        opacity: 0.6,
-        borderOpacity: 0.8,
-    });
 
     for (const centro of centrosOrdenados) {
-        // Verificar si necesitas nueva página ANTES de dibujar la fila
-        if (rowsInCurrentPage >= maxRowsPerPage) {
-            // Agregar nueva página
+        const availableRows = getAvailableRows(yPosition);
+
+        // Si no cabe ni UNA fila → nueva página
+        if (availableRows <= 0) {
             addNewPage();
             yPosition = await drawPageHeader(currentPage, false);
-
-            // Espacio antes de la tabla
             yPosition -= 20;
-
-            // Dibujar encabezados en nueva página
             yPosition = drawTableHeaders(currentPage, yPosition);
-
-            const actualRowsInPage = Math.min(maxRowsPerPage, centrosOrdenados.length - centrosProcessed + rowsInCurrentPage);
-            const tableHeight = (actualRowsInPage * rowHeight);
-            
-            currentPage.drawRectangle({
-                x: margin,
-                y: yPosition - tableHeight,
-                width: tableWidth,
-                height: tableHeight,
-                borderWidth: 1,
-                borderColor: grayscale(0.7),
-                opacity: 0.6,
-                borderOpacity: 0.8,
-            });
-
-            rowsInCurrentPage = 0;
         }
 
-        // Dibujar fondo de fila
-        const isEven = rowsInCurrentPage % 2 === 0;
+        // Fondo alternado
+        const isEven = centrosProcessed % 2 === 0;
         currentPage.drawRectangle({
             x: margin,
             y: yPosition - rowHeight + 10,
             width: tableWidth,
             height: rowHeight,
             color: isEven ? rgb(0.95, 0.95, 0.95) : rgb(1, 1, 1),
-            opacity: 1,
         });
 
-        // Dibujar contenido de la fila
+        // Contenido
         currentPage.drawText(centro.nombre, {
             x: colCentroX,
             y: yPosition,
@@ -1424,21 +1398,19 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
         });
 
         yPosition -= rowHeight;
-        rowsInCurrentPage++;
         centrosProcessed++;
     }
 
-    // Dibujar línea antes de totales
+
     currentPage.drawLine({
-        start: { x: margin + tableMargin, y: yPosition + 10 },
-        end: { x: width - margin - tableMargin, y: yPosition + 10 },
+        start: { x: margin, y: yPosition + 5 },
+        end: { x: width - margin, y: yPosition + 5 },
         thickness: 1,
-        color: rgb(0.8, 0.8, 0.8),
-    });
+        color: rgb(0.5, 0.5, 0.5),
+    })
 
     yPosition -= 10;
 
-    // Fila de totales (siempre en la última página)
     currentPage.drawText('TOTALES', {
         x: colCentroX,
         y: yPosition,
