@@ -1,14 +1,14 @@
-// src/controllers/empresa.controller.ts
-
 import { Request, Response } from "express";
 import { Empresa } from "../models/empresa.model";
 import { IEmpresaCreate, IEmpresaUpdate } from "../interfaces/empresa.interface";
 import { Op } from "sequelize";
 import { UserEmpresa } from "../models/user_empresa.model";
+import { CuentaCorriente } from "../models/cuenta_corriente.model";
 
 /**
  * Listar todas las empresas.
  */
+
 export const listarEmpresas = async (req: Request, res: Response) => {
     try {
         const user = req.user as any;
@@ -72,12 +72,37 @@ export const listarEmpresas = async (req: Request, res: Response) => {
         }
 
         if (!page || !limit) {
+            // Obtener empresas con datos básicos
             const empresas = await Empresa.findAll({
                 where: whereCondition,
                 order: [["id", "ASC"]]
             });
 
-            return res.json(empresas);
+            // Obtener saldos actuales para cada empresa
+            const empresasConSaldo = await Promise.all(
+                empresas.map(async (empresa) => {
+                    const empresaData = empresa.toJSON();
+
+                    // Obtener último saldo de cuenta corriente
+                    const ultimoMovimiento = await CuentaCorriente.findOne({
+                        where: { empresa_id: empresa.id },
+                        order: [["fecha_movimiento", "DESC"], ["id", "DESC"]]
+                    });
+
+                    const saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
+                    const saldoRestante = empresa.monto_maximo
+                        ? empresa.monto_maximo + saldoActual
+                        : null;
+
+                    return {
+                        ...empresaData,
+                        saldo_actual: saldoActual,
+                        saldo_restante: saldoRestante
+                    };
+                })
+            );
+
+            return res.json(empresasConSaldo);
         }
 
         const offset = (page - 1) * limit;
@@ -89,8 +114,32 @@ export const listarEmpresas = async (req: Request, res: Response) => {
             offset
         });
 
+        // Obtener saldos para las empresas paginadas
+        const empresasConSaldo = await Promise.all(
+            rows.map(async (empresa) => {
+                const empresaData = empresa.toJSON();
+
+                // Obtener último saldo de cuenta corriente
+                const ultimoMovimiento = await CuentaCorriente.findOne({
+                    where: { empresa_id: empresa.id },
+                    order: [["fecha_movimiento", "DESC"], ["id", "DESC"]]
+                });
+
+                const saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
+                const saldoRestante = empresa.monto_maximo
+                    ? empresa.monto_maximo + saldoActual
+                    : null;
+
+                return {
+                    ...empresaData,
+                    saldo_actual: saldoActual,
+                    saldo_restante: saldoRestante
+                };
+            })
+        );
+
         return res.json({
-            data: rows,
+            data: empresasConSaldo,
             pagination: {
                 total: count,
                 page,
