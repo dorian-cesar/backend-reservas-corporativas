@@ -7,7 +7,7 @@ import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 const router = Router();
 
 router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor", "admincc"), listarEstadosCuenta);
-router.get("/:id/tickets", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), listarTicketsDeEstadoCuenta)
+router.get("/:id/tickets", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor", "admincc"), listarTicketsDeEstadoCuenta)
 // router.post("/pagar", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), pagarEstadoCuenta);
 router.post("/:id/aplicar-descuento", authenticateJWT, authorizeRoles("superuser", "auditoria"), aplicarDescuentoEstadoCuenta);
 router.post("/:id/revertir-descuento", authenticateJWT, authorizeRoles("superuser", "auditoria"), revertirDescuentoEstadoCuenta);

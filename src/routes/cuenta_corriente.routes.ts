@@ -17,8 +17,8 @@ router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "sup
 router.get("/:id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "admincc"), obtenerMovimiento);
 
 // Crear un movimiento
-router.post("/", authenticateJWT, authorizeRoles("admin", "superuser", "contralor"), crearMovimiento);
-router.post("/pagar-cargo", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "auditoria"), pagarMovimiento);
+router.post("/", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "admincc"), crearMovimiento);
+router.post("/pagar-cargo", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "auditoria", "admincc"), pagarMovimiento);
 
 // Eliminar un movimiento
 router.delete("/:id", authenticateJWT, authorizeRoles("superuser"), eliminarMovimiento);
