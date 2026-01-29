@@ -16,7 +16,8 @@ export type Rol =
   | "empresa"
   | "subusuario"
   | "auditoria"
-  | "contralor";
+  | "contralor"
+  | "admincc";
 export interface IUser {
   id?: number;
   nombre: string;

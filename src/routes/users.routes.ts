@@ -14,10 +14,10 @@ import { onlySuperUser } from "../middleware/role.middleware";
 const router = Router();
 
 // Listar usuarios
-router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), getUsers);
+router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria", "admincc"), getUsers);
 
 // Obtener información completa de un usuario por ID
-router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor", "auditoria"), getUserById);
+router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor", "auditoria", "admincc"), getUserById);
 
 // Crear usuario
 router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), create);

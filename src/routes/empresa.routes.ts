@@ -13,7 +13,7 @@ import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 const router = Router();
 
 // Listar todas las empresas
-router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "auditoria", "contralor"), listarEmpresas);
+router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "auditoria", "contralor", "admincc"), listarEmpresas);
 
 // Obtener una empresa por id
 router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), obtenerEmpresa);
