@@ -62,6 +62,10 @@ export interface EDPPDFData {
         tickets_anulados: number;
         suma_devoluciones: number;
         monto_bruto_facturado: number;
+        monto_neto?: number;
+        porcentaje_descuento?: number;
+        monto_descuento?: number;
+        monto_final?: number;
     };
     centros_costo: Array<{
         id: number;
@@ -1279,6 +1283,18 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
         font: fontBold,
         color: rgb(0, 0, 0),
     });
+
+
+    if (edpData.totales.monto_facturado !== undefined) {
+        yPosition -= 20;
+        currentPage.drawText(`Monto Neto Facturado: $${formatNumber(edpData.totales.monto_facturado)}`, {
+            x: margin,
+            y: yPosition,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0.4, 0), // Verde para indicar monto neto
+        });
+    }
 
     yPosition -= 40;
 

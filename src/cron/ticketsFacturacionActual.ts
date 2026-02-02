@@ -164,14 +164,17 @@ export const ticketsFacturacionActual = async () => {
 
       let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
-      // Calcular nuevo saldo (cargo disminuye el saldo)
-      saldoActual = saldoActual - Number(data.monto || 0);
+      // Calcular monto neto (cargo - devoluciones)
+      const montoNeto = Number(data.monto || 0) - Number(data.devoluciones || 0);
+
+      // El cargo neto disminuye el saldo
+      saldoActual = saldoActual - montoNeto;
 
       await CuentaCorriente.create({
         empresa_id: empresaId,
         tipo_movimiento: "cargo",
-        monto: Number(data.monto || 0),
-        descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} periodo ${estadoCuenta.periodo}`,
+        monto: montoNeto,
+        descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} periodo ${estadoCuenta.periodo} (Neto: $${montoNeto}, Devoluciones: $${Number(data.devoluciones || 0)})`,
         saldo: saldoActual,
         referencia: `CARGO-EDC-${estadoCuenta.id}`,
         pagado: false,
@@ -179,7 +182,9 @@ export const ticketsFacturacionActual = async () => {
       });
 
       console.log(`✅ Estado creado para ${nombre} (ID: ${estadoCuenta.id})`);
-      console.log(`✅ Cargo en cuenta corriente creado por $${Number(data.monto || 0)}`);
+      console.log(`✅ Cargo en cuenta corriente creado por $${montoNeto} (Neto)`);
+      console.log(`   - Monto bruto: $${Number(data.monto || 0)}`);
+      console.log(`   - Devoluciones: $${Number(data.devoluciones || 0)}`);
     } else {
       console.error(`❌ Error al crear estado de cuenta para ${nombre}`);
     }

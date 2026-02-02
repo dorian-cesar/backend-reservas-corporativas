@@ -197,13 +197,16 @@ async function generarEDCManual() {
 
             let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
-            saldoActual = saldoActual - Number(data.monto || 0);
+            // Calcular monto neto
+            const montoNeto = Number(data.monto || 0) - Number(data.devoluciones || 0);
+
+            saldoActual = saldoActual - montoNeto;
 
             await CuentaCorriente.create({
                 empresa_id: empresaId,
                 tipo_movimiento: "cargo",
-                monto: Number(data.monto || 0),
-                descripcion: `Cargo manual por estado de cuenta #${estadoCuenta.id} (${fechaDesdeStr} al ${fechaHastaStr})`,
+                monto: montoNeto, // Usar el monto neto
+                descripcion: `Cargo manual por estado de cuenta #${estadoCuenta.id} (${fechaDesdeStr} al ${fechaHastaStr}) (Neto: $${montoNeto})`,
                 saldo: saldoActual,
                 referencia: `CARGO-MANUAL-EDC-${estadoCuenta.id}`,
                 pagado: false,
@@ -211,7 +214,9 @@ async function generarEDCManual() {
                 estado_cuenta_id: estadoCuenta.id
             });
 
-            console.log(`Cargo en cuenta corriente creado por $${Number(data.monto || 0).toLocaleString('es-CL')}`);
+            console.log(`Cargo en cuenta corriente creado por $${montoNeto.toLocaleString('es-CL')} (Neto)`);
+            console.log(`   - Monto bruto: $${Number(data.monto || 0).toLocaleString('es-CL')}`);
+            console.log(`   - Devoluciones: $${Number(data.devoluciones || 0).toLocaleString('es-CL')}`);
             console.log(`Nuevo saldo: $${saldoActual.toLocaleString('es-CL')}`);
         }
 
