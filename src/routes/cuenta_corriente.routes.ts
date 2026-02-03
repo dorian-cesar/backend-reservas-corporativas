@@ -14,10 +14,10 @@ const router = Router();
 router.get("/empresa/:empresa_id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "auditoria", "admincc"), listarMovimientos);
 
 // Obtener un movimiento específico
-router.get("/:id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "admincc"), obtenerMovimiento);
+router.get("/:id", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "admincc", "auditoria"), obtenerMovimiento);
 
 // Crear un movimiento
-router.post("/", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "admincc"), crearMovimiento);
+router.post("/", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "admincc", "auditoria"), crearMovimiento);
 router.post("/pagar-cargo", authenticateJWT, authorizeRoles("admin", "superuser", "contralor", "auditoria", "admincc"), pagarMovimiento);
 
 // Eliminar un movimiento
