@@ -125,25 +125,13 @@ export const ticketsFacturacionActual = async () => {
       type: QueryTypes.SELECT,
       replacements: { empresaId, inicio: inicioStr, fin: finStr },
     });
-    
+
     const data = result[0] || {};
-    
-    const devolucionesBrutas = Number(data.devoluciones_brutas || 0);
-    
-    const empresaInfo = await Empresa.findByPk(empresaId);
-    const porcentajeDevolucion = Number(empresaInfo?.porcentaje_devolucion ?? 0);
-    
-    // 1.00 → 100% devolución → retención 0
-    // 0.80 → 80% devolución → retención 0.20
-    const porcentajeRetencion = 1 - porcentajeDevolucion;
-    
-    const devolucionesAjustadas =
-      porcentajeDevolucion > 0
-        ? devolucionesBrutas * porcentajeRetencion
-        : devolucionesBrutas;
-    
+
+    const devoluciones = Number(data.devoluciones_brutas || 0); // YA están ajustadas en los tickets
     const montoBruto = Number(data.monto_bruto || 0);
-    
+    const montoTotal = montoBruto - devoluciones;
+
     const estadoCuenta = await EstadoCuenta.create({
       empresa_id: empresaId,
       periodo: diaFacturacion.toString(),
@@ -152,12 +140,12 @@ export const ticketsFacturacionActual = async () => {
       fecha_generacion: new Date(),
       total_tickets: Number(data.total || 0),
       total_tickets_anulados: Number(data.anulados || 0),
-      monto_facturado: montoBruto,
-      suma_devoluciones: devolucionesAjustadas,
+      monto_facturado: montoTotal, // Cambiado de montoBruto a montoTotal
+      suma_devoluciones: devoluciones, // Ya están ajustadas
       detalle_por_cc: JSON.stringify({}),
       pagado: false,
     });
-    
+
 
     /** 7️⃣ Crear cargo en cuenta corriente */
     if (estadoCuenta && estadoCuenta.id) {
@@ -168,7 +156,7 @@ export const ticketsFacturacionActual = async () => {
 
       let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
-      const montoNeto = montoBruto - devolucionesAjustadas;
+      const montoNeto = montoBruto - devoluciones;
 
       saldoActual = saldoActual - montoNeto;
 

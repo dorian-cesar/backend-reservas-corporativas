@@ -125,7 +125,7 @@ async function calcularEstadisticasPeriodo(
     SELECT
       SUM(CASE WHEN T.ticketStatus = 'Anulado' THEN 1 ELSE 0 END) AS anulados,
       SUM(CASE WHEN T.ticketStatus = 'Confirmed' THEN 1 ELSE 0 END) AS confirmados,
-      SUM(CASE WHEN T.ticketStatus = 'Anulado' THEN T.monto_devolucion ELSE 0 END) AS devoluciones_brutas,
+      SUM(CASE WHEN T.ticketStatus = 'Anulado' THEN T.monto_devolucion ELSE 0 END) AS devoluciones,
       COUNT(T.monto_boleto) AS total,
       SUM(T.monto_boleto) AS monto_bruto
     FROM tickets T
@@ -145,32 +145,23 @@ async function calcularEstadisticasPeriodo(
 
     const data = result[0] || {};
 
-    const empresa = await Empresa.findByPk(empresaId);
-    const porcentajeDevolucion = Number(empresa?.porcentaje_devolucion ?? 0);
-
-    const devolucionesBrutas = Number(data.devoluciones_brutas || 0);
+    // Usar directamente los montos de devolución de los tickets
+    const devoluciones = Number(data.devoluciones || 0);
     const montoBruto = Number(data.monto_bruto || 0);
 
-    // Retención = lo que NO se devuelve
-    // 1.00 → 0
-    // 0.80 → 0.20
-    const porcentajeRetencion = 1 - porcentajeDevolucion;
-
-    const devolucionesAjustadas =
-        porcentajeDevolucion > 0
-            ? devolucionesBrutas * porcentajeRetencion
-            : devolucionesBrutas;
+    // Monto total = monto bruto - devoluciones (que ya están ajustadas en los tickets)
+    const montoTotal = montoBruto - devoluciones;
 
     return {
         confirmados: Number(data.confirmados || 0),
         anulados: Number(data.anulados || 0),
-        montoTotal: montoBruto - devolucionesAjustadas, // monto neto
-        devoluciones: devolucionesAjustadas,            // devoluciones ajustadas
+        montoTotal,
+        devoluciones, // Ya están ajustadas en los tickets
         totalTickets:
             Number(data.confirmados || 0) +
             Number(data.anulados || 0),
         montoBruto,
-        devolucionesBrutas,
+        devolucionesBrutas: devoluciones, // Para mantener compatibilidad
     };
 }
 
@@ -276,7 +267,8 @@ async function generarEstadosParaEmpresa(
 
         // Crear movimiento en cuenta corriente
         if (estadoCuenta && estadoCuenta.id) {
-            const montoNeto = stats.montoTotal - stats.devoluciones;
+            // El monto neto ya está calculado en stats.montoTotal
+            const montoNeto = stats.montoTotal;
 
             // El cargo neto disminuye el saldo
             saldoActual = saldoActual - montoNeto;
@@ -295,7 +287,6 @@ async function generarEstadosParaEmpresa(
             console.log(`   ✅ Estado creado (ID: ${estadoCuenta.id})`);
             console.log(`   ✅ Cargo en CC: $${montoNeto} (Saldo: $${saldoActual})`);
         }
-
         // Avanzar al siguiente período
         fechaActual = new Date(periodo.fin);
         fechaActual.setDate(fechaActual.getDate() + 1);
