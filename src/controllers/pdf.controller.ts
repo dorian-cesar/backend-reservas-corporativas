@@ -280,17 +280,14 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
             });
         }
 
-        // USAR LOS DATOS DEL ESTADO DE CUENTA (que ya vienen procesados correctamente)
-        // Estos son los valores reales que deben mostrarse
-        const montoBrutoEstado = Number(estadoData.monto_facturado || 0);
+        const montoNetoEstado = Number(estadoData.monto_facturado || 0);
         const devolucionesEstado = Number(estadoData.suma_devoluciones || 0);
-        const montoNetoEstado = montoBrutoEstado - devolucionesEstado;
 
         // Calcular montos netos por centro de costo
         const centrosCostoArray = Array.from(centrosMap.values())
             .map(cc => ({
                 ...cc,
-                monto_neto: cc.monto_facturado - cc.devoluciones, // Monto neto por centro
+                monto_neto: cc.monto_facturado
             }))
             .sort((a, b) => b.monto_neto - a.monto_neto); // Ordenar por monto neto
 
@@ -321,7 +318,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
                 tickets_generados: estadoData.total_tickets || 0,
                 tickets_anulados: estadoData.total_tickets_anulados || 0,
                 suma_devoluciones: devolucionesEstado,
-                monto_bruto_facturado: montoBrutoEstado,
+                monto_bruto_facturado: montoNetoEstado,
             },
             centros_costo: centrosCostoArray.map(cc => ({
                 id: cc.id,
@@ -330,21 +327,11 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
                 monto_facturado: cc.monto_neto, // Usar monto NETO en el desglose
             })),
             totales: {
-                cantidad_tickets: totalTicketsNetos, // Tickets netos (confirmados - anulados)
-                monto_facturado: totalMontoNeto,     // Monto NETO a facturar
+                cantidad_tickets: estadoData.total_tickets - estadoData.total_tickets_anulados,
+                monto_facturado: montoNetoEstado,
             },
         };
 
-        // Log para debugging
-        console.log('Resumen del estado de cuenta:');
-        console.log('- Tickets totales:', estadoData.total_tickets);
-        console.log('- Tickets anulados:', estadoData.total_tickets_anulados);
-        console.log('- Monto bruto facturado:', montoBrutoEstado);
-        console.log('- Suma devoluciones:', devolucionesEstado);
-        console.log('- Monto neto:', montoNetoEstado);
-        console.log('- Descuento aplicado:', estadoData.porcentaje_descuento || 0, '%');
-
-        // Si hay descuento, ajustar el monto final
         if (estadoData.porcentaje_descuento && estadoData.porcentaje_descuento > 0) {
             const porcentajeDescuento = estadoData.porcentaje_descuento;
             const montoDescuento = totalMontoNeto * (porcentajeDescuento / 100);

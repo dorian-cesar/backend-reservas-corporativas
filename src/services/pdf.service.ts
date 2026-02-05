@@ -1276,25 +1276,13 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
     yPosition -= 20;
 
     // Monto Bruto Facturado
-    currentPage.drawText(`Monto Bruto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
+    currentPage.drawText(`Monto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
         x: margin,
         y: yPosition,
         size: 10,
         font: fontBold,
         color: rgb(0, 0, 0),
     });
-
-
-    if (edpData.totales.monto_facturado !== undefined) {
-        yPosition -= 20;
-        currentPage.drawText(`Monto Neto Facturado: $${formatNumber(edpData.totales.monto_facturado)}`, {
-            x: margin,
-            y: yPosition,
-            size: 10,
-            font: fontBold,
-            color: rgb(0, 0.4, 0), // Verde para indicar monto neto
-        });
-    }
 
     yPosition -= 40;
 
