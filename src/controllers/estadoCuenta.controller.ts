@@ -248,7 +248,7 @@ export const aplicarDescuentoEstadoCuenta = async (req: Request, res: Response) 
         }
 
         // Calcular montos
-        const montoNeto = Number(estadoCuenta.monto_facturado) - Number(estadoCuenta.suma_devoluciones || 0);
+        const montoNeto = Number(estadoCuenta.monto_facturado);
         const montoDescuento = montoNeto * (porcentaje / 100);
 
         // 1. Obtener último saldo para calcular nuevo
