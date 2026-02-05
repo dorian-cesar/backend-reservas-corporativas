@@ -248,8 +248,8 @@ export const aplicarDescuentoEstadoCuenta = async (req: Request, res: Response) 
         }
 
         // Calcular montos
-        const montoOriginal = Number(estadoCuenta.monto_facturado);
-        const montoDescuento = montoOriginal * (porcentaje / 100);
+        const montoNeto = Number(estadoCuenta.monto_facturado);
+        const montoDescuento = montoNeto * (porcentaje / 100);
 
         // 1. Obtener último saldo para calcular nuevo
         const ultimoMovimiento = await CuentaCorriente.findOne({
@@ -284,7 +284,7 @@ export const aplicarDescuentoEstadoCuenta = async (req: Request, res: Response) 
             descuento_aplicado: {
                 porcentaje,
                 monto_descuento: montoDescuento,
-                monto_original: montoOriginal,
+                monto_original: montoNeto,
                 nuevo_saldo_empresa: nuevoSaldo
             },
             movimiento_descuento: abonoDescuento,

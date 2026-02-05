@@ -147,14 +147,17 @@ async function procesarEstadoCuenta(estadoCuenta: EstadoCuenta, nombreEmpresa: s
     let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
     // Monto facturado (cargo disminuye el saldo)
-    const montoFacturado = Number(estadoCuenta.monto_facturado);
+    const montoFacturadoBruto = Number(estadoCuenta.monto_facturado);
+    const sumaDevoluciones = Number(estadoCuenta.suma_devoluciones || 0);
+    const montoNeto = montoFacturadoBruto - sumaDevoluciones;
 
-    if (montoFacturado === 0) {
-        console.log(`💰 Estado de cuenta ${estadoId} (${periodo}) tiene monto 0. Se omite.`);
+    if (montoNeto === 0) {
+        console.log(`💰 Estado de cuenta ${estadoId} (${periodo}) tiene monto neto 0. Se omite.`);
+        console.log(`   - Bruto: $${montoFacturadoBruto}, Devoluciones: $${sumaDevoluciones}`);
         return;
     }
 
-    saldoActual = saldoActual - montoFacturado;
+    saldoActual = saldoActual - montoNeto;
 
     /** 4️⃣ Crear movimiento en cuenta corriente */
     const fechaMovimiento = estadoCuenta.fecha_facturacion || estadoCuenta.fecha_generacion || new Date();
@@ -162,8 +165,8 @@ async function procesarEstadoCuenta(estadoCuenta: EstadoCuenta, nombreEmpresa: s
     const movimiento = await CuentaCorriente.create({
         empresa_id: empresaId,
         tipo_movimiento: "cargo",
-        monto: montoFacturado,
-        descripcion: `Cargo por estado de cuenta ${periodo} (${estadoCuenta.fecha_inicio} - ${estadoCuenta.fecha_fin})`,
+        monto: montoNeto, // Usar monto neto, no bruto
+        descripcion: `Cargo por estado de cuenta ${periodo} (${estadoCuenta.fecha_inicio} - ${estadoCuenta.fecha_fin}) - Neto: $${montoNeto.toFixed(2)}`,
         saldo: saldoActual,
         referencia: `CARGO-EDC-${estadoId}`,
         pagado: estadoCuenta.pagado || false,
@@ -174,7 +177,9 @@ async function procesarEstadoCuenta(estadoCuenta: EstadoCuenta, nombreEmpresa: s
     console.log(`✅ Cargo creado para empresa ${nombreEmpresa}`);
     console.log(`   ID estado cuenta: ${estadoId}`);
     console.log(`   Periodo: ${periodo}`);
-    console.log(`   Monto: $${montoFacturado}`);
+    console.log(`   Monto bruto: $${montoFacturadoBruto}`);
+    console.log(`   Devoluciones: $${sumaDevoluciones}`);
+    console.log(`   Monto neto: $${montoNeto}`);
     console.log(`   Saldo anterior: $${ultimoMovimiento ? ultimoMovimiento.saldo : 0}`);
     console.log(`   Nuevo saldo: $${saldoActual}`);
     console.log(`   Referencia: ${movimiento.referencia}`);
@@ -207,8 +212,10 @@ async function generarDescuentoParaEstadoCuenta(estadoCuenta: EstadoCuenta, fech
     }
 
     // Calcular monto del descuento
-    const montoOriginal = Number(estadoCuenta.monto_facturado);
-    const montoDescuento = montoOriginal * (porcentaje / 100);
+    const montoFacturadoBruto = Number(estadoCuenta.monto_facturado);
+    const sumaDevoluciones = Number(estadoCuenta.suma_devoluciones || 0);
+    const montoNeto = montoFacturadoBruto - sumaDevoluciones;
+    const montoDescuento = montoNeto * (porcentaje / 100);
 
     // Obtener último saldo (después del cargo)
     const ultimoMovimiento = await CuentaCorriente.findOne({

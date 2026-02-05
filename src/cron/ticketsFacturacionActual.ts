@@ -109,19 +109,17 @@ export const ticketsFacturacionActual = async () => {
 
     /** 5️⃣ SQL Agregado */
     const sql = `
-      SELECT
-        SUM(CASE WHEN T.ticketStatus='Anulado' THEN 1 ELSE 0 END) AS anulados,
-        SUM(CASE WHEN T.ticketStatus='Confirmed' THEN 1 ELSE 0 END) AS confirmados,
-        SUM(CASE WHEN T.ticketStatus='Anulado' THEN T.monto_devolucion ELSE 0 END) AS devoluciones,
-        COUNT(T.monto_boleto) AS total,
-        SUM(T.monto_boleto) AS monto
-      FROM tickets T
-      
-      JOIN pasajeros P ON T.id_pasajero = P.id
-      WHERE P.id_empresa = :empresaId
-
-        AND T.confirmedAt BETWEEN :inicio AND :fin
-    `;
+    SELECT
+      SUM(CASE WHEN T.ticketStatus='Anulado' THEN 1 ELSE 0 END) AS anulados,
+      SUM(CASE WHEN T.ticketStatus='Confirmed' THEN 1 ELSE 0 END) AS confirmados,
+      SUM(CASE WHEN T.ticketStatus='Anulado' THEN T.monto_devolucion ELSE 0 END) AS devoluciones_brutas,
+      COUNT(T.monto_boleto) AS total,
+      SUM(T.monto_boleto) AS monto_bruto
+    FROM tickets T
+    JOIN pasajeros P ON T.id_pasajero = P.id
+    WHERE P.id_empresa = :empresaId
+      AND T.confirmedAt BETWEEN :inicio AND :fin
+  `;
 
     const result: any = await sequelize.query(sql, {
       type: QueryTypes.SELECT,
@@ -130,17 +128,10 @@ export const ticketsFacturacionActual = async () => {
 
     const data = result[0] || {};
 
-    const totalTickets =
-      Number(data.confirmados || 0) + Number(data.anulados || 0);
+    const devoluciones = Number(data.devoluciones_brutas || 0); // YA están ajustadas en los tickets
+    const montoBruto = Number(data.monto_bruto || 0);
+    const montoTotal = montoBruto - devoluciones;
 
-    if (totalTickets === 0) {
-      console.log(
-        `Empresa ${nombre}: sin tickets en el período, no se genera estado.`
-      );
-      continue;
-    }
-
-    /** 6️⃣ Guardar estado de cuenta */
     const estadoCuenta = await EstadoCuenta.create({
       empresa_id: empresaId,
       periodo: diaFacturacion.toString(),
@@ -149,11 +140,12 @@ export const ticketsFacturacionActual = async () => {
       fecha_generacion: new Date(),
       total_tickets: Number(data.total || 0),
       total_tickets_anulados: Number(data.anulados || 0),
-      monto_facturado: Number(data.monto || 0),
-      suma_devoluciones: Number(data.devoluciones || 0),
+      monto_facturado: montoTotal, // Cambiado de montoBruto a montoTotal
+      suma_devoluciones: devoluciones, // Ya están ajustadas
       detalle_por_cc: JSON.stringify({}),
       pagado: false,
     });
+
 
     /** 7️⃣ Crear cargo en cuenta corriente */
     if (estadoCuenta && estadoCuenta.id) {
@@ -164,14 +156,15 @@ export const ticketsFacturacionActual = async () => {
 
       let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
-      // Calcular nuevo saldo (cargo disminuye el saldo)
-      saldoActual = saldoActual - Number(data.monto || 0);
+      const montoNeto = montoBruto - devoluciones;
+
+      saldoActual = saldoActual - montoNeto;
 
       await CuentaCorriente.create({
         empresa_id: empresaId,
         tipo_movimiento: "cargo",
-        monto: Number(data.monto || 0),
-        descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} periodo ${estadoCuenta.periodo}`,
+        monto: montoNeto,
+        descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} periodo ${estadoCuenta.periodo} (Neto: $${montoNeto}, Devoluciones: $${Number(data.devoluciones || 0)})`,
         saldo: saldoActual,
         referencia: `CARGO-EDC-${estadoCuenta.id}`,
         pagado: false,
@@ -179,7 +172,9 @@ export const ticketsFacturacionActual = async () => {
       });
 
       console.log(`✅ Estado creado para ${nombre} (ID: ${estadoCuenta.id})`);
-      console.log(`✅ Cargo en cuenta corriente creado por $${Number(data.monto || 0)}`);
+      console.log(`✅ Cargo en cuenta corriente creado por $${montoNeto} (Neto)`);
+      console.log(`   - Monto bruto: $${Number(data.monto || 0)}`);
+      console.log(`   - Devoluciones: $${Number(data.devoluciones || 0)}`);
     } else {
       console.error(`❌ Error al crear estado de cuenta para ${nombre}`);
     }

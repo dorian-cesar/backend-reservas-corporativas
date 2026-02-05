@@ -17,7 +17,8 @@
     "update-centros": "ts-node src/script/update-centros-costo-from-csv.ts",
     "generar-cuentas-corrientes": "ts-node src/script/generarCuentasCorrientes.ts",
     "generar-estado-cuenta": "ts-node src/script/generarEDPManual.ts",
-    "tickets-facturacion-actual": "ts-node src/cron/ticketsFacturacionActual.ts"
+    "tickets-facturacion-actual": "ts-node src/cron/ticketsFacturacionActual.ts",
+    "recalcular-edp": "ts-node src/script/recalcularEstadosCuenta.ts"
   },
   "author": "Tu Nombre",
   "license": "MIT",

@@ -62,6 +62,10 @@ export interface EDPPDFData {
         tickets_anulados: number;
         suma_devoluciones: number;
         monto_bruto_facturado: number;
+        monto_neto?: number;
+        porcentaje_descuento?: number;
+        monto_descuento?: number;
+        monto_final?: number;
     };
     centros_costo: Array<{
         id: number;
@@ -1272,7 +1276,7 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
     yPosition -= 20;
 
     // Monto Bruto Facturado
-    currentPage.drawText(`Monto Bruto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
+    currentPage.drawText(`Monto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
         x: margin,
         y: yPosition,
         size: 10,

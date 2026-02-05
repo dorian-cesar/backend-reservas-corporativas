@@ -199,6 +199,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
             nombre: string;
             cantidad_tickets: number;
             monto_facturado: number;
+            devoluciones: number; // Nueva propiedad
         }>();
 
         centrosCostoDB.forEach(cc => {
@@ -208,8 +209,14 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
                 nombre: plain.nombre,
                 cantidad_tickets: 0,
                 monto_facturado: 0,
+                devoluciones: 0,
             });
         });
+
+        let ticketsConfirmados = 0;
+        let ticketsAnulados = 0;
+        let montoTotalBruto = 0;
+        let devolucionesTotal = 0;
 
         if (estadoData.fecha_inicio && estadoData.fecha_fin) {
             const tickets = await Ticket.findAll({
@@ -243,32 +250,50 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
             tickets.forEach(ticket => {
                 const ticketPlain = ticket.get({ plain: true });
                 const pasajero = ticketPlain.pasajero;
+                const esAnulado = ticketPlain.ticketStatus === 'Anulado';
+                const montoTicket = Number(ticketPlain.monto_boleto ?? 0);
+                const montoDevolucion = Number(ticketPlain.monto_devolucion ?? 0);
 
-                if (!pasajero || !pasajero.centroCosto) return;
+                // Totales generales
+                if (esAnulado) {
+                    ticketsAnulados += 1;
+                    devolucionesTotal += montoDevolucion;
+                } else {
+                    ticketsConfirmados += 1;
+                    montoTotalBruto += montoTicket;
+                }
 
-                const centroId = pasajero.centroCosto.id;
-                const centro = centrosMap.get(centroId);
+                // Por centro de costo
+                if (pasajero && pasajero.centroCosto) {
+                    const centroId = pasajero.centroCosto.id;
+                    const centro = centrosMap.get(centroId);
 
-                if (!centro) return;
-
-                centro.cantidad_tickets += 1;
-                centro.monto_facturado += Number(ticketPlain.monto_boleto ?? 0);
+                    if (centro) {
+                        centro.cantidad_tickets += 1;
+                        if (esAnulado) {
+                            centro.devoluciones += montoDevolucion;
+                        } else {
+                            centro.monto_facturado += montoTicket;
+                        }
+                    }
+                }
             });
         }
 
-        const centrosCostoArray = Array.from(centrosMap.values()).sort(
-            (a, b) => a.nombre.localeCompare(b.nombre)
-        );
+        const montoNetoEstado = Number(estadoData.monto_facturado || 0);
+        const devolucionesEstado = Number(estadoData.suma_devoluciones || 0);
 
-        const totalTickets = centrosCostoArray.reduce(
-            (sum, cc) => sum + cc.cantidad_tickets,
-            0
-        );
+        // Calcular montos netos por centro de costo
+        const centrosCostoArray = Array.from(centrosMap.values())
+            .map(cc => ({
+                ...cc,
+                monto_neto: cc.monto_facturado
+            }))
+            .sort((a, b) => b.monto_neto - a.monto_neto); // Ordenar por monto neto
 
-        const totalMonto = centrosCostoArray.reduce(
-            (sum, cc) => sum + cc.monto_facturado,
-            0
-        );
+        // Calcular totales NETOS desde los datos del estado de cuenta
+        const totalTicketsNetos = (estadoData.total_tickets || 0) - (estadoData.total_tickets_anulados || 0);
+        const totalMontoNeto = montoNetoEstado;
 
         const edpData: EDPPDFData = {
             edp: {
@@ -290,17 +315,32 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
                 cuenta_corriente: empresaData.cuenta_corriente ?? null,
             },
             resumen: {
-                tickets_generados: totalTickets,
-                tickets_anulados: estadoData.total_tickets_anulados ?? 0,
-                suma_devoluciones: estadoData.suma_devoluciones ?? 0,
-                monto_bruto_facturado: totalMonto,
+                tickets_generados: estadoData.total_tickets || 0,
+                tickets_anulados: estadoData.total_tickets_anulados || 0,
+                suma_devoluciones: devolucionesEstado,
+                monto_bruto_facturado: montoNetoEstado,
             },
-            centros_costo: centrosCostoArray,
+            centros_costo: centrosCostoArray.map(cc => ({
+                id: cc.id,
+                nombre: cc.nombre,
+                cantidad_tickets: cc.cantidad_tickets,
+                monto_facturado: cc.monto_neto, // Usar monto NETO en el desglose
+            })),
             totales: {
-                cantidad_tickets: totalTickets,
-                monto_facturado: totalMonto,
+                cantidad_tickets: estadoData.total_tickets - estadoData.total_tickets_anulados,
+                monto_facturado: montoNetoEstado,
             },
         };
+
+        if (estadoData.porcentaje_descuento && estadoData.porcentaje_descuento > 0) {
+            const porcentajeDescuento = estadoData.porcentaje_descuento;
+            const montoDescuento = totalMontoNeto * (porcentajeDescuento / 100);
+            const montoFinalConDescuento = totalMontoNeto - montoDescuento;
+
+            console.log('- Descuento aplicado:', porcentajeDescuento + '%');
+            console.log('- Monto descuento:', montoDescuento);
+            console.log('- Monto final con descuento:', montoFinalConDescuento);
+        }
 
         const pdfBytes = await generateEDPPDF(edpData);
         const pdfBuffer = Buffer.from(pdfBytes);
