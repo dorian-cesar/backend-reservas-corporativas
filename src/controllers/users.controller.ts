@@ -279,19 +279,21 @@ export const create = async (
     try {
         const { nombre, rut, email, password, rol, empresa_id, centro_costo_id, estado } = req.body;
 
+        const requestingUser = req.user as any;
+
         // Solo superuser puede crear superusers
-        if (rol === "superuser" && (req.user as any).rol !== "superuser")
+        if (rol === "superuser" && requestingUser.rol !== "superuser")
             return res.status(403).json({ message: "Solo el superuser puede crear superusers" });
 
         let targetEmpresaId = empresa_id;
-        if ((req.user as any).rol === "admin") targetEmpresaId = (req.user as any).empresa_id;
+        if ((req.user as any).rol !== "admin" && (req.user as any).rol !== "superuser") {
+            targetEmpresaId = (req.user as any).empresa_id;
+        }
 
         let userNewLogin = false;
         if (targetEmpresaId) {
             const empresa = await Empresa.findByPk(targetEmpresaId);
-            if (empresa && empresa.newLogin) {
-                userNewLogin = true;
-            }
+            if (empresa && empresa.newLogin) userNewLogin = true;
         }
 
         const hashed = await bcrypt.hash(password, 10);
@@ -314,6 +316,7 @@ export const create = async (
     }
 };
 
+
 export const update = async (
     req: Request<{ id: string }, {}, IUserUpdate>,
     res: Response
@@ -321,18 +324,25 @@ export const update = async (
     try {
         const id = req.params.id;
         const data = req.body;
+        const requestingUser = req.user as any;
+
         const user = await User.findByPk(id, {
-            include: [{
-                model: Empresa,
-                as: "empresa"
-            }]
+            include: [{ model: Empresa, as: "empresa" }]
         });
 
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
 
-        // if ((req.user as any).rol === "admin" && (req.user as any).empresa_id !== user.empresa_id)
-        //     return res.status(403).json({ message: "No autorizado" });
+        // Solo superuser puede asignar rol superuser
+        if (data.rol === "superuser" && requestingUser.rol !== "superuser")
+            return res.status(403).json({ message: "No puedes asignar rol superuser" });
 
+        if ((req.user as any).rol !== "admin" && (req.user as any).rol !== "superuser") {
+            if (data.empresa_id && data.empresa_id !== user.empresa_id)
+                return res.status(403).json({ message: "No autorizado a cambiar empresa" });
+            data.empresa_id = user.empresa_id;
+        }
+
+        // Manejo de contraseña
         if (data.password) {
             data.password = await bcrypt.hash(data.password, 10);
             data.lastChangePassWord = new Date();
@@ -341,12 +351,7 @@ export const update = async (
             data.lastChangePassWord = user.lastChangePassWord;
         }
 
-        if (data.rol === "superuser" && (req.user as any).rol !== "superuser")
-            return res.status(403).json({ message: "No puedes asignar rol superuser" });
-
-        if ((req.user as any).rol === "admin") data.empresa_id = user.empresa_id;
-
-        // Si se está cambiando la empresa, verificar el newLogin de la nueva empresa
+        // Si se está cambiando la empresa, verificar newLogin de la nueva empresa
         if (data.empresa_id && data.empresa_id !== user.empresa_id) {
             const nuevaEmpresa = await Empresa.findByPk(data.empresa_id);
             if (nuevaEmpresa && nuevaEmpresa.newLogin && user.rol !== "superuser") {
@@ -357,15 +362,14 @@ export const update = async (
         await user.update(data);
 
         const updated = await User.findByPk(id);
-        if (updated) {
-            res.json(sanitizeUser(updated));
-        } else {
-            res.status(404).json({ message: "Usuario no existe" });
-        }
+        if (updated) res.json(sanitizeUser(updated));
+        else res.status(404).json({ message: "Usuario no existe" });
+
     } catch (err) {
         res.status(500).json({ message: "Error en servidor" });
     }
 };
+
 
 export const remove = async (req: Request, res: Response) => {
     try {
