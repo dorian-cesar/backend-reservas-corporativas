@@ -206,6 +206,18 @@ export const crearEmpresa = async (
         monto_acumulado
     } = req.body;
 
+    if (cuenta_corriente) {
+        const existing = await Empresa.findOne({
+            where: { cuenta_corriente }
+        });
+
+        if (existing) {
+            return res.status(400).json({
+                message: "Ya existe una empresa con esa cuenta corriente"
+            });
+        }
+    }
+
     const empresa = await Empresa.create({
         rut,
         nombre,
