@@ -7,6 +7,8 @@ import { Empresa } from "../models/empresa.model";
 import { sendEmail } from "../services/mail.service";
 import { validatePasswordForNewLogin, isPasswordExpired } from "../services/password.service";
 
+const ENABLE_2FA = process.env.ENABLE_2FA === "true";
+
 
 const generateCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -95,6 +97,41 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const verificationCode = generateCode();
+
+    if (!ENABLE_2FA) {
+      const payload = {
+        id: user.id,
+        email: user.email,
+        rol: user.rol,
+        empresa_id: user.empresa_id,
+        centro_costo_id: user.centro_costo_id,
+      };
+
+      const token = signJwt(payload);
+
+      let centroCostoData = null;
+      if (user?.centro_costo_id) {
+        const centroCosto = await CentroCosto.findByPk(user.centro_costo_id);
+        centroCostoData = centroCosto ? centroCosto.toJSON() : null;
+      }
+
+      let empresaData = null;
+      if (user?.empresa_id) {
+        const empresa = await Empresa.findByPk(user.empresa_id);
+        empresaData = empresa ? empresa.toJSON() : null;
+      }
+
+      const { password: _, twoFactorSecret: __, ...userData } = user.toJSON();
+
+      return res.json({
+        token,
+        user: userData,
+        centroCosto: centroCostoData,
+        empresa: empresaData,
+        requiresVerification: false,
+        message: "Login exitoso (2FA temporalmente deshabilitado)"
+      });
+    }
 
     const expirationTime = Date.now() + (10 * 60 * 1000);
     const hashedCode = await bcrypt.hash(verificationCode, 10);

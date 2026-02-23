@@ -71,6 +71,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 connectDB().then(() => {
     app.listen(PORT, () => {
         console.log(`Servidor corriendo en puerto ${PORT}`);
+        console.log(`2FA ${process.env.ENABLE_2FA === "true" ? "habilitado" : "deshabilitado"}`);
     });
 });
 
