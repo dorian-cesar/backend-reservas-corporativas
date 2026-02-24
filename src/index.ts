@@ -65,6 +65,15 @@ app.use("/api/password", passwordRoutes)
 app.use("/api/user-empresa/", userEmpresaRoutes)
 app.use("/api/email/", emailFormRoutes)
 
+
+app.get('/api/test', (req, res) => {
+    res.json({
+        status: 'OK',
+        message: 'Backend funcionando',
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Documentación Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
