@@ -93,8 +93,11 @@ async function procesarEstadosCuentaEmpresa(
         });
 
         const idsGenerados = estadosConCuenta
-            .map(c => c.referencia?.replace('CARGO-EDC-', ''))
-            .filter(id => !isNaN(Number(id)))
+            .map(c => {
+                const ref = c.referencia as string;
+                return ref?.replace('CARGO-EDC-', '');
+            })
+            .filter(id => id && !isNaN(Number(id)))
             .map(id => Number(id));
 
         if (idsGenerados.length > 0) {
@@ -147,56 +150,58 @@ async function procesarEstadoCuenta(estadoCuenta: EstadoCuenta, nombreEmpresa: s
     let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
     // Monto facturado (cargo disminuye el saldo)
-    const montoFacturadoBruto = Number(estadoCuenta.monto_facturado);
+    const montoFacturadoBruto = Number(estadoCuenta.monto_facturado || 0);
     const sumaDevoluciones = Number(estadoCuenta.suma_devoluciones || 0);
-    const montoNeto = montoFacturadoBruto - sumaDevoluciones;
+    const montoNeto = montoFacturadoBruto; // Ya debería ser neto (verificar según tu lógica)
 
     if (montoNeto === 0) {
         console.log(`💰 Estado de cuenta ${estadoId} (${periodo}) tiene monto neto 0. Se omite.`);
-        console.log(`   - Bruto: $${montoFacturadoBruto}, Devoluciones: $${sumaDevoluciones}`);
+        console.log(`   - Monto: $${montoFacturadoBruto}, Devoluciones: $${sumaDevoluciones}`);
         return;
     }
 
-    saldoActual = saldoActual - montoNeto;
+    const nuevoSaldo = saldoActual - montoNeto;
 
     /** 4️⃣ Crear movimiento en cuenta corriente */
-    const fechaMovimiento = estadoCuenta.fecha_facturacion || estadoCuenta.fecha_generacion || new Date();
+    const fechaMovimiento = new Date(); // Usar fecha actual
 
-    const movimiento = await CuentaCorriente.create({
-        empresa_id: empresaId,
-        tipo_movimiento: "cargo",
-        monto: montoNeto, // Usar monto neto, no bruto
-        descripcion: `Cargo por estado de cuenta ${periodo} (${estadoCuenta.fecha_inicio} - ${estadoCuenta.fecha_fin}) - Neto: $${montoNeto.toFixed(2)}`,
-        saldo: saldoActual,
-        referencia: `CARGO-EDC-${estadoId}`,
-        pagado: estadoCuenta.pagado || false,
-        fecha_movimiento: fechaMovimiento,
-        estado_cuenta_id: estadoId
-    });
+    try {
+        const movimiento = await CuentaCorriente.create({
+            empresa_id: empresaId,
+            tipo_movimiento: "cargo",
+            monto: montoNeto,
+            descripcion: `Cargo por estado de cuenta ${periodo} (${estadoCuenta.fecha_inicio} - ${estadoCuenta.fecha_fin}) - Neto: $${montoNeto.toFixed(2)}`,
+            saldo: nuevoSaldo,
+            referencia: `CARGO-EDC-${estadoId}`,
+            pagado: estadoCuenta.pagado || false,
+            fecha_movimiento: fechaMovimiento,
+            estado_cuenta_id: estadoId
+        });
 
-    console.log(`✅ Cargo creado para empresa ${nombreEmpresa}`);
-    console.log(`   ID estado cuenta: ${estadoId}`);
-    console.log(`   Periodo: ${periodo}`);
-    console.log(`   Monto bruto: $${montoFacturadoBruto}`);
-    console.log(`   Devoluciones: $${sumaDevoluciones}`);
-    console.log(`   Monto neto: $${montoNeto}`);
-    console.log(`   Saldo anterior: $${ultimoMovimiento ? ultimoMovimiento.saldo : 0}`);
-    console.log(`   Nuevo saldo: $${saldoActual}`);
-    console.log(`   Referencia: ${movimiento.referencia}`);
+        console.log(`✅ Cargo creado para empresa ${nombreEmpresa}`);
+        console.log(`   ID estado cuenta: ${estadoId}`);
+        console.log(`   Periodo: ${periodo}`);
+        console.log(`   Monto: $${montoNeto.toLocaleString('es-CL')}`);
+        console.log(`   Saldo anterior: $${saldoActual.toLocaleString('es-CL')}`);
+        console.log(`   Nuevo saldo: $${nuevoSaldo.toLocaleString('es-CL')}`);
+        console.log(`   Referencia: ${movimiento.referencia}`);
 
-    /** 5️⃣ Si el estado de cuenta tiene descuento aplicado, generar el abono correspondiente */
-    if (estadoCuenta.porcentaje_descuento && estadoCuenta.porcentaje_descuento > 0) {
-        await generarDescuentoParaEstadoCuenta(estadoCuenta, movimiento.fecha_movimiento);
+        /** 5️⃣ Si el estado de cuenta tiene descuento aplicado, generar el abono correspondiente */
+        if (estadoCuenta.porcentaje_descuento && Number(estadoCuenta.porcentaje_descuento) > 0) {
+            await generarDescuentoParaEstadoCuenta(estadoCuenta, fechaMovimiento, nuevoSaldo);
+        }
+    } catch (error) {
+        console.error(`❌ Error al crear cargo para estado de cuenta ${estadoId}:`, error);
     }
 }
 
 /**
  * Generar abono de descuento para un estado de cuenta ya creado
  */
-async function generarDescuentoParaEstadoCuenta(estadoCuenta: EstadoCuenta, fechaOriginal: Date) {
+async function generarDescuentoParaEstadoCuenta(estadoCuenta: EstadoCuenta, fechaOriginal: Date, saldoDespuesCargo: number) {
     const estadoId = estadoCuenta.id;
     const empresaId = estadoCuenta.empresa_id;
-    const porcentaje = estadoCuenta.porcentaje_descuento || 0;
+    const porcentaje = Number(estadoCuenta.porcentaje_descuento || 0);
 
     // Verificar si ya existe descuento para este estado de cuenta
     const descuentoExistente = await CuentaCorriente.findOne({
@@ -212,42 +217,36 @@ async function generarDescuentoParaEstadoCuenta(estadoCuenta: EstadoCuenta, fech
     }
 
     // Calcular monto del descuento
-    const montoFacturadoBruto = Number(estadoCuenta.monto_facturado);
-    const sumaDevoluciones = Number(estadoCuenta.suma_devoluciones || 0);
-    const montoNeto = montoFacturadoBruto - sumaDevoluciones;
-    const montoDescuento = montoNeto * (porcentaje / 100);
-
-    // Obtener último saldo (después del cargo)
-    const ultimoMovimiento = await CuentaCorriente.findOne({
-        where: { empresa_id: empresaId },
-        order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
-    });
-
-    let nuevoSaldo = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
+    const montoFacturado = Number(estadoCuenta.monto_facturado || 0);
+    const montoDescuento = montoFacturado * (porcentaje / 100);
 
     // El descuento es un ABONO (suma al saldo)
-    nuevoSaldo = nuevoSaldo + montoDescuento;
+    const nuevoSaldo = saldoDespuesCargo + montoDescuento;
 
-    // Crear abono por descuento
+    // Crear abono por descuento (1 segundo después del cargo)
     const fechaDescuento = new Date(fechaOriginal);
-    fechaDescuento.setMinutes(fechaDescuento.getMinutes() + 1); // 1 minuto después del cargo
+    fechaDescuento.setSeconds(fechaDescuento.getSeconds() + 1);
 
-    const abonoDescuento = await CuentaCorriente.create({
-        empresa_id: empresaId,
-        tipo_movimiento: "abono",
-        monto: montoDescuento,
-        descripcion: `Descuento del ${porcentaje}% aplicado al estado de cuenta ${estadoCuenta.periodo}`,
-        saldo: nuevoSaldo,
-        referencia: `DESCUENTO-EDC-${estadoId}`,
-        fecha_movimiento: fechaDescuento,
-        estado_cuenta_id: estadoId
-    });
+    try {
+        const abonoDescuento = await CuentaCorriente.create({
+            empresa_id: empresaId,
+            tipo_movimiento: "abono",
+            monto: montoDescuento,
+            descripcion: `Descuento del ${porcentaje}% aplicado al estado de cuenta ${estadoCuenta.periodo}`,
+            saldo: nuevoSaldo,
+            referencia: `DESCUENTO-EDC-${estadoId}`,
+            fecha_movimiento: fechaDescuento,
+            estado_cuenta_id: estadoId
+        });
 
-    console.log(`   📉 Descuento aplicado: ${porcentaje}% ($${montoDescuento.toFixed(2)})`);
-    console.log(`   Nuevo saldo con descuento: $${nuevoSaldo}`);
+        console.log(`   📉 Descuento aplicado: ${porcentaje}% ($${montoDescuento.toLocaleString('es-CL')})`);
+        console.log(`   Nuevo saldo con descuento: $${nuevoSaldo.toLocaleString('es-CL')}`);
 
-    // Recalcular saldos de movimientos posteriores
-    await recalcularSaldosPosteriores(empresaId, abonoDescuento.fecha_movimiento);
+        // Recalcular saldos de movimientos posteriores
+        await recalcularSaldosPosteriores(empresaId, fechaDescuento);
+    } catch (error) {
+        console.error(`❌ Error al aplicar descuento para estado de cuenta ${estadoId}:`, error);
+    }
 }
 
 /**
@@ -265,7 +264,7 @@ async function recalcularSaldosPosteriores(empresaId: number, fechaDesde: Date):
     if (movimientosPosteriores.length === 0) return;
 
     // Obtener saldo justo antes del primer movimiento a recalcular
-    const saldoInicial = await CuentaCorriente.findOne({
+    const movimientoAnterior = await CuentaCorriente.findOne({
         where: {
             empresa_id: empresaId,
             fecha_movimiento: { [Op.lte]: fechaDesde }
@@ -273,18 +272,22 @@ async function recalcularSaldosPosteriores(empresaId: number, fechaDesde: Date):
         order: [["fecha_movimiento", "DESC"], ["id", "DESC"]]
     });
 
-    let saldoAcumulado = saldoInicial ? Number(saldoInicial.saldo) : 0;
+    let saldoAcumulado = movimientoAnterior ? Number(movimientoAnterior.saldo) : 0;
 
     for (const movimiento of movimientosPosteriores) {
+        const monto = Number(movimiento.monto);
+
         if (movimiento.tipo_movimiento === "abono") {
-            saldoAcumulado += Number(movimiento.monto);
+            saldoAcumulado += monto;
         } else if (movimiento.tipo_movimiento === "cargo") {
-            saldoAcumulado -= Number(movimiento.monto);
+            saldoAcumulado -= monto;
         }
 
         // Actualizar si el saldo cambió
-        if (Math.abs(Number(movimiento.saldo) - saldoAcumulado) > 0.01) {
+        const saldoActual = Number(movimiento.saldo);
+        if (Math.abs(saldoActual - saldoAcumulado) > 0.01) {
             await movimiento.update({ saldo: saldoAcumulado });
+            console.log(`   🔄 Saldo recalculado para movimiento ID ${movimiento.id}: $${saldoAcumulado.toLocaleString('es-CL')}`);
         }
     }
 }
@@ -321,9 +324,9 @@ Opciones:
   --help                 Mostrar esta ayuda
 
 Ejemplos:
-  ts-node generarCuentasCorrientes.ts                          # Todas las empresas
-  ts-node generarCuentasCorrientes.ts --empresa 1              # Solo empresa ID 1
-  ts-node generarCuentasCorrientes.ts --solo-no-generados      # Solo los no generados
+  ts-node src/cron/generarCuentasCorrientes.ts                          # Todas las empresas
+  ts-node src/cron/generarCuentasCorrientes.ts --empresa 1              # Solo empresa ID 1
+  ts-node src/cron/generarCuentasCorrientes.ts --solo-no-generados      # Solo los no generados
       `);
             process.exit(0);
         }
@@ -331,10 +334,10 @@ Ejemplos:
 
     try {
         await generarCuentasCorrientesForzadas(opciones);
-        console.log("✨ Proceso completado exitosamente");
+        console.log("\n✨ Proceso completado exitosamente");
         process.exit(0);
     } catch (error) {
-        console.error("🔥 ERROR:", error);
+        console.error("\n🔥 ERROR:", error);
         process.exit(1);
     }
 }

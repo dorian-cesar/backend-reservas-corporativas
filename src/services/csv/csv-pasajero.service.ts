@@ -47,16 +47,16 @@ export class CSVPassengerService {
                     id_centro_costo: Number(mapped.id_centro_costo),
                 };
 
-                const existing = await Pasajero.findOne({
-                    where: { correo: createPayload.correo },
-                });
+                // const existing = await Pasajero.findOne({
+                //     where: { correo: createPayload.correo },
+                // });
 
-                if (existing) {
-                    console.log(`Usuario existente: ${createPayload.correo}`);
-                    continue;
-                } else {
+                // if (existing) {
+                //     console.log(`Usuario existente: ${createPayload.correo}`);
+                //     continue;
+                // } else {
                     await Pasajero.create(createPayload);
-                }
+                // }
 
                 success++;
             } catch (err: any) {

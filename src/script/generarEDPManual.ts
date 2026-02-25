@@ -2,23 +2,29 @@
 import "../database";
 import { Empresa } from "../models/empresa.model";
 import { Ticket } from "../models/ticket.model";
+import { Pasajero } from "../models/pasajero.model";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
-import { QueryTypes } from "sequelize";
+import { Op } from "sequelize";
 import * as readline from "readline";
 
-/** Convierte a SQL local YYYY-MM-DD HH:mm:ss */
-function formatSQL(d: Date) {
-    const p = (n: number) => n.toString().padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(
-        d.getHours()
-    )}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+/** Convierte Date a string en formato YYYY-MM-DD HH:mm:ss para campos que esperan string */
+function formatDateForDB(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 /** Parsea fecha en formato DD/MM/YYYY */
 function parseFecha(fechaStr: string): Date {
     const [day, month, year] = fechaStr.split('/').map(Number);
-    return new Date(year, month - 1, day, 0, 0, 0);
+    const date = new Date(year, month - 1, day, 12, 0, 0); // Usar medio día para evitar problemas de zona horaria
+    return date;
 }
 
 /** Genera un período corto para el campo STRING(7) */
@@ -96,14 +102,16 @@ async function generarEDCManual() {
             return;
         }
 
-        const inicioStr = formatSQL(fechaDesde);
-        const finStr = formatSQL(fechaHasta);
+        // Convertir a strings para la base de datos (campos que esperan string)
+        const inicioStr = formatDateForDB(fechaDesde);
+        const finStr = formatDateForDB(fechaHasta);
         const periodo = generarPeriodoCorto(fechaDesde, fechaHasta);
 
         console.log(`\nProcesando empresa: ${empresa.nombre}`);
         console.log(`Periodo: ${inicioStr} → ${finStr}`);
         console.log(`Período corto: ${periodo}`);
 
+        // Verificar duplicados usando strings
         const existe = await EstadoCuenta.findOne({
             where: {
                 empresa_id: empresaId,
@@ -122,43 +130,49 @@ async function generarEDCManual() {
             }
         }
 
-        const sequelize = (Ticket as any).sequelize;
-        if (!sequelize) throw new Error("Sequelize no inicializado.");
+        // Obtener tickets usando objetos Date (como en la API)
+        const whereCondition: any = {
+            confirmedAt: {
+                [Op.between]: [fechaDesde, fechaHasta] // Usamos los objetos Date aquí
+            }
+        };
 
-        const sql = `
-      SELECT
-        SUM(CASE WHEN T.ticketStatus='Anulado' THEN 1 ELSE 0 END) AS anulados,
-        SUM(CASE WHEN T.ticketStatus='Confirmed' THEN 1 ELSE 0 END) AS confirmados,
-        SUM(CASE WHEN T.ticketStatus='Anulado' THEN T.monto_devolucion ELSE 0 END) AS devoluciones,
-        COUNT(T.monto_boleto) AS total,
-        SUM(T.monto_boleto) AS monto
-      FROM tickets T
-      JOIN pasajeros P ON T.id_pasajero = P.id
-      WHERE P.id_empresa = :empresaId
-        AND T.confirmedAt BETWEEN :inicio AND :fin
-    `;
+        // Filtrar por empresa
+        whereCondition.id_empresa = empresaId;
 
-        const result: any = await sequelize.query(sql, {
-            type: QueryTypes.SELECT,
-            replacements: { empresaId, inicio: inicioStr, fin: finStr },
+        // Obtener todos los tickets del período
+        const tickets = await Ticket.findAll({
+            where: whereCondition,
+            include: [
+                {
+                    model: Pasajero,
+                    required: true,
+                    attributes: ['id', 'nombre', 'rut', 'id_empresa']
+                }
+            ]
         });
 
-        const data = result[0] || {};
+        // Calcular estadísticas
+        const total_confirmados = tickets.filter(t => t.ticketStatus === 'Confirmed').length;
+        const total_anulados = tickets.filter(t => t.ticketStatus === 'Anulado').length;
 
-        const totalTickets =
-            Number(data.confirmados || 0) + Number(data.anulados || 0);
+        // Sumar montos
+        const monto_bruto = tickets.reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
+        const devoluciones = tickets.reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
+        const monto_neto = monto_bruto - devoluciones;
 
-        if (totalTickets === 0) {
+        if (tickets.length === 0) {
             console.log(`No hay tickets en el período especificado para ${empresa.nombre}`);
             rl.close();
             return;
         }
 
         console.log(`\nEstadísticas del período:`);
-        console.log(`   • Tickets confirmados: ${data.confirmados || 0}`);
-        console.log(`   • Tickets anulados: ${data.anulados || 0}`);
-        console.log(`   • Monto total: $${Number(data.monto || 0).toLocaleString('es-CL')}`);
-        console.log(`   • Devoluciones: $${Number(data.devoluciones || 0).toLocaleString('es-CL')}`);
+        console.log(`   • Tickets confirmados: ${total_confirmados}`);
+        console.log(`   • Tickets anulados: ${total_anulados}`);
+        console.log(`   • Monto bruto: $${monto_bruto.toLocaleString('es-CL')}`);
+        console.log(`   • Devoluciones: $${devoluciones.toLocaleString('es-CL')}`);
+        console.log(`   • Monto neto: $${monto_neto.toLocaleString('es-CL')}`);
 
         const confirmar = await pregunta("\n¿Confirmar creación del Estado de Cuenta? (s/n): ");
         if (confirmar.toLowerCase() !== 's') {
@@ -167,28 +181,24 @@ async function generarEDCManual() {
             return;
         }
 
+        // Crear estado de cuenta (usando strings para fecha_inicio/fecha_fin, Date para fecha_generacion)
         const estadoCuenta = await EstadoCuenta.create({
             empresa_id: empresaId,
             periodo: periodo,
-            fecha_inicio: inicioStr,
-            fecha_fin: finStr,
-            fecha_generacion: new Date(),
-            total_tickets: Number(data.total || 0),
-            total_tickets_anulados: Number(data.anulados || 0),
-            monto_facturado: Number(data.monto || 0),
-            suma_devoluciones: Number(data.devoluciones || 0),
-            detalle_por_cc: JSON.stringify({
-                manual: true,
-                periodo_personalizado: true,
-                fecha_desde: fechaDesdeStr,
-                fecha_hasta: fechaHastaStr,
-                periodo_completo: `MANUAL-${fechaDesdeStr}-${fechaHastaStr}`
-            }),
+            fecha_inicio: inicioStr, // string
+            fecha_fin: finStr, // string
+            fecha_generacion: new Date(), // Date
+            total_tickets: tickets.length,
+            total_tickets_anulados: total_anulados,
+            monto_facturado: monto_neto, // Usamos monto neto
+            suma_devoluciones: devoluciones,
+            detalle_por_cc: JSON.stringify({}),
             pagado: false,
         });
 
         console.log(`Estado de Cuenta creado con ID: ${estadoCuenta.id}`);
 
+        // Crear cargo en cuenta corriente
         if (estadoCuenta && estadoCuenta.id) {
             const ultimoMovimiento = await CuentaCorriente.findOne({
                 where: { empresa_id: empresaId },
@@ -196,34 +206,30 @@ async function generarEDCManual() {
             });
 
             let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
-
-            // Calcular monto neto
-            const montoNeto = Number(data.monto || 0) - Number(data.devoluciones || 0);
-
-            saldoActual = saldoActual - montoNeto;
+            saldoActual = saldoActual - monto_neto;
 
             await CuentaCorriente.create({
                 empresa_id: empresaId,
                 tipo_movimiento: "cargo",
-                monto: montoNeto, // Usar el monto neto
-                descripcion: `Cargo manual por estado de cuenta #${estadoCuenta.id} (${fechaDesdeStr} al ${fechaHastaStr}) (Neto: $${montoNeto})`,
+                monto: monto_neto,
+                descripcion: `Cargo manual por estado de cuenta #${estadoCuenta.id} (${fechaDesdeStr} al ${fechaHastaStr})`,
                 saldo: saldoActual,
                 referencia: `CARGO-MANUAL-EDC-${estadoCuenta.id}`,
                 pagado: false,
-                fecha_movimiento: new Date(),
+                fecha_movimiento: new Date(), // Date
                 estado_cuenta_id: estadoCuenta.id
             });
 
-            console.log(`Cargo en cuenta corriente creado por $${montoNeto.toLocaleString('es-CL')} (Neto)`);
-            console.log(`   - Monto bruto: $${Number(data.monto || 0).toLocaleString('es-CL')}`);
-            console.log(`   - Devoluciones: $${Number(data.devoluciones || 0).toLocaleString('es-CL')}`);
-            console.log(`Nuevo saldo: $${saldoActual.toLocaleString('es-CL')}`);
+            console.log(`\nCargo en cuenta corriente creado:`);
+            console.log(`   • Monto neto: $${monto_neto.toLocaleString('es-CL')}`);
+            console.log(`   • Saldo anterior: $${(saldoActual + monto_neto).toLocaleString('es-CL')}`);
+            console.log(`   • Nuevo saldo: $${saldoActual.toLocaleString('es-CL')}`);
         }
 
-        console.log("\nGeneración manual completada exitosamente!");
+        console.log("\n✅ Generación manual completada exitosamente!");
 
     } catch (error) {
-        console.error("ERROR durante la generación manual:", error);
+        console.error("❌ ERROR durante la generación manual:", error);
     } finally {
         rl.close();
     }
