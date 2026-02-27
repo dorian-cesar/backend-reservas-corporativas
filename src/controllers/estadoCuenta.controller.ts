@@ -9,6 +9,242 @@ import { Empresa } from "../models/empresa.model";
 import { CentroCosto } from "../models/centro_costo.model";
 
 
+export const ejecutarEDPManual = async (req: Request, res: Response) => {
+    try {
+        const { empresa_id, fecha_desde, fecha_hasta } = req.body;
+
+        // Validaciones
+        if (!empresa_id) {
+            return res.status(400).json({
+                message: "El ID de la empresa es requerido"
+            });
+        }
+
+        if (!fecha_desde || !fecha_hasta) {
+            return res.status(400).json({
+                message: "Las fechas desde y hasta son requeridas"
+            });
+        }
+
+        // Verificar que la empresa existe
+        const empresa = await Empresa.findByPk(empresa_id);
+        if (!empresa) {
+            return res.status(404).json({
+                message: "Empresa no encontrada"
+            });
+        }
+
+        // *** SOLUCIÓN: Función para parsear fechas correctamente sin problemas de zona horaria ***
+        function parseDateSafely(dateStr: string): Date {
+            // Si viene en formato YYYY-MM-DD (con guiones)
+            if (dateStr.includes('-')) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                // Crear fecha usando los componentes numéricos directamente (año, mes, día)
+                // Nota: mes es 0-indexed en JavaScript, por eso restamos 1
+                return new Date(year, month - 1, day);
+            }
+            // Si viene en formato YYYY/MM/DD (con slashes)
+            else if (dateStr.includes('/')) {
+                const [year, month, day] = dateStr.split('/').map(Number);
+                return new Date(year, month - 1, day);
+            }
+            // Si viene en cualquier otro formato, intentar con el constructor por defecto
+            else {
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) {
+                    throw new Error(`Formato de fecha no reconocido: ${dateStr}`);
+                }
+                return date;
+            }
+        }
+
+        // Parsear fechas de manera segura
+        let fechaDesde: Date, fechaHasta: Date;
+
+        try {
+            fechaDesde = parseDateSafely(fecha_desde);
+            fechaHasta = parseDateSafely(fecha_hasta);
+        } catch (error) {
+            return res.status(400).json({
+                message: "Error al parsear las fechas",
+                error: error instanceof Error ? error.message : "Formato de fecha inválido"
+            });
+        }
+
+        // Validar que las fechas sean válidas
+        if (isNaN(fechaDesde.getTime()) || isNaN(fechaHasta.getTime())) {
+            return res.status(400).json({
+                message: "Fechas inválidas después del parseo"
+            });
+        }
+
+        // Validar que fecha_desde sea menor o igual a fecha_hasta
+        if (fechaDesde > fechaHasta) {
+            return res.status(400).json({
+                message: "La fecha desde debe ser menor o igual a la fecha hasta"
+            });
+        }
+
+        // *** CORRECCIÓN: Ajustar fechas según la lógica de negocio ***
+
+        // Para la consulta de tickets:
+        // - inicioConsulta = fecha_desde a las 00:00:00 (exactamente el día que enviaron)
+        // - finConsulta = fecha_hasta - 1 día a las 23:59:59 (un día antes)
+
+        const inicioConsulta = new Date(fechaDesde);
+        inicioConsulta.setHours(0, 0, 0, 0);
+
+        // Crear fecha_hasta_ajustada = fecha_hasta - 1 día
+        const finConsulta = new Date(fechaHasta);
+        finConsulta.setDate(finConsulta.getDate() - 1); // Restar un día
+        finConsulta.setHours(23, 59, 59, 999);
+
+        // Para guardar en estado_cuenta (usar las mismas fechas ajustadas)
+        const inicioPeriodoStr = formatDateForDB(inicioConsulta);
+        const finPeriodoStr = formatDateForDB(finConsulta);
+
+        console.log(`=== INICIO FACTURACIÓN MANUAL ===`);
+        console.log(`Empresa: ${empresa.nombre} (ID: ${empresa_id})`);
+        console.log(`Fechas recibidas: ${fecha_desde} → ${fecha_hasta}`);
+        console.log(`Fechas parseadas: ${fechaDesde.toISOString()} → ${fechaHasta.toISOString()}`);
+        console.log(`Período facturado: ${inicioPeriodoStr} → ${finPeriodoStr}`);
+
+        // Verificar si ya existe un estado de cuenta para este período
+        const existe = await EstadoCuenta.findOne({
+            where: {
+                empresa_id: empresa_id,
+                fecha_inicio: inicioPeriodoStr,
+                fecha_fin: finPeriodoStr
+            }
+        });
+
+        if (existe) {
+            return res.status(400).json({
+                message: "Ya existe un estado de cuenta para este período",
+                estado_cuenta_existente: existe
+            });
+        }
+
+        // Obtener tickets del período (usando las fechas ajustadas)
+        const tickets = await Ticket.findAll({
+            where: {
+                id_empresa: empresa_id,
+                confirmedAt: {
+                    [Op.between]: [inicioConsulta, finConsulta]
+                }
+            },
+            include: [
+                {
+                    model: User,
+                    attributes: ['id', 'nombre', 'rut', 'email'],
+                    required: false
+                },
+                {
+                    model: Pasajero,
+                    required: false,
+                    attributes: ['id', 'nombre', 'rut', 'correo', 'telefono', 'id_centro_costo'],
+                    include: [{ model: CentroCosto, required: false }]
+                }
+            ]
+        });
+
+        // Calcular totales
+        const total_confirmados = tickets.filter(t => t.ticketStatus === 'Confirmed').length;
+        const total_anulados = tickets.filter(t => t.ticketStatus === 'Anulado').length;
+
+        // Sumar montos
+        const monto_bruto = tickets.reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
+        const devoluciones = tickets.reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
+        const monto_facturado = monto_bruto - devoluciones;
+
+        // Generar detalle por centro de costo
+        const detallePorCC: any = {};
+
+        // Crear estado de cuenta
+        const estadoCuenta = await EstadoCuenta.create({
+            empresa_id: empresa_id,
+            periodo: `${fechaDesde.getFullYear()}-${String(fechaDesde.getMonth() + 1).padStart(2, '0')}`,
+            fecha_inicio: inicioPeriodoStr,
+            fecha_fin: finPeriodoStr,
+            fecha_generacion: new Date(),
+            fecha_facturacion: new Date(),
+            total_tickets: tickets.length,
+            total_tickets_anulados: total_anulados,
+            monto_facturado: monto_facturado,
+            suma_devoluciones: devoluciones,
+            detalle_por_cc: JSON.stringify(detallePorCC),
+            pagado: false,
+        });
+
+        // Crear cargo en cuenta corriente
+        if (estadoCuenta && estadoCuenta.id) {
+            const ultimoMovimiento = await CuentaCorriente.findOne({
+                where: { empresa_id: empresa_id },
+                order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
+            });
+
+            let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
+            const nuevoSaldo = saldoActual - monto_facturado;
+
+            const cargo = await CuentaCorriente.create({
+                empresa_id: empresa_id,
+                tipo_movimiento: "cargo",
+                monto: monto_facturado,
+                descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} - Período ${inicioPeriodoStr} al ${finPeriodoStr}`,
+                saldo: nuevoSaldo,
+                referencia: `CARGO-EDC-${estadoCuenta.id}`,
+                pagado: false,
+                fecha_movimiento: new Date(),
+                estado_cuenta_id: estadoCuenta.id
+            });
+
+            return res.status(201).json({
+                message: "Facturación EDP manual ejecutada correctamente",
+                data: {
+                    estado_cuenta: estadoCuenta,
+                    cargo_cuenta_corriente: cargo,
+                    resumen: {
+                        total_tickets: tickets.length,
+                        tickets_confirmados: total_confirmados,
+                        tickets_anulados: total_anulados,
+                        monto_bruto,
+                        devoluciones,
+                        monto_facturado,
+                        detalle_por_cc: detallePorCC,
+                        fechas_utilizadas: {
+                            fecha_desde_enviada: fecha_desde,
+                            fecha_hasta_enviada: fecha_hasta,
+                            fecha_desde_parseada: formatDateForDB(fechaDesde),
+                            fecha_hasta_parseada: formatDateForDB(fechaHasta),
+                            fecha_inicio_real: inicioPeriodoStr,
+                            fecha_fin_real: finPeriodoStr
+                        }
+                    }
+                }
+            });
+        } else {
+            throw new Error("Error al crear el estado de cuenta");
+        }
+
+    } catch (error) {
+        console.error("Error en facturación manual:", error);
+        return res.status(500).json({
+            message: "Error al ejecutar facturación manual",
+            error: error instanceof Error ? error.message : "Error desconocido"
+        });
+    }
+};
+
+function formatDateForDB(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 
 
 export const listarEstadosCuenta = async (req: Request, res: Response) => {
