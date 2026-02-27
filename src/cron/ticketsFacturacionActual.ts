@@ -34,7 +34,11 @@ export const ticketsFacturacionActual = async () => {
   const diaHoy = hoy.getDate();
 
   const empresas = await Empresa.findAll({
-    where: { estado: true },
+    where: {
+      estado: true,
+      fact_manual: false
+    },
+
   });
 
   for (const empresa of empresas) {

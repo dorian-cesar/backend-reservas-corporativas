@@ -12,6 +12,7 @@ export interface IEmpresaCreate {
     monto_maximo?: number;
     monto_acumulado?: number;
     newLogin?: boolean;
+    fact_manual?: boolean;
 }
 
 export interface IEmpresaUpdate {
@@ -26,4 +27,5 @@ export interface IEmpresaUpdate {
     monto_maximo?: number;
     monto_acumulado?: number;
     newLogin?: boolean;
+    fact_manual?: boolean;
 }

@@ -21,6 +21,7 @@ export interface IEmpresa {
   monto_maximo?: number;
   monto_acumulado?: number;
   newLogin?: boolean;
+  fact_manual?: boolean;
 }
 
 @Table({ tableName: "empresas", timestamps: false })
@@ -60,6 +61,14 @@ export class Empresa extends Model<IEmpresa> {
 
   @Column({ type: DataType.BOOLEAN, defaultValue: false })
   declare newLogin?: boolean;
+
+  @Column({
+    type: DataType.BOOLEAN,
+    defaultValue: false,
+    field: 'fact_manual'
+  })
+  
+  declare fact_manual?: boolean;
 
   @HasMany(() => CentroCosto)
   declare centrosCosto: CentroCosto[];

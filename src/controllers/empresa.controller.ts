@@ -203,7 +203,8 @@ export const crearEmpresa = async (
         dia_facturacion,
         dia_vencimiento,
         monto_maximo,
-        monto_acumulado
+        monto_acumulado,
+        fact_manual 
     } = req.body;
 
     if (cuenta_corriente) {
@@ -228,7 +229,8 @@ export const crearEmpresa = async (
         dia_facturacion,
         dia_vencimiento,
         monto_maximo,
-        monto_acumulado
+        monto_acumulado,
+        fact_manual 
     });
 
     res.json({ id: empresa.id, message: "Empresa creada" });
