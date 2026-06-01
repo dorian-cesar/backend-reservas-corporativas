@@ -106,7 +106,7 @@ export const crearMovimiento = async (
         // Obtener último saldo
         const ultimo = await CuentaCorriente.findOne({
             where: { empresa_id },
-            order: [["fecha_movimiento", "DESC"]],
+            order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
         });
         let saldo = ultimo ? Number(ultimo.saldo) : 0;
         saldo = tipo_movimiento === "abono" ? saldo + Number(monto) : saldo - Number(monto);
@@ -173,7 +173,7 @@ export const pagarMovimiento = async (req: Request, res: Response) => {
         // 4. Obtener último saldo para calcular
         const ultimo = await CuentaCorriente.findOne({
             where: { empresa_id: movimiento.empresa_id },
-            order: [["fecha_movimiento", "DESC"]],
+            order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
         });
 
         let nuevoSaldo = ultimo ? Number(ultimo.saldo) : 0;

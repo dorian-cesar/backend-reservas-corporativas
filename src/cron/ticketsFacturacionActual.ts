@@ -18,11 +18,11 @@ function clampDay(year: number, monthZeroBased: number, day: number) {
 /** Convierte Date a string en formato YYYY-MM-DD HH:mm:ss para campos que esperan string */
 function formatDateForDB(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
 
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
@@ -36,9 +36,8 @@ export const ticketsFacturacionActual = async () => {
   const empresas = await Empresa.findAll({
     where: {
       estado: true,
-      fact_manual: false
+      fact_manual: false,
     },
-
   });
 
   for (const empresa of empresas) {
@@ -50,18 +49,19 @@ export const ticketsFacturacionActual = async () => {
 
     const nombre = empresa.nombre ?? empresa.get?.("nombre") ?? `#${empresaId}`;
     const diaFacturacion = Number(
-      empresa.dia_facturacion ?? empresa.get?.("dia_facturacion")
+      empresa.dia_facturacion ?? empresa.get?.("dia_facturacion"),
     );
 
     console.log(
-      `\n--- Empresa ${nombre} (ID ${empresaId}) - día facturación: ${diaFacturacion} ---`
+      `\n--- Empresa ${nombre} (ID ${empresaId}) - día facturación: ${diaFacturacion} ---`,
     );
 
     /** 1️⃣ Validar día */
     if (!diaFacturacion || diaFacturacion !== diaHoy) {
       console.log(
-        `Empresa ${nombre}: hoy ${diaHoy}, factura día ${diaFacturacion ?? "N/A"
-        }, se omite.`
+        `Empresa ${nombre}: hoy ${diaHoy}, factura día ${
+          diaFacturacion ?? "N/A"
+        }, se omite.`,
       );
       continue;
     }
@@ -92,7 +92,7 @@ export const ticketsFacturacionActual = async () => {
       clampDay(inicioYear, inicioMonth, diaFacturacion),
       0,
       0,
-      0
+      0,
     );
 
     // Convertir a strings SOLO para los campos que lo requieren
@@ -106,7 +106,7 @@ export const ticketsFacturacionActual = async () => {
       where: {
         empresa_id: empresaId,
         fecha_inicio: inicioPeriodoStr,
-        fecha_fin: finPeriodoStr
+        fecha_fin: finPeriodoStr,
       },
     });
 
@@ -118,8 +118,8 @@ export const ticketsFacturacionActual = async () => {
     /** 4️⃣ Obtener tickets del período usando Sequelize (como en la API) */
     const whereCondition: any = {
       confirmedAt: {
-        [Op.between]: [inicioPeriodo, finPeriodo] // Aquí usamos los objetos Date para la consulta
-      }
+        [Op.between]: [inicioPeriodo, finPeriodo], // Aquí usamos los objetos Date para la consulta
+      },
     };
 
     // Si la empresa tiene ID, filtrar por ella
@@ -131,30 +131,47 @@ export const ticketsFacturacionActual = async () => {
       include: [
         {
           model: User,
-          attributes: ['id', 'nombre', 'rut', 'email'],
-          required: false
+          attributes: ["id", "nombre", "rut", "email"],
+          required: false,
         },
         {
           model: Empresa,
-          attributes: ['id', 'nombre', 'rut', 'cuenta_corriente'],
-          required: true
+          attributes: ["id", "nombre", "rut", "cuenta_corriente"],
+          required: true,
         },
         {
           model: Pasajero,
           required: false,
-          attributes: ['id', 'nombre', 'rut', 'correo', 'telefono', 'id_centro_costo'],
-          include: [{ model: CentroCosto, required: false }]
-        }
-      ]
+          attributes: [
+            "id",
+            "nombre",
+            "rut",
+            "correo",
+            "telefono",
+            "id_centro_costo",
+          ],
+          include: [{ model: CentroCosto, required: false }],
+        },
+      ],
     });
 
     // Calcular totales
-    const total_confirmados = tickets.filter(t => t.ticketStatus === 'Confirmed').length;
-    const total_anulados = tickets.filter(t => t.ticketStatus === 'Anulado').length;
+    const total_confirmados = tickets.filter(
+      (t) => t.ticketStatus === "Confirmed",
+    ).length;
+    const total_anulados = tickets.filter(
+      (t) => t.ticketStatus === "Anulado",
+    ).length;
 
     // Sumar montos (convertir a número para evitar problemas)
-    const monto_bruto = tickets.reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
-    const devoluciones = tickets.reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
+    const monto_bruto = tickets.reduce(
+      (sum, t) => sum + (Number(t.monto_boleto) || 0),
+      0,
+    );
+    const devoluciones = tickets.reduce(
+      (sum, t) => sum + (Number(t.monto_devolucion) || 0),
+      0,
+    );
     const monto_facturado = monto_bruto - devoluciones;
 
     console.log(`Resultados para ${nombre}:`);
@@ -167,7 +184,8 @@ export const ticketsFacturacionActual = async () => {
     /** 5️⃣ Crear estado de cuenta */
     const estadoCuenta = await EstadoCuenta.create({
       empresa_id: empresaId,
-      periodo: diaFacturacion.toString(),
+      // periodo: diaFacturacion.toLocaleString();
+      periodo: `${inicioPeriodo.getFullYear()}-${String(inicioPeriodo.getMonth() + 1).padStart(2, "0")}`,
       fecha_inicio: inicioPeriodoStr, // string - el modelo espera string
       fecha_fin: finPeriodoStr, // string - el modelo espera string
       fecha_generacion: new Date(), // Date - el modelo espera Date
@@ -183,7 +201,7 @@ export const ticketsFacturacionActual = async () => {
     if (estadoCuenta && estadoCuenta.id) {
       const ultimoMovimiento = await CuentaCorriente.findOne({
         where: { empresa_id: empresaId },
-        order: [["fecha_movimiento", "DESC"]],
+        order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
       });
 
       let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
@@ -197,11 +215,13 @@ export const ticketsFacturacionActual = async () => {
         saldo: saldoActual,
         referencia: `CARGO-EDC-${estadoCuenta.id}`,
         pagado: false,
-        fecha_movimiento: new Date() // Date - el modelo espera Date
+        fecha_movimiento: new Date(), // Date - el modelo espera Date
       });
 
       console.log(`✅ Estado creado para ${nombre} (ID: ${estadoCuenta.id})`);
-      console.log(`✅ Cargo en cuenta corriente creado por $${monto_facturado}`);
+      console.log(
+        `✅ Cargo en cuenta corriente creado por $${monto_facturado}`,
+      );
     } else {
       console.error(`❌ Error al crear estado de cuenta para ${nombre}`);
     }
