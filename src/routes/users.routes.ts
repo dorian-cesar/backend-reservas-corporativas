@@ -6,7 +6,8 @@ import {
     update,
     remove,
     setEstado, getUserById, setNewLogin, setNewLoginForEmpresa,
-    cambiarEmpresaActual
+    cambiarEmpresaActual,
+    exportUsers
 } from "../controllers/users.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 import { onlySuperUser } from "../middleware/role.middleware";
@@ -15,6 +16,9 @@ const router = Router();
 
 // Listar usuarios
 router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria", "admincc"), getUsers);
+
+// Exportar usuarios (debe estar antes del endpoint /:id)
+router.get("/export", authenticateJWT, authorizeRoles("superuser"), exportUsers);
 
 // Obtener información completa de un usuario por ID
 router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor", "auditoria", "admincc"), getUserById);

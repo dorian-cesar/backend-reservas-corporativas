@@ -9,6 +9,7 @@ import { CentroCosto } from "../models/centro_costo.model";
 import { Op, fn, col } from "sequelize";
 import { sanitizeUser } from "../utils/sanitizeUser";
 import { signJwt } from "../utils/jwt";
+import { sequelize } from "../database";
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -640,5 +641,28 @@ export const cambiarEmpresaActual = async (req: Request, res: Response) => {
             message: "Error en servidor",
             error: (err as Error).message
         });
+    }
+};
+
+export const exportUsers = async (req: Request, res: Response) => {
+    try {
+        const query = `
+            SELECT 
+                u.id, 
+                u.nombre, 
+                u.rut, 
+                u.email, 
+                u.rol, 
+                e.nombre AS nombre_empresa, 
+                cc.nombre AS nombre_centro_costo
+            FROM users u
+            LEFT JOIN empresas e ON u.empresa_id = e.id
+            LEFT JOIN centros_costo cc ON u.centro_costo_id = cc.id
+        `;
+        const [rows] = await sequelize.query(query);
+        return res.json(rows);
+    } catch (err: any) {
+        console.error("Error al exportar usuarios:", err);
+        return res.status(500).json({ message: "Error interno del servidor", error: err.message });
     }
 };

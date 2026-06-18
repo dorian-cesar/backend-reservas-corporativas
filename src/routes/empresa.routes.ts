@@ -6,7 +6,8 @@ import {
     actualizarEmpresa,
     eliminarEmpresa,
     resetMontoAcumulado,
-    setNewLoginForEmpresa
+    setNewLoginForEmpresa,
+    exportEmpresas
 } from "../controllers/empresa.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
@@ -14,6 +15,9 @@ const router = Router();
 
 // Listar todas las empresas
 router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "auditoria", "contralor", "admincc"), listarEmpresas);
+
+// Exportar todas las empresas (debe estar antes del endpoint /:id)
+router.get("/export", authenticateJWT, authorizeRoles("superuser"), exportEmpresas);
 
 // Obtener una empresa por id
 router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "contralor", "auditoria"), obtenerEmpresa);
