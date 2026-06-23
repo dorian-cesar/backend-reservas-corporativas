@@ -4,6 +4,13 @@ import { Ticket } from "../models/ticket.model";
 import { Empresa } from "../models/empresa.model";
 import { Op } from "sequelize";
 
+function parseDateString(dateStr: string): Date {
+    const [datePart, timePart] = dateStr.trim().split(" ");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hours, minutes, seconds] = timePart ? timePart.split(":").map(Number) : [0, 0, 0];
+    return new Date(year, month - 1, day, hours, minutes, seconds);
+}
+
 async function verificar() {
     await connectDB();
     console.log("=== VERIFICANDO ESTADOS DE PAGO (EDPs) VS TICKETS ===");
@@ -22,8 +29,8 @@ async function verificar() {
             continue;
         }
 
-        const inicio = new Date(ec.fecha_inicio);
-        const fin = new Date(ec.fecha_fin);
+        const inicio = parseDateString(ec.fecha_inicio);
+        const fin = parseDateString(ec.fecha_fin);
         fin.setHours(23, 59, 59, 999);
 
         // Buscar tickets usando confirmedAt

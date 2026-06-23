@@ -302,6 +302,14 @@ export const listarEstadosCuenta = async (req: Request, res: Response) => {
     }
 };
 
+// Helper para parsear de manera segura strings "YYYY-MM-DD HH:mm:ss" a Date local components
+export function parseDateString(dateStr: string): Date {
+    const [datePart, timePart] = dateStr.trim().split(" ");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hours, minutes, seconds] = timePart ? timePart.split(":").map(Number) : [0, 0, 0];
+    return new Date(year, month - 1, day, hours, minutes, seconds);
+}
+
 export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -331,8 +339,8 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
         let fin: Date;
 
         try {
-            inicio = new Date(estadoData.fecha_inicio);
-            fin = new Date(estadoData.fecha_fin);
+            inicio = parseDateString(estadoData.fecha_inicio);
+            fin = parseDateString(estadoData.fecha_fin);
 
             if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
                 return res.status(400).json({
@@ -345,7 +353,6 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
             }
 
             fin.setHours(23, 59, 59, 999);
-
         } catch (error) {
             return res.status(400).json({
                 message: "Error al procesar las fechas del estado de cuenta",

@@ -43,6 +43,13 @@ const recalcularSaldosDesde = async (empresaId: number, fechaDesde: Date): Promi
     }
 };
 
+function parseDateString(dateStr: string): Date {
+    const [datePart, timePart] = dateStr.trim().split(" ");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hours, minutes, seconds] = timePart ? timePart.split(":").map(Number) : [0, 0, 0];
+    return new Date(year, month - 1, day, hours, minutes, seconds);
+}
+
 async function corregir() {
     await connectDB();
     console.log("=== INICIANDO CORRECCIÓN DE ESTADOS DE PAGO (EDPs) ===");
@@ -61,8 +68,8 @@ async function corregir() {
             continue;
         }
 
-        const inicio = new Date(ec.fecha_inicio);
-        const fin = new Date(ec.fecha_fin);
+        const inicio = parseDateString(ec.fecha_inicio);
+        const fin = parseDateString(ec.fecha_fin);
         fin.setHours(23, 59, 59, 999);
 
         // Fetch tickets with passenger and cost center details
