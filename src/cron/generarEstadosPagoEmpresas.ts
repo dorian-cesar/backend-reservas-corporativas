@@ -139,13 +139,12 @@ export const generarEstadosPagoEmpresas = async () => {
             fecha_facturacion = new Date(anioSiguiente, mesSiguiente, diaFacturacion, 0, 0, 0, 0);
             fecha_vencimiento = new Date(anioSiguiente, mesSiguiente, diaVencimiento, 0, 0, 0, 0);
 
-            // Buscar todos los tickets del periodo USANDO id_empresa DIRECTO
+            // Buscar todos los tickets del periodo USANDO id_empresa DIRECTO y confirmedAt
             const tickets = await Ticket.findAll({
                 where: {
                     id_empresa: empresaId,
                     ticketStatus: { [Op.in]: ['Confirmed', 'Anulado'] },
-                    // Usando created_at como en el backup original
-                    created_at: {
+                    confirmedAt: {
                         [Op.gte]: inicio,
                         [Op.lt]: fin
                     }
@@ -165,26 +164,13 @@ export const generarEstadosPagoEmpresas = async () => {
             console.log(`[${new Date().toISOString()}] Tickets en periodo ${periodo}: ${tickets.length}`);
 
             // Cálculo usando monto_boleto y monto_devolucion directamente de los tickets
-            let total_tickets = 0;
-            let total_tickets_anulados = 0;
-            let monto_cargos = 0;
-            let monto_abonos = 0;
+            const total_tickets = tickets.length;
+            const total_tickets_anulados = tickets.filter(t => t.ticketStatus === 'Anulado').length;
+            const monto_bruto = tickets.reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
+            const devoluciones = tickets.reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
+            const monto_facturado = monto_bruto - devoluciones;
 
-            for (const ticket of tickets) {
-                const ticketStatus = ticket.ticketStatus;
-                if (ticketStatus === 'Confirmed') {
-                    total_tickets += 1;
-                    monto_cargos += Number(ticket.monto_boleto) || 0;
-                }
-                if (ticketStatus === 'Anulado') {
-                    total_tickets_anulados += 1;
-                    monto_abonos += Number(ticket.monto_devolucion) || 0;
-                }
-            }
-
-            const monto_facturado = monto_cargos - monto_abonos;
-
-            console.log(`[${new Date().toISOString()}] Periodo ${periodo}: total_tickets=${total_tickets}, total_tickets_anulados=${total_tickets_anulados}, monto_cargos=${monto_cargos}, monto_abonos=${monto_abonos}, monto_facturado=${monto_facturado}`);
+            console.log(`[${new Date().toISOString()}] Periodo ${periodo}: total_tickets=${total_tickets}, total_tickets_anulados=${total_tickets_anulados}, monto_bruto=${monto_bruto}, devoluciones=${devoluciones}, monto_facturado=${monto_facturado}`);
 
             // Detalle por centro de costo - USANDO CENTRO DE COSTO DEL PASAJERO
             const detallePorCC: Record<string, {
@@ -215,14 +201,13 @@ export const generarEstadosPagoEmpresas = async () => {
                     };
                 }
 
-                if (ticket.ticketStatus === 'Confirmed') {
-                    detallePorCC[centroCostoNombre].total_tickets += 1;
-                    detallePorCC[centroCostoNombre].monto_facturado += Number(ticket.monto_boleto) || 0;
-                }
+                detallePorCC[centroCostoNombre].total_tickets += 1;
                 if (ticket.ticketStatus === 'Anulado') {
                     detallePorCC[centroCostoNombre].total_anulados += 1;
-                    detallePorCC[centroCostoNombre].monto_facturado -= Number(ticket.monto_devolucion) || 0;
                 }
+                const boleto = Number(ticket.monto_boleto) || 0;
+                const devolucion = Number(ticket.monto_devolucion) || 0;
+                detallePorCC[centroCostoNombre].monto_facturado += (boleto - devolucion);
             }
 
             console.log(`[${new Date().toISOString()}] Detalle por centro de costo para periodo ${periodo}: ${JSON.stringify(detallePorCC)}`);
