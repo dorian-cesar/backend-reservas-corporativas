@@ -172,6 +172,13 @@ export const getTicketsWithPassengerInfo = async (req: Request, res: Response) =
     }
 };
 
+function parseDateString(dateStr: string): Date {
+    const [datePart, timePart] = dateStr.trim().split(" ");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hours, minutes, seconds] = timePart ? timePart.split(":").map(Number) : [0, 0, 0];
+    return new Date(year, month - 1, day, hours, minutes, seconds);
+}
+
 export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -224,8 +231,8 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
                     id_empresa: estadoData.empresa_id,
                     confirmedAt: {
                         [Op.between]: [
-                            new Date(estadoData.fecha_inicio),
-                            new Date(estadoData.fecha_fin),
+                            parseDateString(estadoData.fecha_inicio),
+                            parseDateString(estadoData.fecha_fin),
                         ],
                     },
                 },
@@ -303,7 +310,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
                     : null,
                 periodo_reservas:
                     estadoData.fecha_inicio && estadoData.fecha_fin
-                        ? `${new Date(estadoData.fecha_inicio).toLocaleDateString('es-CL')} - ${new Date(
+                        ? `${parseDateString(estadoData.fecha_inicio).toLocaleDateString('es-CL')} - ${parseDateString(
                             estadoData.fecha_fin
                         ).toLocaleDateString('es-CL')}`
                         : null,
