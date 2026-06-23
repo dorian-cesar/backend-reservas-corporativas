@@ -228,6 +228,11 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
 
     } catch (error) {
         console.error("Error en facturación manual:", error);
+        if (error && (error as any).name === "SequelizeUniqueConstraintError") {
+            return res.status(409).json({
+                message: "Ya existe un estado de cuenta registrado para esta empresa y periodo."
+            });
+        }
         return res.status(500).json({
             message: "Error al ejecutar facturación manual",
             error: error instanceof Error ? error.message : "Error desconocido"

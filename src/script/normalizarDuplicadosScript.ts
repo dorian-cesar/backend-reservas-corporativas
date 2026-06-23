@@ -53,10 +53,13 @@ export const normalizarDuplicados = async () => {
           idsDuplicados,
         );
 
-        // 4. Identificar las referencias en cuenta corriente a eliminar
-        const referenciasAEliminar = idsDuplicados.map(
-          (id) => `CARGO-EDC-${id}`,
-        );
+        // 4. Identificar las referencias en cuenta corriente a eliminar (cargos, descuentos y reversiones)
+        const referenciasAEliminar: string[] = [];
+        idsDuplicados.forEach((id) => {
+          referenciasAEliminar.push(`CARGO-EDC-${id}`);
+          referenciasAEliminar.push(`DESCUENTO-EDC-${id}`);
+          referenciasAEliminar.push(`REV-DESCUENTO-EDC-${id}`);
+        });
 
         // --- ZONA DE ELIMINACIÓN ---
         // a) Eliminar los movimientos de cuenta corriente (Cargos duplicados)

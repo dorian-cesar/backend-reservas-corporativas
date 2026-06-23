@@ -38,192 +38,198 @@ export const ticketsFacturacionActual = async () => {
       estado: true,
       fact_manual: false,
     },
-  });
+  });  for (const empresa of empresas) {
+    try {
+      const empresaId = Number(empresa.id ?? empresa.get?.("id"));
+      if (!empresaId) {
+        console.error("Empresa sin ID válido, se omite");
+        continue;
+      }
 
-  for (const empresa of empresas) {
-    const empresaId = Number(empresa.id ?? empresa.get?.("id"));
-    if (!empresaId) {
-      console.error("Empresa sin ID válido, se omite");
-      continue;
-    }
-
-    const nombre = empresa.nombre ?? empresa.get?.("nombre") ?? `#${empresaId}`;
-    const diaFacturacion = Number(
-      empresa.dia_facturacion ?? empresa.get?.("dia_facturacion"),
-    );
-
-    console.log(
-      `\n--- Empresa ${nombre} (ID ${empresaId}) - día facturación: ${diaFacturacion} ---`,
-    );
-
-    /** 1️⃣ Validar día */
-    if (!diaFacturacion || diaFacturacion !== diaHoy) {
-      console.log(
-        `Empresa ${nombre}: hoy ${diaHoy}, factura día ${
-          diaFacturacion ?? "N/A"
-        }, se omite.`,
+      const nombre = empresa.nombre ?? empresa.get?.("nombre") ?? `#${empresaId}`;
+      const diaFacturacion = Number(
+        empresa.dia_facturacion ?? empresa.get?.("dia_facturacion"),
       );
-      continue;
-    }
 
-    console.log(`Facturando empresa ${nombre}`);
+      console.log(
+        `\n--- Empresa ${nombre} (ID ${empresaId}) - día facturación: ${diaFacturacion} ---`,
+      );
 
-    /** 2️⃣ Definir período correcto usando objetos Date (como en la API) */
+      /** 1️⃣ Validar día */
+      if (!diaFacturacion || diaFacturacion !== diaHoy) {
+        console.log(
+          `Empresa ${nombre}: hoy ${diaHoy}, factura día ${
+            diaFacturacion ?? "N/A"
+          }, se omite.`,
+        );
+        continue;
+      }
 
-    // 👉 Fin: ayer a las 23:59:59
-    const finPeriodo = new Date(hoy);
-    finPeriodo.setDate(hoy.getDate() - 1);
-    finPeriodo.setHours(23, 59, 59, 999);
+      console.log(`Facturando empresa ${nombre}`);
 
-    // 👉 Inicio: día facturación del mes anterior
-    let inicioYear = finPeriodo.getFullYear();
-    let inicioMonth = finPeriodo.getMonth();
+      /** 2️⃣ Definir período correcto usando objetos Date (como en la API) */
 
-    // Restamos un mes
-    inicioMonth--;
-    if (inicioMonth < 0) {
-      inicioMonth = 11;
-      inicioYear--;
-    }
+      // 👉 Fin: ayer a las 23:59:59
+      const finPeriodo = new Date(hoy);
+      finPeriodo.setDate(hoy.getDate() - 1);
+      finPeriodo.setHours(23, 59, 59, 999);
 
-    const inicioPeriodo = new Date(
-      inicioYear,
-      inicioMonth,
-      clampDay(inicioYear, inicioMonth, diaFacturacion),
-      0,
-      0,
-      0,
-    );
+      // 👉 Inicio: día facturación del mes anterior
+      let inicioYear = finPeriodo.getFullYear();
+      let inicioMonth = finPeriodo.getMonth();
 
-    // Convertir a strings SOLO para los campos que lo requieren
-    const inicioPeriodoStr = formatDateForDB(inicioPeriodo);
-    const finPeriodoStr = formatDateForDB(finPeriodo);
+      // Restamos un mes
+      inicioMonth--;
+      if (inicioMonth < 0) {
+        inicioMonth = 11;
+        inicioYear--;
+      }
 
-    console.log(`Periodo: ${inicioPeriodoStr} → ${finPeriodoStr}`);
+      const inicioPeriodo = new Date(
+        inicioYear,
+        inicioMonth,
+        clampDay(inicioYear, inicioMonth, diaFacturacion),
+        0,
+        0,
+        0,
+      );
 
-    /** 3️⃣ Verificar duplicados */
-    const existe = await EstadoCuenta.findOne({
-      where: {
-        empresa_id: empresaId,
-        fecha_inicio: inicioPeriodoStr,
-        fecha_fin: finPeriodoStr,
-      },
-    });
+      // Convertir a strings SOLO para los campos que lo requieren
+      const inicioPeriodoStr = formatDateForDB(inicioPeriodo);
+      const finPeriodoStr = formatDateForDB(finPeriodo);
 
-    if (existe) {
-      console.warn(`Estado ya generado para ${nombre}, se omite.`);
-      continue;
-    }
+      console.log(`Periodo: ${inicioPeriodoStr} → ${finPeriodoStr}`);
 
-    /** 4️⃣ Obtener tickets del período usando Sequelize (como en la API) */
-    const whereCondition: any = {
-      confirmedAt: {
-        [Op.between]: [inicioPeriodo, finPeriodo], // Aquí usamos los objetos Date para la consulta
-      },
-    };
-
-    // Si la empresa tiene ID, filtrar por ella
-    whereCondition.id_empresa = empresaId;
-
-    // Obtener todos los tickets del período
-    const tickets = await Ticket.findAll({
-      where: whereCondition,
-      include: [
-        {
-          model: User,
-          attributes: ["id", "nombre", "rut", "email"],
-          required: false,
+      /** 3️⃣ Verificar duplicados */
+      const existe = await EstadoCuenta.findOne({
+        where: {
+          empresa_id: empresaId,
+          fecha_inicio: inicioPeriodoStr,
+          fecha_fin: finPeriodoStr,
         },
-        {
-          model: Empresa,
-          attributes: ["id", "nombre", "rut", "cuenta_corriente"],
-          required: true,
-        },
-        {
-          model: Pasajero,
-          required: false,
-          attributes: [
-            "id",
-            "nombre",
-            "rut",
-            "correo",
-            "telefono",
-            "id_centro_costo",
-          ],
-          include: [{ model: CentroCosto, required: false }],
-        },
-      ],
-    });
-
-    // Calcular totales
-    const total_confirmados = tickets.filter(
-      (t) => t.ticketStatus === "Confirmed",
-    ).length;
-    const total_anulados = tickets.filter(
-      (t) => t.ticketStatus === "Anulado",
-    ).length;
-
-    // Sumar montos (convertir a número para evitar problemas)
-    const monto_bruto = tickets.reduce(
-      (sum, t) => sum + (Number(t.monto_boleto) || 0),
-      0,
-    );
-    const devoluciones = tickets.reduce(
-      (sum, t) => sum + (Number(t.monto_devolucion) || 0),
-      0,
-    );
-    const monto_facturado = monto_bruto - devoluciones;
-
-    console.log(`Resultados para ${nombre}:`);
-    console.log(`- Tickets confirmados: ${total_confirmados}`);
-    console.log(`- Tickets anulados: ${total_anulados}`);
-    console.log(`- Monto bruto: $${monto_bruto}`);
-    console.log(`- Devoluciones: $${devoluciones}`);
-    console.log(`- Monto facturado: $${monto_facturado}`);
-
-    /** 5️⃣ Crear estado de cuenta */
-    const estadoCuenta = await EstadoCuenta.create({
-      empresa_id: empresaId,
-      // periodo: diaFacturacion.toLocaleString();
-      periodo: `${inicioPeriodo.getFullYear()}-${String(inicioPeriodo.getMonth() + 1).padStart(2, "0")}`,
-      fecha_inicio: inicioPeriodoStr, // string - el modelo espera string
-      fecha_fin: finPeriodoStr, // string - el modelo espera string
-      fecha_generacion: new Date(), // Date - el modelo espera Date
-      total_tickets: tickets.length,
-      total_tickets_anulados: total_anulados,
-      monto_facturado: monto_facturado,
-      suma_devoluciones: devoluciones,
-      detalle_por_cc: JSON.stringify({}),
-      pagado: false,
-    });
-
-    /** 6️⃣ Crear cargo en cuenta corriente */
-    if (estadoCuenta && estadoCuenta.id) {
-      const ultimoMovimiento = await CuentaCorriente.findOne({
-        where: { empresa_id: empresaId },
-        order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
       });
 
-      let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
-      saldoActual = saldoActual - monto_facturado;
+      if (existe) {
+        console.warn(`Estado ya generado para ${nombre}, se omite.`);
+        continue;
+      }
 
-      await CuentaCorriente.create({
+      /** 4️⃣ Obtener tickets del período usando Sequelize (como en la API) */
+      const whereCondition: any = {
+        confirmedAt: {
+          [Op.between]: [inicioPeriodo, finPeriodo], // Aquí usamos los objetos Date para la consulta
+        },
+      };
+
+      // Si la empresa tiene ID, filtrar por ella
+      whereCondition.id_empresa = empresaId;
+
+      // Obtener todos los tickets del período
+      const tickets = await Ticket.findAll({
+        where: whereCondition,
+        include: [
+          {
+            model: User,
+            attributes: ["id", "nombre", "rut", "email"],
+            required: false,
+          },
+          {
+            model: Empresa,
+            attributes: ["id", "nombre", "rut", "cuenta_corriente"],
+            required: true,
+          },
+          {
+            model: Pasajero,
+            required: false,
+            attributes: [
+              "id",
+              "nombre",
+              "rut",
+              "correo",
+              "telefono",
+              "id_centro_costo",
+            ],
+            include: [{ model: CentroCosto, required: false }],
+          },
+        ],
+      });
+
+      // Calcular totales
+      const total_confirmados = tickets.filter(
+        (t) => t.ticketStatus === "Confirmed",
+      ).length;
+      const total_anulados = tickets.filter(
+        (t) => t.ticketStatus === "Anulado",
+      ).length;
+
+      // Sumar montos (convertir a número para evitar problemas)
+      const monto_bruto = tickets.reduce(
+        (sum, t) => sum + (Number(t.monto_boleto) || 0),
+        0,
+      );
+      const devoluciones = tickets.reduce(
+        (sum, t) => sum + (Number(t.monto_devolucion) || 0),
+        0,
+      );
+      const monto_facturado = monto_bruto - devoluciones;
+
+      console.log(`Resultados para ${nombre}:`);
+      console.log(`- Tickets confirmados: ${total_confirmados}`);
+      console.log(`- Tickets anulados: ${total_anulados}`);
+      console.log(`- Monto bruto: $${monto_bruto}`);
+      console.log(`- Devoluciones: $${devoluciones}`);
+      console.log(`- Monto facturado: $${monto_facturado}`);
+
+      /** 5️⃣ Crear estado de cuenta */
+      const estadoCuenta = await EstadoCuenta.create({
         empresa_id: empresaId,
-        tipo_movimiento: "cargo",
-        monto: monto_facturado,
-        descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} periodo ${estadoCuenta.periodo}`,
-        saldo: saldoActual,
-        referencia: `CARGO-EDC-${estadoCuenta.id}`,
+        // periodo: diaFacturacion.toLocaleString();
+        periodo: `${inicioPeriodo.getFullYear()}-${String(inicioPeriodo.getMonth() + 1).padStart(2, "0")}`,
+        fecha_inicio: inicioPeriodoStr, // string - el modelo espera string
+        fecha_fin: finPeriodoStr, // string - el modelo espera string
+        fecha_generacion: new Date(), // Date - el modelo espera Date
+        total_tickets: tickets.length,
+        total_tickets_anulados: total_anulados,
+        monto_facturado: monto_facturado,
+        suma_devoluciones: devoluciones,
+        detalle_por_cc: JSON.stringify({}),
         pagado: false,
-        fecha_movimiento: new Date(), // Date - el modelo espera Date
       });
 
-      console.log(`✅ Estado creado para ${nombre} (ID: ${estadoCuenta.id})`);
-      console.log(
-        `✅ Cargo en cuenta corriente creado por $${monto_facturado}`,
-      );
-    } else {
-      console.error(`❌ Error al crear estado de cuenta para ${nombre}`);
+      /** 6️⃣ Crear cargo en cuenta corriente */
+      if (estadoCuenta && estadoCuenta.id) {
+        const ultimoMovimiento = await CuentaCorriente.findOne({
+          where: { empresa_id: empresaId },
+          order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
+        });
+
+        let saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
+        saldoActual = saldoActual - monto_facturado;
+
+        await CuentaCorriente.create({
+          empresa_id: empresaId,
+          tipo_movimiento: "cargo",
+          monto: monto_facturado,
+          descripcion: `Cargo por estado de cuenta #${estadoCuenta.id} periodo ${estadoCuenta.periodo}`,
+          saldo: saldoActual,
+          referencia: `CARGO-EDC-${estadoCuenta.id}`,
+          pagado: false,
+          fecha_movimiento: new Date(), // Date - el modelo espera Date
+        });
+
+        console.log(`✅ Estado creado para ${nombre} (ID: ${estadoCuenta.id})`);
+        console.log(
+          `✅ Cargo en cuenta corriente creado por $${monto_facturado}`,
+        );
+      } else {
+        console.error(`❌ Error al crear estado de cuenta para ${nombre}`);
+      }
+    } catch (err) {
+      if (err && (err as any).name === "SequelizeUniqueConstraintError") {
+        console.warn(`⚠️ [CRON] Omitiendo empresa ${empresa.nombre ?? empresa.id}: El estado de cuenta para este periodo ya fue generado.`);
+      } else {
+        console.error(`❌ [CRON] Error al facturar empresa ${empresa.nombre ?? empresa.id}:`, err);
+      }
     }
   }
 
