@@ -1552,6 +1552,11 @@ export async function generateBarcodePng(text: string): Promise<Buffer> {
 // Función auxiliar para formatear fechas
 function formatDate(dateString: string): string {
     try {
+        if (!dateString) return '';
+        if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const [year, month, day] = dateString.split('-');
+            return `${day}/${month}/${year}`;
+        }
         const date = new Date(dateString);
         return date.toLocaleDateString('es-CL');
     } catch {

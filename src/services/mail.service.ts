@@ -699,6 +699,11 @@ function generateEmailFormHTML(
 
 function formatDateForEmail(dateString: string): string {
   try {
+    if (!dateString) return '';
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
     const date = new Date(dateString);
     return date.toLocaleDateString('es-CL', {
       day: '2-digit',
