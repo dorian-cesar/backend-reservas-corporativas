@@ -294,7 +294,7 @@ export const create = async (
             destination,
             terminal_origen,
             terminal_destino,
-            travelDate: typeof travelDate === "string" ? new Date(travelDate) : travelDate,
+            travelDate: travelDate as any,
             departureTime,
             seatNumbers,
             fare,
@@ -506,11 +506,7 @@ export const update = async (
         //     return res.status(403).json({ message: "No autorizado" });
 
         const updateData: any = { ...data };
-        if (updateData.travelDate !== undefined) {
-            updateData.travelDate = typeof updateData.travelDate === "string"
-                ? new Date(updateData.travelDate)
-                : updateData.travelDate;
-        }
+        // We keep travelDate as a string format (YYYY-MM-DD) directly to prevent timezone shifting.
         if (updateData.confirmedAt !== undefined) {
             updateData.confirmedAt = typeof updateData.confirmedAt === "string"
                 ? new Date(updateData.confirmedAt)
@@ -614,9 +610,7 @@ export const update = async (
                     const pdfDataForCancellation: any = {
                         origen: {
                             origen: ticketData.origin,
-                            fecha_viaje: ticketData.travelDate instanceof Date
-                                ? ticketData.travelDate.toISOString()
-                                : ticketData.travelDate,
+                            fecha_viaje: ticketData.travelDate,
                             hora_salida: ticketData.departureTime
                         },
                         destino: {

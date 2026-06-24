@@ -26,6 +26,14 @@ export const sequelize = new Sequelize({
     database: process.env.DB_NAME || "multiempresa_db",
     models: [Empresa, CentroCosto, User, CuentaCorriente, Ticket, EstadoCuenta, Pasajero, UserEmpresa],
     logging: false,
+    timezone: (() => {
+        const offsetMinutes = -new Date().getTimezoneOffset();
+        const sign = offsetMinutes >= 0 ? "+" : "-";
+        const absOffset = Math.abs(offsetMinutes);
+        const hours = String(Math.floor(absOffset / 60)).padStart(2, "0");
+        const minutes = String(absOffset % 60).padStart(2, "0");
+        return `${sign}${hours}:${minutes}`;
+    })(),
 });
 
 export const connectDB = async () => {

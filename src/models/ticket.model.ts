@@ -37,7 +37,7 @@ export interface ITicketBase {
   destination: string;
   terminal_origen?: string;
   terminal_destino?: string;
-  travelDate: Date;
+  travelDate: string;
   departureTime: string;
   seatNumbers: string;
   fare: number;
@@ -82,8 +82,8 @@ export class Ticket extends Model<ITicket> {
   @Column({ type: DataType.STRING(100), allowNull: true })
   declare terminal_destino?: string;
 
-  @Column({ type: DataType.DATEONLY, allowNull: false })
-  declare travelDate: Date;
+  @Column({ type: DataType.STRING(10), allowNull: false })
+  declare travelDate: string;
 
   @Column({ type: DataType.STRING(20), allowNull: false })
   declare departureTime: string;
