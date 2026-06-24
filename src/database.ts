@@ -1,5 +1,7 @@
 // src/database.ts
 
+process.env.TZ = "America/Santiago";
+
 import { Sequelize } from "sequelize-typescript";
 import "./models/associations";
 import { EstadoCuenta } from "./models/estado_cuenta.model";
