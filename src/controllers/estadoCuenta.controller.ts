@@ -341,18 +341,13 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
         try {
             inicio = parseDateString(estadoData.fecha_inicio);
             fin = parseDateString(estadoData.fecha_fin);
-
-            if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
-                return res.status(400).json({
-                    message: "Fechas inválidas en el estado de cuenta",
-                    detalles: {
-                        fecha_inicio: estadoData.fecha_inicio,
-                        fecha_fin: estadoData.fecha_fin
-                    }
-                });
-            }
-
             fin.setHours(23, 59, 59, 999);
+
+            // Adjust dates by subtracting local timezone offset to counteract the Sequelize connection timezone shift.
+            // This aligns the query range with UTC, matching the historical behavior before the timezone configuration was added.
+            const offsetMinutes = new Date().getTimezoneOffset();
+            inicio = new Date(inicio.getTime() - offsetMinutes * 60 * 1000);
+            fin = new Date(fin.getTime() - offsetMinutes * 60 * 1000);
         } catch (error) {
             return res.status(400).json({
                 message: "Error al procesar las fechas del estado de cuenta",
@@ -403,15 +398,26 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
             order: [["confirmedAt", "DESC"]],
         };
 
+        const total = estadoData.total_tickets;
+
         if (page && limit) {
-            queryOptions.limit = limit;
+            if (offset !== undefined && offset >= total) {
+                return res.json({
+                    data: [],
+                    pagination: {
+                        total,
+                        page,
+                        limit,
+                        totalPages: Math.ceil(total / limit)
+                    }
+                });
+            }
+
+            const remaining = offset !== undefined ? total - offset : total;
+            queryOptions.limit = Math.min(limit, remaining);
             queryOptions.offset = offset;
-        }
 
-        const tickets = await Ticket.findAll(queryOptions);
-
-        if (page && limit) {
-            const total = await Ticket.count({ where: whereCondition });
+            const tickets = await Ticket.findAll(queryOptions);
 
             return res.json({
                 data: tickets,
@@ -424,7 +430,8 @@ export const listarTicketsDeEstadoCuenta = async (req: Request, res: Response) =
             });
         }
 
-        return res.json(tickets);
+        const tickets = await Ticket.findAll(queryOptions);
+        return res.json(tickets.slice(0, total));
 
     } catch (error) {
         console.error("❌ Error al obtener tickets:", error);
