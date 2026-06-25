@@ -36,6 +36,22 @@ export const sequelize = new Sequelize({
     })(),
 });
 
+// Guard de seguridad contra borrado accidental de tablas
+const isLocal = (host: string) => {
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+};
+
+const dbHost = process.env.DB_HOST || "localhost";
+if (!isLocal(dbHost)) {
+    const originalSync = sequelize.sync.bind(sequelize);
+    sequelize.sync = async (options?: any) => {
+        if (options && options.force === true) {
+            throw new Error("🚨 BARRERA DE SEGURIDAD: Se ha bloqueado 'sync({ force: true })' porque estás conectado a una base de datos remota (" + dbHost + "). Esto previene la pérdida total de datos.");
+        }
+        return originalSync(options);
+    };
+}
+
 export const connectDB = async () => {
     try {
         await sequelize.authenticate();

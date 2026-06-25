@@ -15,8 +15,6 @@ let testTicket: Ticket | null = null;
 let testEmpresa: Empresa;
 
 beforeAll(async () => {
-  await sequelize.sync({ force: true });
-
   // Crear empresa para asociar usuarios tipo admin
   testEmpresa = await Empresa.create({
     nombre: "Empresa Test",
