@@ -7,6 +7,7 @@ import "./models/associations";
 import { EstadoCuenta } from "./models/estado_cuenta.model";
 
 import { Empresa } from "./models/empresa.model";
+import { EmpresaTramo } from "./models/empresa_tramos.model";
 import { CentroCosto } from "./models/centro_costo.model";
 import { User } from "./models/user.model";
 import { CuentaCorriente } from "./models/cuenta_corriente.model";
@@ -26,6 +27,7 @@ export const sequelize = new Sequelize({
   database: process.env.DB_NAME || "multiempresa_db",
   models: [
     Empresa,
+    EmpresaTramo,
     CentroCosto,
     User,
     CuentaCorriente,

@@ -38,7 +38,7 @@ export class Pasajero extends Model<IPasajero> {
   @Column({ type: DataType.STRING(20), allowNull: false, unique: true })
   declare rut: string;
 
-  @Column({ type: DataType.STRING(255), allowNull: false, unique: true })
+  @Column({ type: DataType.STRING(255), allowNull: false })
   declare correo: string;
 
   @Column({ type: DataType.STRING(20), allowNull: true })

@@ -1212,11 +1212,15 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
 
     yPosition -= 40;
 
+    const tieneDescuento = !!(edpData.resumen.porcentaje_descuento && edpData.resumen.porcentaje_descuento > 0);
+    const rectHeight = tieneDescuento ? 165 : 125;
+    const rectY = yPosition - (rectHeight - 20);
+
     currentPage.drawRectangle({
         x: col1X,
-        y: yPosition - 100,
+        y: rectY,
         width: width - margin * 2,
-        height: 120,
+        height: rectHeight,
         borderWidth: 1,
         borderColor: grayscale(0.7),
         opacity: 0.6,
@@ -1232,7 +1236,7 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
         opacity: 1,
     })
 
-    currentPage.drawText('Resumen de Operacional', {
+    currentPage.drawText('Resumen Operacional', {
         x: margin,
         y: yPosition,
         size: 12,
@@ -1275,14 +1279,44 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
 
     yPosition -= 20;
 
-    // Monto Bruto Facturado
-    currentPage.drawText(`Monto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: fontBold,
-        color: rgb(0, 0, 0),
-    });
+    // Monto Bruto / Facturado / Descuento
+    if (edpData.resumen.porcentaje_descuento && edpData.resumen.porcentaje_descuento > 0) {
+        currentPage.drawText(`Monto Bruto: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
+            x: margin,
+            y: yPosition,
+            size: 10,
+            font: font,
+            color: rgb(0, 0, 0),
+        });
+
+        yPosition -= 20;
+
+        currentPage.drawText(`Monto Descuento (${edpData.resumen.porcentaje_descuento}%): -$${formatNumber(edpData.resumen.monto_descuento || 0)}`, {
+            x: margin,
+            y: yPosition,
+            size: 10,
+            font: font,
+            color: rgb(0, 0, 0),
+        });
+
+        yPosition -= 20;
+
+        currentPage.drawText(`Monto Facturado: $${formatNumber(edpData.resumen.monto_final || 0)}`, {
+            x: margin,
+            y: yPosition,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+    } else {
+        currentPage.drawText(`Monto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`, {
+            x: margin,
+            y: yPosition,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+    }
 
     yPosition -= 40;
 
@@ -1439,7 +1473,27 @@ export const generateEDPPDF = async (edpData: EDPPDFData): Promise<Uint8Array> =
         color: rgb(0, 0, 0),
     });
 
-    yPosition -= 60;
+    if (edpData.resumen.porcentaje_descuento && edpData.resumen.porcentaje_descuento > 0) {
+        yPosition -= 20;
+
+        currentPage.drawText('Monto Facturado (con descuento)', {
+            x: colCentroX,
+            y: yPosition,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+
+        currentPage.drawText(`$${formatNumber(edpData.resumen.monto_final || 0)}`, {
+            x: colMontoX,
+            y: yPosition,
+            size: 10,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+        });
+    }
+
+    yPosition -= 40;
 
     // Firma de conformidad (solo en la última página)
     if (yPosition > 100) { // Verificar que haya espacio

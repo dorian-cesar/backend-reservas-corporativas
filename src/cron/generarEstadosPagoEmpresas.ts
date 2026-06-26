@@ -1,7 +1,6 @@
-// src/cron/generarEstadosPagoEmpresas.ts
-
 import { connectDB } from "../database";
 import { Empresa } from "../models/empresa.model";
+import { EmpresaTramo } from "../models/empresa_tramos.model";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { Ticket } from "../models/ticket.model";
@@ -126,13 +125,9 @@ export const generarEstadosPagoEmpresas = async () => {
             console.log(`[${new Date().toISOString()}] === Procesando periodo ${periodo} (inicio: ${inicio.toISOString()}, fin: ${fin.toISOString()}) ===`);
 
             // Calcular fecha_facturacion y fecha_vencimiento para el periodo
-            // fecha_facturacion: día_facturacion del mes siguiente al inicio del periodo
-            // fecha_vencimiento: día_vencimiento del mes siguiente al inicio del periodo
             let fecha_facturacion: Date | null = null;
             let fecha_vencimiento: Date | null = null;
 
-            // La fecha de facturación y vencimiento se calculan para el mes siguiente al inicio del periodo
-            // Ejemplo: periodo 2024-06, inicio 2024-06-01, fecha_facturacion = 2024-07-diaFacturacion
             const anioSiguiente = inicio.getMonth() === 11 ? inicio.getFullYear() + 1 : inicio.getFullYear();
             const mesSiguiente = (inicio.getMonth() + 1) % 12;
 
@@ -168,9 +163,27 @@ export const generarEstadosPagoEmpresas = async () => {
             const total_tickets_anulados = tickets.filter(t => t.ticketStatus === 'Anulado').length;
             const monto_bruto = tickets.reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
             const devoluciones = tickets.reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
-            const monto_facturado = monto_bruto - devoluciones;
+            
+            const monto_neto_consumo = monto_bruto - devoluciones;
 
-            console.log(`[${new Date().toISOString()}] Periodo ${periodo}: total_tickets=${total_tickets}, total_tickets_anulados=${total_tickets_anulados}, monto_bruto=${monto_bruto}, devoluciones=${devoluciones}, monto_facturado=${monto_facturado}`);
+            // Calcular descuento por tramos si aplica (para todas las empresas)
+            let porcentajeDescuento = 0;
+            const tramos = await EmpresaTramo.findAll({
+                where: { id_empresa: empresaId },
+                order: [['monto_desde', 'ASC']]
+            });
+            for (const tramo of tramos) {
+                const desde = Number(tramo.monto_desde);
+                const hasta = tramo.monto_hasta !== null && tramo.monto_hasta !== undefined ? Number(tramo.monto_hasta) : null;
+                if (monto_neto_consumo >= desde && (hasta === null || monto_neto_consumo <= hasta)) {
+                    porcentajeDescuento = Number(tramo.porcentaje_descuento);
+                }
+            }
+
+            const descuento = monto_neto_consumo * (porcentajeDescuento / 100);
+            const monto_facturado = monto_neto_consumo - descuento;
+
+            console.log(`[${new Date().toISOString()}] Periodo ${periodo}: total_tickets=${total_tickets}, total_tickets_anulados=${total_tickets_anulados}, monto_bruto=${monto_bruto}, devoluciones=${devoluciones}, monto_neto_consumo=${monto_neto_consumo}, porcentaje_descuento=${porcentajeDescuento}%, monto_facturado=${monto_facturado}`);
 
             // Detalle por centro de costo - USANDO CENTRO DE COSTO DEL PASAJERO
             const detallePorCC: Record<string, {
@@ -227,6 +240,8 @@ export const generarEstadosPagoEmpresas = async () => {
                     total_tickets,
                     total_tickets_anulados,
                     monto_facturado,
+                    suma_devoluciones: devoluciones,
+                    porcentaje_descuento: porcentajeDescuento,
                     detalle_por_cc: JSON.stringify(detallePorCC),
                     fecha_facturacion,
                     fecha_vencimiento
@@ -241,6 +256,8 @@ export const generarEstadosPagoEmpresas = async () => {
                     total_tickets,
                     total_tickets_anulados,
                     monto_facturado,
+                    suma_devoluciones: devoluciones,
+                    porcentaje_descuento: porcentajeDescuento,
                     detalle_por_cc: JSON.stringify(detallePorCC),
                     pagado: false,
                     fecha_facturacion,
@@ -263,7 +280,9 @@ export const generarEstadosPagoEmpresas = async () => {
                         empresa_id: empresaId,
                         tipo_movimiento: "cargo",
                         monto: monto_facturado,
-                        descripcion: `Cargo automático por facturación periodo ${periodo}.`,
+                        descripcion: porcentajeDescuento > 0 
+                            ? `Cargo automático por facturación periodo ${periodo} (Descuento del ${porcentajeDescuento}% aplicado).`
+                            : `Cargo automático por facturación periodo ${periodo}.`,
                         saldo: 0,
                         referencia: referenciaGlobal
                     });

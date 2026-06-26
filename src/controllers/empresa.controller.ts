@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Empresa } from "../models/empresa.model";
+import { EmpresaTramo } from "../models/empresa_tramos.model";
 import { IEmpresaCreate, IEmpresaUpdate } from "../interfaces/empresa.interface";
 import { Op } from "sequelize";
 import { UserEmpresa } from "../models/user_empresa.model";
@@ -9,6 +10,8 @@ import { sequelize } from "../database";
 /**
  * Listar todas las empresas.
  */
+// ... (mantenemos listarEmpresas igual, pero modificamos la importación arriba)
+
 
 export const listarEmpresas = async (req: Request, res: Response) => {
     try {
@@ -76,7 +79,8 @@ export const listarEmpresas = async (req: Request, res: Response) => {
             // Obtener empresas con datos básicos
             const empresas = await Empresa.findAll({
                 where: whereCondition,
-                order: [["id", "ASC"]]
+                order: [["id", "ASC"]],
+                include: [{ model: EmpresaTramo, as: 'tramos' }]
             });
 
             // Obtener saldos actuales para cada empresa
@@ -112,7 +116,8 @@ export const listarEmpresas = async (req: Request, res: Response) => {
             where: whereCondition,
             order: [["id", "ASC"]],
             limit,
-            offset
+            offset,
+            include: [{ model: EmpresaTramo, as: 'tramos' }]
         });
 
         // Obtener saldos para las empresas paginadas
@@ -177,7 +182,9 @@ export const obtenerEmpresa = async (req: Request, res: Response) => {
             });
         }
 
-        const empresa = await Empresa.findByPk(id);
+        const empresa = await Empresa.findByPk(id, {
+            include: [{ model: EmpresaTramo, as: 'tramos' }]
+        });
         if (!empresa) return res.status(404).json({ message: "No encontrada" });
 
         res.json(empresa);
@@ -205,7 +212,15 @@ export const crearEmpresa = async (
         dia_vencimiento,
         monto_maximo,
         monto_acumulado,
-        fact_manual 
+        fact_manual,
+        tipo_facturacion,
+        contacto_fact_nombre,
+        contacto_fact_email,
+        contacto_fact_telefono,
+        ejecutivo_com_nombre,
+        ejecutivo_com_email,
+        ejecutivo_com_telefono,
+        tramos
     } = req.body;
 
     if (cuenta_corriente) {
@@ -220,21 +235,46 @@ export const crearEmpresa = async (
         }
     }
 
-    const empresa = await Empresa.create({
-        rut,
-        nombre,
-        cuenta_corriente,
-        estado,
-        recargo,
-        porcentaje_devolucion,
-        dia_facturacion,
-        dia_vencimiento,
-        monto_maximo,
-        monto_acumulado,
-        fact_manual 
-    });
+    const t = await sequelize.transaction();
+    try {
+        const empresa = await Empresa.create({
+            rut,
+            nombre,
+            cuenta_corriente,
+            estado,
+            recargo,
+            porcentaje_devolucion,
+            dia_facturacion,
+            dia_vencimiento,
+            monto_maximo,
+            monto_acumulado,
+            fact_manual,
+            tipo_facturacion: tipo_facturacion || "Masiva",
+            contacto_fact_nombre,
+            contacto_fact_email,
+            contacto_fact_telefono,
+            ejecutivo_com_nombre,
+            ejecutivo_com_email,
+            ejecutivo_com_telefono
+        }, { transaction: t });
 
-    res.json({ id: empresa.id, message: "Empresa creada" });
+        if (tramos && Array.isArray(tramos)) {
+            for (const tramo of tramos) {
+                await EmpresaTramo.create({
+                    id_empresa: empresa.id,
+                    monto_desde: Number(tramo.monto_desde) || 0,
+                    monto_hasta: tramo.monto_hasta !== null && tramo.monto_hasta !== undefined ? Number(tramo.monto_hasta) : null,
+                    porcentaje_descuento: Number(tramo.porcentaje_descuento) || 0
+                }, { transaction: t });
+            }
+        }
+
+        await t.commit();
+        res.json({ id: empresa.id, message: "Empresa creada" });
+    } catch (error: any) {
+        await t.rollback();
+        res.status(500).json({ message: "Error en servidor al crear empresa", error: error.message });
+    }
 };
 
 /**
@@ -244,10 +284,82 @@ export const actualizarEmpresa = async (
     req: Request<{ id: string }, {}, IEmpresaUpdate>,
     res: Response
 ) => {
-    const empresa = await Empresa.findByPk(req.params.id);
-    if (!empresa) return res.status(404).json({ message: "No encontrada" });
-    await empresa.update(req.body);
-    res.json({ message: "Empresa actualizada" });
+    try {
+        const id = parseInt(req.params.id);
+        const empresa = await Empresa.findByPk(id);
+        if (!empresa) return res.status(404).json({ message: "No encontrada" });
+
+        const {
+            rut,
+            nombre,
+            cuenta_corriente,
+            estado,
+            recargo,
+            porcentaje_devolucion,
+            dia_facturacion,
+            dia_vencimiento,
+            monto_maximo,
+            fact_manual,
+            tipo_facturacion,
+            contacto_fact_nombre,
+            contacto_fact_email,
+            contacto_fact_telefono,
+            ejecutivo_com_nombre,
+            ejecutivo_com_email,
+            ejecutivo_com_telefono,
+            tramos
+        } = req.body;
+
+
+        const t = await sequelize.transaction();
+        try {
+            await empresa.update({
+                rut,
+                nombre,
+                cuenta_corriente,
+                estado,
+                recargo,
+                porcentaje_devolucion,
+                dia_facturacion,
+                dia_vencimiento,
+                monto_maximo,
+                fact_manual,
+                tipo_facturacion,
+                contacto_fact_nombre,
+                contacto_fact_email,
+                contacto_fact_telefono,
+                ejecutivo_com_nombre,
+                ejecutivo_com_email,
+                ejecutivo_com_telefono
+            }, { transaction: t });
+
+            if (tramos !== undefined) {
+                await EmpresaTramo.destroy({
+                    where: { id_empresa: id },
+                    transaction: t
+                });
+
+                if (Array.isArray(tramos)) {
+                    for (const tramo of tramos) {
+                        await EmpresaTramo.create({
+                            id_empresa: id,
+                            monto_desde: Number(tramo.monto_desde) || 0,
+                            monto_hasta: tramo.monto_hasta !== null && tramo.monto_hasta !== undefined ? Number(tramo.monto_hasta) : null,
+                            porcentaje_descuento: Number(tramo.porcentaje_descuento) || 0
+                        }, { transaction: t });
+                    }
+                }
+            }
+
+            await t.commit();
+            res.json({ message: "Empresa actualizada" });
+        } catch (error: any) {
+            await t.rollback();
+            res.status(500).json({ message: "Error al actualizar la empresa", error: error.message });
+        }
+    } catch (err: any) {
+        res.status(500).json({ message: "Error en servidor", error: err.message });
+    }
 };
 
 /**
