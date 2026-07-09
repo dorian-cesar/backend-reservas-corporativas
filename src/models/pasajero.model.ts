@@ -55,7 +55,7 @@ export class Pasajero extends Model<IPasajero> {
   @ForeignKey(() => CentroCosto)
   @Column({
     type: DataType.INTEGER,
-    allowNull: true, // Permite NULL
+    allowNull: true,
     field: "id_centro_costo",
   })
   declare id_centro_costo?: number;
@@ -67,7 +67,6 @@ export class Pasajero extends Model<IPasajero> {
   declare empresa: Empresa;
 
   @BelongsTo(() => CentroCosto, {
-    // ¡FALTA ESTA RELACIÓN!
     foreignKey: "id_centro_costo",
     targetKey: "id",
   })
