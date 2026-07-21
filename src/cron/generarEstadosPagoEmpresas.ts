@@ -235,7 +235,10 @@ export const generarEstadosPagoEmpresas = async () => {
             let estadoCuenta = await EstadoCuenta.findOne({
                 where: {
                     empresa_id: empresaId,
-                    periodo
+                    [Op.or]: [
+                        { periodo },
+                        { fecha_inicio: formatFecha(inicio) } // Para detectar los creados por el cron antiguo
+                    ]
                 }
             });
 
@@ -309,22 +312,10 @@ export const generarEstadosPagoEmpresas = async () => {
                 console.log(`[${new Date().toISOString()}] No se crea cargo global para empresa ${empresaId}, periodo ${periodo} (monto_facturado <= 0)`);
             }
             } catch (err: any) {
-                // Si hay conflicto de unique_empresa_inicio (registros duplicados del cron anterior),
-                // reintentamos el update sin fecha_inicio/fecha_fin para no bloquear el proceso
+                // Si hay un error, simplemente lo registramos y no detenemos el resto del proceso.
+                // NO intentamos modificar registros históricos para no alterar datos anteriores a la migración.
                 if (err.name === 'SequelizeUniqueConstraintError') {
-                    console.warn(`[${new Date().toISOString()}] CONFLICTO unique_empresa_inicio en empresa ${empresaId}, periodo ${periodo} — actualizando sin fecha_inicio/fecha_fin`);
-                    try {
-                        const edpConflicto = await EstadoCuenta.findOne({ where: { empresa_id: empresaId, periodo } });
-                        if (edpConflicto) {
-                            await edpConflicto.update({
-                                fecha_generacion: esPeriodoActual ? hoy : fin,
-                                fecha_facturacion: new Date(inicio.getFullYear() === 11 ? inicio.getFullYear() + 1 : inicio.getFullYear(), (inicio.getMonth() + 1) % 12, empresa.dia_facturacion || 1, 0, 0, 0),
-                                fecha_vencimiento: new Date(inicio.getMonth() === 11 ? inicio.getFullYear() + 1 : inicio.getFullYear(), (inicio.getMonth() + 1) % 12, empresa.dia_vencimiento || 1, 0, 0, 0)
-                            });
-                        }
-                    } catch (retryErr: any) {
-                        console.error(`[${new Date().toISOString()}] Error en reintento para empresa ${empresaId}, periodo ${periodo}:`, retryErr.message);
-                    }
+                    console.warn(`[${new Date().toISOString()}] CONFLICTO unique_empresa_inicio en empresa ${empresaId}, periodo ${periodo} — Omitiendo creación de duplicado histórico.`);
                 } else {
                     console.error(`[${new Date().toISOString()}] Error procesando periodo ${periodo} de empresa ${empresaId}:`, err.message);
                 }
