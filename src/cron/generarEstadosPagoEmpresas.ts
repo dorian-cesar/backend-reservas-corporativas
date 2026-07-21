@@ -240,21 +240,26 @@ export const generarEstadosPagoEmpresas = async () => {
             });
 
             if (estadoCuenta) {
-                // Actualizar EstadoCuenta existente
-                await estadoCuenta.update({
-                    fecha_generacion: esPeriodoActual ? hoy : fin,
-                    total_tickets,
-                    total_tickets_anulados,
-                    monto_facturado,
-                    suma_devoluciones: devoluciones,
-                    porcentaje_descuento: porcentajeDescuento,
-                    detalle_por_cc: JSON.stringify(detallePorCC),
-                    fecha_facturacion,
-                    fecha_vencimiento,
-                    fecha_inicio: formatFecha(inicio),
-                    fecha_fin: formatFecha(fin)
-                });
-                console.log(`[${new Date().toISOString()}] EstadoCuenta actualizado para empresa ${empresaId}, periodo ${periodo}`);
+                // Si ya existe y NO es el período actual, no lo tocamos
+                if (!esPeriodoActual) {
+                    console.log(`[${new Date().toISOString()}] EstadoCuenta ya existe para empresa ${empresaId}, periodo ${periodo} (histórico) — omitido`);
+                } else {
+                    // Solo actualizar el período actual
+                    await estadoCuenta.update({
+                        fecha_generacion: hoy,
+                        total_tickets,
+                        total_tickets_anulados,
+                        monto_facturado,
+                        suma_devoluciones: devoluciones,
+                        porcentaje_descuento: porcentajeDescuento,
+                        detalle_por_cc: JSON.stringify(detallePorCC),
+                        fecha_facturacion,
+                        fecha_vencimiento,
+                        fecha_inicio: formatFecha(inicio),
+                        fecha_fin: formatFecha(fin)
+                    });
+                    console.log(`[${new Date().toISOString()}] EstadoCuenta actualizado para empresa ${empresaId}, periodo ${periodo}`);
+                }
             } else {
                 // Crear EstadoCuenta nuevo, aunque no haya tickets
                 await EstadoCuenta.create({
