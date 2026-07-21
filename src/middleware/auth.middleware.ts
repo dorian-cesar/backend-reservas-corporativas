@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import * as jwt from "jsonwebtoken";
 import * as dotenv from "dotenv";
+import { User } from "../models/user.model";
 dotenv.config();
 
 interface JwtPayload {
@@ -16,7 +17,7 @@ export interface AuthenticatedRequest extends Request {
     user?: JwtPayload;
 }
 
-export const authenticateJWT = (
+export const authenticateJWT = async (
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -28,6 +29,12 @@ export const authenticateJWT = (
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
+        
+        const user = await User.findByPk(decoded.id, { attributes: ['estado'] });
+        if (!user || !user.estado) {
+            return res.status(403).json({ message: "Tu cuenta ha sido desactivada." });
+        }
+
         req.user = decoded;
         next();
     } catch (err) {
