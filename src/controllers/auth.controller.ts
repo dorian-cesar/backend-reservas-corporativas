@@ -29,6 +29,10 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Credenciales inválidas" });
     }
 
+    if (!user.estado) {
+      return res.status(403).json({ message: "Tu cuenta ha sido desactivada. Contacta al administrador." });
+    }
+
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ message: "Credenciales inválidas" });
 
