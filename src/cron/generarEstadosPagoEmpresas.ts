@@ -33,8 +33,8 @@ export const generarEstadosPagoEmpresas = async () => {
 
     console.log(`[${new Date().toISOString()}] === INICIO generarEstadosPagoEmpresas ===`);
 
-    // Buscar todas las empresas
-    const empresas = await Empresa.findAll({});
+    // Buscar solo empresas con facturación automática (excluir fact_manual = true)
+    const empresas = await Empresa.findAll({ where: { fact_manual: false } });
     console.log(`[${new Date().toISOString()}] Empresas encontradas: ${empresas.length}`);
 
     for (const empresa of empresas) {
@@ -88,8 +88,10 @@ export const generarEstadosPagoEmpresas = async () => {
             const inicioPeriodo = new Date(fechaIter);
             const siguientePeriodo = new Date(inicioPeriodo);
             siguientePeriodo.setMonth(siguientePeriodo.getMonth() + 1);
+            // El período cierra el día anterior al día de facturación, al final del día
             const finPeriodo = new Date(siguientePeriodo);
-            finPeriodo.setHours(0, 0, 0, 0);
+            finPeriodo.setDate(finPeriodo.getDate() - 1);
+            finPeriodo.setHours(23, 59, 59, 999);
 
             const periodo = `${inicioPeriodo.getFullYear()}-${(inicioPeriodo.getMonth() + 1).toString().padStart(2, '0')}`;
             const esPeriodoActual = hoy >= inicioPeriodo && hoy < finPeriodo;
@@ -110,7 +112,8 @@ export const generarEstadosPagoEmpresas = async () => {
             const siguientePeriodo = new Date(inicioPeriodo);
             siguientePeriodo.setMonth(siguientePeriodo.getMonth() + 1);
             const finPeriodo = new Date(siguientePeriodo);
-            finPeriodo.setHours(0, 0, 0, 0);
+            finPeriodo.setDate(finPeriodo.getDate() - 1);
+            finPeriodo.setHours(23, 59, 59, 999);
 
             const periodo = `${inicioPeriodo.getFullYear()}-${(inicioPeriodo.getMonth() + 1).toString().padStart(2, '0')}`;
             const esPeriodoActual = hoy >= inicioPeriodo && hoy < finPeriodo;
@@ -147,7 +150,7 @@ export const generarEstadosPagoEmpresas = async () => {
                     ticketStatus: { [Op.in]: ['Confirmed', 'Anulado'] },
                     confirmedAt: {
                         [Op.gte]: inicio,
-                        [Op.lt]: fin
+                        [Op.lte]: fin  // fin = último día del período a las 23:59:59
                     }
                 },
                 include: [
@@ -243,13 +246,16 @@ export const generarEstadosPagoEmpresas = async () => {
             });
 
             if (estadoCuenta) {
-                // Si ya existe y NO es el período actual, no lo tocamos
-                if (!esPeriodoActual) {
-                    console.log(`[${new Date().toISOString()}] EstadoCuenta ya existe para empresa ${empresaId}, periodo ${periodo} (histórico) — omitido`);
+                if (esPeriodoActual) {
+                    // Período abierto: nunca tocar aunque exista
+                    console.log(`[${new Date().toISOString()}] Período ${periodo} aún abierto para empresa ${empresaId} — omitido`);
+                } else if (estadoCuenta.pagado) {
+                    // Período cerrado y YA PAGADO: congelado, no tocar
+                    console.log(`[${new Date().toISOString()}] EstadoCuenta PAGADO para empresa ${empresaId}, periodo ${periodo} — omitido`);
                 } else {
-                    // Solo actualizar el período actual
+                    // Período cerrado y no pagado: recalcular con datos definitivos
                     await estadoCuenta.update({
-                        fecha_generacion: hoy,
+                        fecha_generacion: fin,
                         total_tickets,
                         total_tickets_anulados,
                         monto_facturado,
@@ -261,31 +267,36 @@ export const generarEstadosPagoEmpresas = async () => {
                         fecha_inicio: formatFecha(inicio),
                         fecha_fin: formatFecha(fin)
                     });
-                    console.log(`[${new Date().toISOString()}] EstadoCuenta actualizado para empresa ${empresaId}, periodo ${periodo}`);
+                    console.log(`[${new Date().toISOString()}] EstadoCuenta recalculado para empresa ${empresaId}, periodo ${periodo}`);
                 }
             } else {
-                // Crear EstadoCuenta nuevo, aunque no haya tickets
-                await EstadoCuenta.create({
-                    empresa_id: empresaId,
-                    periodo,
-                    fecha_generacion: esPeriodoActual ? hoy : fin,
-                    total_tickets,
-                    total_tickets_anulados,
-                    monto_facturado,
-                    suma_devoluciones: devoluciones,
-                    porcentaje_descuento: porcentajeDescuento,
-                    detalle_por_cc: JSON.stringify(detallePorCC),
-                    pagado: false,
-                    fecha_facturacion,
-                    fecha_vencimiento,
-                    fecha_inicio: formatFecha(inicio),
-                    fecha_fin: formatFecha(fin)
-                });
-                console.log(`[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}`);
+                if (esPeriodoActual) {
+                    // Período abierto sin EDP: no crear hasta que cierre
+                    console.log(`[${new Date().toISOString()}] Período ${periodo} aún abierto para empresa ${empresaId} — EDP omitido hasta el día de facturación`);
+                } else {
+                    // Período cerrado sin EDP: crear definitivo
+                    await EstadoCuenta.create({
+                        empresa_id: empresaId,
+                        periodo,
+                        fecha_generacion: fin,
+                        total_tickets,
+                        total_tickets_anulados,
+                        monto_facturado,
+                        suma_devoluciones: devoluciones,
+                        porcentaje_descuento: porcentajeDescuento,
+                        detalle_por_cc: JSON.stringify(detallePorCC),
+                        pagado: false,
+                        fecha_facturacion,
+                        fecha_vencimiento,
+                        fecha_inicio: formatFecha(inicio),
+                        fecha_fin: formatFecha(fin)
+                    });
+                    console.log(`[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}`);
+                }
             }
 
-            // Cargo global en CuentaCorriente solo si hay monto facturado neto positivo y no existe ya el cargo global para este periodo
-            if (monto_facturado > 0) {
+            // Cargo global en CuentaCorriente: solo cuando el período ya cerró
+            if (monto_facturado > 0 && !esPeriodoActual) {
                 const referenciaGlobal = `FACT-${empresaId}-${periodo}`;
                 const existeCargoGlobal = await CuentaCorriente.findOne({
                     where: {
@@ -308,8 +319,10 @@ export const generarEstadosPagoEmpresas = async () => {
                 } else {
                     console.log(`[${new Date().toISOString()}] Cargo global YA EXISTE en cuenta corriente para empresa ${empresaId}, periodo ${periodo}`);
                 }
+            } else if (esPeriodoActual) {
+                console.log(`[${new Date().toISOString()}] Período ${periodo} aún abierto para empresa ${empresaId} — cargo omitido hasta el día de facturación`);
             } else {
-                console.log(`[${new Date().toISOString()}] No se crea cargo global para empresa ${empresaId}, periodo ${periodo} (monto_facturado <= 0)`);
+                console.log(`[${new Date().toISOString()}] No se crea cargo para empresa ${empresaId}, periodo ${periodo} (monto_facturado <= 0)`);
             }
             } catch (err: any) {
                 // Si hay un error, simplemente lo registramos y no detenemos el resto del proceso.
