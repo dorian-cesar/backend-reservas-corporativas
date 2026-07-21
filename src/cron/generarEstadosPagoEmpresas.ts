@@ -128,6 +128,7 @@ export const generarEstadosPagoEmpresas = async () => {
         // Procesar cada periodo histórico para EstadoCuenta y cargo global
         for (const { periodo, inicio, fin, esPeriodoActual } of periodos) {
             console.log(`[${new Date().toISOString()}] === Procesando periodo ${periodo} (inicio: ${inicio.toISOString()}, fin: ${fin.toISOString()}) ===`);
+            try {
 
             // Calcular fecha_facturacion y fecha_vencimiento para el periodo
             let fecha_facturacion: Date | null = null;
@@ -301,6 +302,27 @@ export const generarEstadosPagoEmpresas = async () => {
                 }
             } else {
                 console.log(`[${new Date().toISOString()}] No se crea cargo global para empresa ${empresaId}, periodo ${periodo} (monto_facturado <= 0)`);
+            }
+            } catch (err: any) {
+                // Si hay conflicto de unique_empresa_inicio (registros duplicados del cron anterior),
+                // reintentamos el update sin fecha_inicio/fecha_fin para no bloquear el proceso
+                if (err.name === 'SequelizeUniqueConstraintError') {
+                    console.warn(`[${new Date().toISOString()}] CONFLICTO unique_empresa_inicio en empresa ${empresaId}, periodo ${periodo} — actualizando sin fecha_inicio/fecha_fin`);
+                    try {
+                        const edpConflicto = await EstadoCuenta.findOne({ where: { empresa_id: empresaId, periodo } });
+                        if (edpConflicto) {
+                            await edpConflicto.update({
+                                fecha_generacion: esPeriodoActual ? hoy : fin,
+                                fecha_facturacion: new Date(inicio.getFullYear() === 11 ? inicio.getFullYear() + 1 : inicio.getFullYear(), (inicio.getMonth() + 1) % 12, empresa.dia_facturacion || 1, 0, 0, 0),
+                                fecha_vencimiento: new Date(inicio.getMonth() === 11 ? inicio.getFullYear() + 1 : inicio.getFullYear(), (inicio.getMonth() + 1) % 12, empresa.dia_vencimiento || 1, 0, 0, 0)
+                            });
+                        }
+                    } catch (retryErr: any) {
+                        console.error(`[${new Date().toISOString()}] Error en reintento para empresa ${empresaId}, periodo ${periodo}:`, retryErr.message);
+                    }
+                } else {
+                    console.error(`[${new Date().toISOString()}] Error procesando periodo ${periodo} de empresa ${empresaId}:`, err.message);
+                }
             }
         }
     }
