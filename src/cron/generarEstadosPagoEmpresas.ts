@@ -21,6 +21,11 @@ import { Op } from "sequelize";
  * Ahora incluye fecha_facturacion y fecha_vencimiento calculadas en base a los días configurados en la empresa.
  * USANDO id_empresa DIRECTO de tickets
  */
+const formatFecha = (d: Date): string => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 export const generarEstadosPagoEmpresas = async () => {
     await connectDB();
     const hoy = new Date();
@@ -244,7 +249,9 @@ export const generarEstadosPagoEmpresas = async () => {
                     porcentaje_descuento: porcentajeDescuento,
                     detalle_por_cc: JSON.stringify(detallePorCC),
                     fecha_facturacion,
-                    fecha_vencimiento
+                    fecha_vencimiento,
+                    fecha_inicio: formatFecha(inicio),
+                    fecha_fin: formatFecha(fin)
                 });
                 console.log(`[${new Date().toISOString()}] EstadoCuenta actualizado para empresa ${empresaId}, periodo ${periodo}`);
             } else {
@@ -261,7 +268,9 @@ export const generarEstadosPagoEmpresas = async () => {
                     detalle_por_cc: JSON.stringify(detallePorCC),
                     pagado: false,
                     fecha_facturacion,
-                    fecha_vencimiento
+                    fecha_vencimiento,
+                    fecha_inicio: formatFecha(inicio),
+                    fecha_fin: formatFecha(fin)
                 });
                 console.log(`[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}`);
             }
