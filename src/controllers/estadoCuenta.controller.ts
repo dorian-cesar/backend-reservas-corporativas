@@ -8,6 +8,7 @@ import { Pasajero } from "../models/pasajero.model";
 import { Empresa } from "../models/empresa.model";
 import { CentroCosto } from "../models/centro_costo.model";
 import { EmpresaTramo } from "../models/empresa_tramos.model";
+import { Reclamo } from "../models/reclamo.model";
 
 export const ejecutarEDPManual = async (req: Request, res: Response) => {
   try {
@@ -461,6 +462,10 @@ export const listarTicketsDeEstadoCuenta = async (
           model: Empresa,
           attributes: ["id", "nombre", "rut", "cuenta_corriente"],
           required: empresaId ? true : false,
+        },
+        {
+          model: Reclamo,
+          required: false,
         },
         {
           model: Pasajero,
