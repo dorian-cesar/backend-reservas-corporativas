@@ -25,6 +25,7 @@ export interface ITicket extends ITicketBase {
   user?: User;
   pasajero?: Pasajero;
   empresa?: Empresa;
+  reclamos?: Reclamo[];
 }
 
 /**

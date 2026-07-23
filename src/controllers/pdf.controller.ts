@@ -6,6 +6,8 @@ import { Empresa, IEmpresa } from "../models/empresa.model";
 import { Op } from "sequelize";
 import { CentroCosto } from "../models/centro_costo.model";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
+import { request } from "http";
+import { Reclamo } from "../models/reclamo.model";
 import {
   generateTicketPDFTemplate1,
   generateTicketPDFTemplate2,
@@ -241,6 +243,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
 
     let ticketsConfirmados = 0;
     let ticketsAnulados = 0;
+    let ticketsReclamadosCount = 0;
     let montoTotalBruto = 0;
     let devolucionesTotal = 0;
 
@@ -268,6 +271,10 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
               },
             ],
           },
+          {
+            model: Reclamo,
+            required: false,
+          }
         ],
       });
 
@@ -279,6 +286,11 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         const esAnulado = ticketPlain.ticketStatus === "Anulado";
         const montoTicket = Number(ticketPlain.monto_boleto ?? 0);
         const montoDevolucion = Number(ticketPlain.monto_devolucion ?? 0);
+
+        const hasAcceptedReclamo = ticketPlain.reclamos && ticketPlain.reclamos.some((r: any) => r.estado === "Aceptado");
+        if (hasAcceptedReclamo && !esAnulado) {
+          ticketsReclamadosCount += 1;
+        }
 
         // Totales generales
         if (esAnulado) {
@@ -306,7 +318,9 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
       });
     }
 
-    const devolucionesEstado = Number(estadoData.suma_devoluciones || 0);
+    const devolucionesEstado =
+      Number(estadoData.suma_devoluciones || 0) -
+      Number(estadoData.reclamos_descuento || 0);
 
     // Calcular montos netos por centro de costo
     const centrosCostoArray = Array.from(centrosMap.values())
@@ -325,7 +339,8 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     const montoDescuento = Math.round(
       montoBrutoAntesDeDescuento * (porcentajeDescuento / 100),
     );
-    const montoFinalConDescuento = montoBrutoAntesDeDescuento - montoDescuento;
+    const montoReclamos = Number(estadoData.reclamos_descuento || 0);
+    const montoFinalConDescuento = Number(estadoData.monto_facturado);
 
     const edpData: EDPPDFData = {
       edp: {
@@ -354,6 +369,8 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         porcentaje_descuento: porcentajeDescuento,
         monto_descuento: montoDescuento,
         monto_final: montoFinalConDescuento,
+        tickets_reclamados: ticketsReclamadosCount,
+        monto_reclamos: montoReclamos,
       },
       centros_costo: centrosCostoArray.map((cc) => ({
         id: cc.id,
