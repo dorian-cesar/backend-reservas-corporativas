@@ -27,6 +27,7 @@ export interface IEstadoCuenta {
   pagado: boolean;
   fecha_pago?: Date;
   suma_devoluciones?: number;
+  reclamos_descuento?: number;
 }
 
 @Table({ tableName: "estados_cuenta", timestamps: false })
@@ -67,6 +68,9 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
 
   @Column({ type: DataType.DECIMAL(12, 2), allowNull: false, defaultValue: 0 })
   declare suma_devoluciones: number;
+
+  @Column({ type: DataType.DECIMAL(12, 2), allowNull: false, defaultValue: 0 })
+  declare reclamos_descuento: number;
 
   @Column({ type: DataType.TEXT, allowNull: false })
   declare detalle_por_cc: string;

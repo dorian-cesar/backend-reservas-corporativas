@@ -221,6 +221,7 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       total_tickets_anulados: total_anulados,
       monto_facturado: monto_facturado_con_reclamos,
       suma_devoluciones: devoluciones + descuentoReclamos,
+      reclamos_descuento: descuentoReclamos,
       porcentaje_descuento: porcentajeDescuento,
       detalle_por_cc: JSON.stringify(detallePorCC),
       pagado: false,

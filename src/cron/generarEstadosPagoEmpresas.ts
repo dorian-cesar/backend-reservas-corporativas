@@ -265,6 +265,7 @@ export const generarEstadosPagoEmpresas = async () => {
                         total_tickets_anulados,
                         monto_facturado: monto_facturado_final,
                         suma_devoluciones: suma_devoluciones_final,
+                        reclamos_descuento: descuentoReclamos,
                         porcentaje_descuento: porcentajeDescuento,
                         detalle_por_cc: JSON.stringify(detallePorCC),
                         pagado: false,
