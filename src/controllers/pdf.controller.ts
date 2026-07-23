@@ -274,7 +274,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
           {
             model: Reclamo,
             required: false,
-          }
+          },
         ],
       });
 
@@ -287,7 +287,9 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         const montoTicket = Number(ticketPlain.monto_boleto ?? 0);
         const montoDevolucion = Number(ticketPlain.monto_devolucion ?? 0);
 
-        const hasAcceptedReclamo = ticketPlain.reclamos && ticketPlain.reclamos.some((r: any) => r.estado === "Aceptado");
+        const hasAcceptedReclamo =
+          ticketPlain.reclamos &&
+          ticketPlain.reclamos.some((r: any) => r.estado === "Aceptado");
         if (hasAcceptedReclamo && !esAnulado) {
           ticketsReclamadosCount += 1;
         }
@@ -302,17 +304,27 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         }
 
         // Por centro de costo
-        if (pasajero && pasajero.centroCosto) {
-          const centroId = pasajero.centroCosto.id;
-          const centro = centrosMap.get(centroId);
+        let centroId = pasajero && pasajero.centroCosto ? pasajero.centroCosto.id : null;
+        if (centroId === null || !centrosMap.has(centroId)) {
+          centroId = -1;
+          if (!centrosMap.has(-1)) {
+            centrosMap.set(-1, {
+              id: -1,
+              nombre: "Sin asignar",
+              cantidad_tickets: 0,
+              monto_facturado: 0,
+              devoluciones: 0,
+            });
+          }
+        }
 
-          if (centro) {
-            centro.cantidad_tickets += 1;
-            if (esAnulado) {
-              centro.devoluciones += montoDevolucion;
-            } else {
-              centro.monto_facturado += montoTicket;
-            }
+        const centro = centrosMap.get(centroId);
+        if (centro) {
+          centro.cantidad_tickets += 1;
+          if (esAnulado) {
+            centro.devoluciones += montoDevolucion;
+          } else {
+            centro.monto_facturado += montoTicket;
           }
         }
       });
@@ -320,10 +332,12 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
 
     const devolucionesEstado =
       Number(estadoData.suma_devoluciones || 0) -
-      Number(estadoData.reclamos_descuento || 0);
+      Number(estadoData.reclamos_descuento || 0) -
+      Number(estadoData.devoluciones_fuera_periodo || 0);
 
     // Calcular montos netos por centro de costo
     const centrosCostoArray = Array.from(centrosMap.values())
+      .filter((cc) => cc.cantidad_tickets > 0)
       .map((cc) => ({
         ...cc,
         monto_neto: cc.monto_facturado,
@@ -341,6 +355,10 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     );
     const montoReclamos = Number(estadoData.reclamos_descuento || 0);
     const montoFinalConDescuento = Number(estadoData.monto_facturado);
+
+    const totalDevolucionesYReclamos = devolucionesEstado + Number(estadoData.devoluciones_fuera_periodo || 0) + montoReclamos;
+    const consumoEfectivo = montoBrutoAntesDeDescuento - montoDescuento;
+    const saldoFavorRestante = Math.max(0, totalDevolucionesYReclamos - consumoEfectivo);
 
     const edpData: EDPPDFData = {
       edp: {
@@ -371,6 +389,10 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         monto_final: montoFinalConDescuento,
         tickets_reclamados: ticketsReclamadosCount,
         monto_reclamos: montoReclamos,
+        devoluciones_fuera_periodo: Number(
+          estadoData.devoluciones_fuera_periodo || 0,
+        ),
+        saldo_favor_restante: saldoFavorRestante,
       },
       centros_costo: centrosCostoArray.map((cc) => ({
         id: cc.id,

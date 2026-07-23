@@ -176,39 +176,88 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       (sum, t) => sum + (Number(t.monto_devolucion) || 0),
       0,
     );
-    const monto_neto_consumo = monto_bruto - devoluciones;
-
-    // Calcular descuento por tramos si aplica
-    let porcentajeDescuento = 0;
-    const tramos = await EmpresaTramo.findAll({
-      where: { id_empresa: empresa_id },
-      order: [["monto_desde", "ASC"]],
+    // Buscar tickets del periodo anterior anulados fuera de periodo
+    const ticketsAnuladosFueraPeriodo = await Ticket.findAll({
+      where: {
+        id_empresa: empresa_id,
+        ticketStatus: "Anulado",
+        confirmedAt: {
+          [Op.lt]: inicioConsulta,
+        },
+        updated_at: {
+          [Op.between]: [inicioConsulta, finConsulta],
+        },
+      },
     });
-    for (const tramo of tramos) {
-      const desde = Number(tramo.monto_desde);
-      const hasta =
-        tramo.monto_hasta !== null && tramo.monto_hasta !== undefined
-          ? Number(tramo.monto_hasta)
-          : null;
-      if (
-        monto_neto_consumo >= desde &&
-        (hasta === null || monto_neto_consumo <= hasta)
-      ) {
-        porcentajeDescuento = Number(tramo.porcentaje_descuento);
+    const devoluciones_fuera_periodo = ticketsAnuladosFueraPeriodo.reduce(
+      (sum, t) => sum + (Number(t.monto_devolucion) || 0),
+      0,
+    );
+
+    const monto_neto_consumo_real = monto_bruto - devoluciones;
+    let monto_neto_consumo = 0;
+    let porcentajeDescuento = 0;
+    let descuentoTramos = 0;
+    let monto_facturado = 0;
+
+    if (monto_neto_consumo_real >= 0) {
+      monto_neto_consumo = monto_neto_consumo_real;
+      // Calcular descuento por tramos si aplica
+      const tramos = await EmpresaTramo.findAll({
+        where: { id_empresa: empresa_id },
+        order: [["monto_desde", "ASC"]],
+      });
+      for (const tramo of tramos) {
+        const desde = Number(tramo.monto_desde);
+        const hasta =
+          tramo.monto_hasta !== null && tramo.monto_hasta !== undefined
+            ? Number(tramo.monto_hasta)
+            : null;
+        if (
+          monto_neto_consumo >= desde &&
+          (hasta === null || monto_neto_consumo <= hasta)
+        ) {
+          porcentajeDescuento = Number(tramo.porcentaje_descuento);
+        }
       }
+      descuentoTramos = monto_neto_consumo * (porcentajeDescuento / 100);
+      monto_facturado = monto_neto_consumo - descuentoTramos;
     }
-    const descuentoTramos = monto_neto_consumo * (porcentajeDescuento / 100);
-    const monto_facturado = monto_neto_consumo - descuentoTramos;
 
     // Generar detalle por centro de costo
     const detallePorCC: any = {};
 
     // === DESCUENTO POR RECLAMOS ACEPTADOS ===
-    const descuentoReclamos = Number(empresa.descuento_pendiente_edp) || 0;
-    const monto_facturado_con_reclamos = Math.max(
-      0,
-      monto_facturado - descuentoReclamos,
-    );
+    const descuentoReclamosDisponibles = Number(empresa.descuento_pendiente_edp) || 0;
+    let balance = monto_facturado;
+
+    // 1. Aplicar devoluciones fuera de periodo
+    let devoluciones_fuera_periodo_aplicadas = 0;
+    let devoluciones_fuera_periodo_restante = 0;
+    if (balance >= devoluciones_fuera_periodo) {
+      devoluciones_fuera_periodo_aplicadas = devoluciones_fuera_periodo;
+      balance -= devoluciones_fuera_periodo_aplicadas;
+    } else {
+      devoluciones_fuera_periodo_aplicadas = balance;
+      devoluciones_fuera_periodo_restante = devoluciones_fuera_periodo - devoluciones_fuera_periodo_aplicadas;
+      balance = 0;
+    }
+
+    // 2. Aplicar reclamos
+    let reclamos_aplicados = 0;
+    let reclamos_restante = 0;
+    if (balance >= descuentoReclamosDisponibles) {
+      reclamos_aplicados = descuentoReclamosDisponibles;
+      balance -= reclamos_aplicados;
+    } else {
+      reclamos_aplicados = balance;
+      reclamos_restante = descuentoReclamosDisponibles - reclamos_aplicados;
+      balance = 0;
+    }
+
+    const monto_facturado_con_reclamos = balance;
+    const nuevo_descuento_pendiente = devoluciones_fuera_periodo_restante + reclamos_restante;
+    const suma_devoluciones_final = devoluciones + reclamos_aplicados + devoluciones_fuera_periodo_aplicadas;
 
     // Crear estado de cuenta
     const estadoCuenta = await EstadoCuenta.create({
@@ -221,17 +270,15 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       total_tickets: tickets.length,
       total_tickets_anulados: total_anulados,
       monto_facturado: monto_facturado_con_reclamos,
-      suma_devoluciones: devoluciones + descuentoReclamos,
-      reclamos_descuento: descuentoReclamos,
+      suma_devoluciones: suma_devoluciones_final,
+      reclamos_descuento: reclamos_aplicados,
+      devoluciones_fuera_periodo: devoluciones_fuera_periodo_aplicadas,
       porcentaje_descuento: porcentajeDescuento,
       detalle_por_cc: JSON.stringify(detallePorCC),
       pagado: false,
     });
 
-    // Resetear el descuento pendiente a 0
-    if (descuentoReclamos > 0) {
-      await empresa.update({ descuento_pendiente_edp: 0 });
-    }
+    await empresa.update({ descuento_pendiente_edp: nuevo_descuento_pendiente });
 
     // Crear cargo en cuenta corriente
     if (estadoCuenta && estadoCuenta.id) {
@@ -250,12 +297,12 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
         empresa_id: empresa_id,
         tipo_movimiento: "cargo",
         monto: monto_facturado_con_reclamos,
-        descripcion: porcentajeDescuento > 0 && descuentoReclamos > 0
-          ? `Cargo por estado de cuenta #${estadoCuenta.id} - Período ${inicioPeriodoStr} al ${finPeriodoStr} (Descuento del ${porcentajeDescuento}% y descuento por reclamos de $${descuentoReclamos} aplicados)`
+        descripcion: porcentajeDescuento > 0 && reclamos_aplicados > 0
+          ? `Cargo por estado de cuenta #${estadoCuenta.id} - Período ${inicioPeriodoStr} al ${finPeriodoStr} (Descuento del ${porcentajeDescuento}% y descuento por reclamos de $${reclamos_aplicados} aplicados)`
           : porcentajeDescuento > 0
           ? `Cargo por estado de cuenta #${estadoCuenta.id} - Período ${inicioPeriodoStr} al ${finPeriodoStr} (Descuento del ${porcentajeDescuento}% aplicado)`
-          : descuentoReclamos > 0
-          ? `Cargo por estado de cuenta #${estadoCuenta.id} - Período ${inicioPeriodoStr} al ${finPeriodoStr} (Descuento por reclamos de $${descuentoReclamos} aplicado)`
+          : reclamos_aplicados > 0
+          ? `Cargo por estado de cuenta #${estadoCuenta.id} - Período ${inicioPeriodoStr} al ${finPeriodoStr} (Descuento por reclamos de $${reclamos_aplicados} aplicado)`
           : `Cargo por estado de cuenta #${estadoCuenta.id} - Período ${inicioPeriodoStr} al ${finPeriodoStr}`,
         saldo: nuevoSaldo,
         referencia: `CARGO-EDC-${estadoCuenta.id}`,

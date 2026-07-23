@@ -75,6 +75,8 @@ export interface EDPPDFData {
     monto_final?: number;
     tickets_reclamados?: number;
     monto_reclamos?: number;
+    devoluciones_fuera_periodo?: number;
+    saldo_favor_restante?: number;
   };
   centros_costo: Array<{
     id: number;
@@ -1264,10 +1266,20 @@ export const generateEDPPDF = async (
   const tieneReclamos = !!(
     edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0
   );
+  const tieneDevolucionesFuera = !!(
+    edpData.resumen.devoluciones_fuera_periodo &&
+    edpData.resumen.devoluciones_fuera_periodo > 0
+  );
+  const tieneSaldoFavor = !!(
+    edpData.resumen.saldo_favor_restante &&
+    edpData.resumen.saldo_favor_restante > 0
+  );
 
   let rectHeight = 125;
   if (tieneDescuento) rectHeight += 40;
   if (tieneReclamos) rectHeight += 40;
+  if (tieneDevolucionesFuera) rectHeight += 20;
+  if (tieneSaldoFavor) rectHeight += 20;
 
   const rectY = yPosition - (rectHeight - 20);
 
@@ -1342,6 +1354,38 @@ export const generateEDPPDF = async (
   );
 
   yPosition -= 20;
+
+  // Devoluciones fuera de periodo
+  if (tieneDevolucionesFuera) {
+    currentPage.drawText(
+      `Devoluciones fuera de periodo: -$${formatNumber(edpData.resumen.devoluciones_fuera_periodo ?? 0)}`,
+      {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+      },
+    );
+
+    yPosition -= 20;
+  }
+
+  // Saldo a Favor Restante
+  if (tieneSaldoFavor) {
+    currentPage.drawText(
+      `Saldo a Favor Restante (Acumulado para próx. periodo): $${formatNumber(edpData.resumen.saldo_favor_restante ?? 0)}`,
+      {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+      },
+    );
+
+    yPosition -= 20;
+  }
 
   // Tickets con Reclamo Aceptado
   if (tieneReclamos) {
