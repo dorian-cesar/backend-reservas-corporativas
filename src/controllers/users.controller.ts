@@ -312,8 +312,12 @@ export const create = async (
         });
 
         res.status(201).json(sanitizeUser(user));
-    } catch (err) {
-        res.status(500).json({ message: "Error en servidor" });
+    } catch (err: any) {
+        console.error("Error en create user:", err);
+        if (err.name === "SequelizeUniqueConstraintError" || err.parent?.code === "ER_DUP_ENTRY" || err.code === "ER_DUP_ENTRY") {
+            return res.status(400).json({ message: "El correo electrónico ya está registrado" });
+        }
+        res.status(500).json({ message: err.message || "Error en servidor" });
     }
 };
 

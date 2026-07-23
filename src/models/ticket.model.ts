@@ -7,12 +7,14 @@ import {
   DataType,
   ForeignKey,
   BelongsTo,
+  HasMany,
   CreatedAt,
   UpdatedAt,
 } from "sequelize-typescript";
 import { User } from "./user.model";
 import { Pasajero } from "./pasajero.model";
 import { Empresa } from "./empresa.model";
+import { Reclamo } from "./reclamo.model";
 
 /**
  * Estado posible del ticket.
@@ -146,4 +148,7 @@ export class Ticket extends Model<ITicket> {
   @UpdatedAt
   @Column({ type: DataType.DATE, allowNull: true })
   declare updated_at?: Date;
+
+  @HasMany(() => Reclamo)
+  declare reclamos: Reclamo[];
 }

@@ -30,6 +30,7 @@ export interface IEmpresa {
   ejecutivo_com_nombre?: string;
   ejecutivo_com_email?: string;
   ejecutivo_com_telefono?: string;
+  descuento_pendiente_edp?: number;
 }
 
 @Table({ tableName: "empresas", timestamps: false })
@@ -73,7 +74,7 @@ export class Empresa extends Model<IEmpresa> {
   @Column({
     type: DataType.BOOLEAN,
     defaultValue: false,
-    field: 'fact_manual'
+    field: "fact_manual",
   })
   declare fact_manual?: boolean;
 
@@ -81,7 +82,7 @@ export class Empresa extends Model<IEmpresa> {
     type: DataType.ENUM("Masiva", "Especial"),
     allowNull: false,
     defaultValue: "Masiva",
-    field: "tipo_facturacion"
+    field: "tipo_facturacion",
   })
   declare tipo_facturacion: "Masiva" | "Especial";
 
@@ -89,7 +90,7 @@ export class Empresa extends Model<IEmpresa> {
     type: DataType.STRING(150),
     allowNull: false,
     defaultValue: "",
-    field: "contacto_fact_nombre"
+    field: "contacto_fact_nombre",
   })
   declare contacto_fact_nombre: string;
 
@@ -97,7 +98,7 @@ export class Empresa extends Model<IEmpresa> {
     type: DataType.STRING(150),
     allowNull: false,
     defaultValue: "",
-    field: "contacto_fact_email"
+    field: "contacto_fact_email",
   })
   declare contacto_fact_email: string;
 
@@ -105,7 +106,7 @@ export class Empresa extends Model<IEmpresa> {
     type: DataType.STRING(50),
     allowNull: false,
     defaultValue: "",
-    field: "contacto_fact_telefono"
+    field: "contacto_fact_telefono",
   })
   declare contacto_fact_telefono: string;
 
@@ -113,7 +114,7 @@ export class Empresa extends Model<IEmpresa> {
     type: DataType.STRING(150),
     allowNull: false,
     defaultValue: "",
-    field: "ejecutivo_com_nombre"
+    field: "ejecutivo_com_nombre",
   })
   declare ejecutivo_com_nombre: string;
 
@@ -121,7 +122,7 @@ export class Empresa extends Model<IEmpresa> {
     type: DataType.STRING(150),
     allowNull: false,
     defaultValue: "",
-    field: "ejecutivo_com_email"
+    field: "ejecutivo_com_email",
   })
   declare ejecutivo_com_email: string;
 
@@ -129,7 +130,7 @@ export class Empresa extends Model<IEmpresa> {
     type: DataType.STRING(50),
     allowNull: false,
     defaultValue: "",
-    field: "ejecutivo_com_telefono"
+    field: "ejecutivo_com_telefono",
   })
   declare ejecutivo_com_telefono: string;
 
@@ -144,4 +145,12 @@ export class Empresa extends Model<IEmpresa> {
 
   @HasMany(() => EmpresaTramo, { foreignKey: "id_empresa", as: "tramos" })
   declare tramos: EmpresaTramo[];
-}
+
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: "descuento_pendiente_edp",
+  })
+  declare descuento_pendiente_edp: number;
+}

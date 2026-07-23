@@ -11,6 +11,7 @@ import { Pasajero } from "../models/pasajero.model"; // Nueva importación
 import { sendTicketCancellationEmail, sendTicketConfirmationEmail } from "../services/mail.service";
 import { generateTicketPDFTemplate1, generateTicketPDFTemplate2, TicketPDFData } from "../services/pdf.service";
 import { Empresa } from "../models/empresa.model";
+import { Reclamo } from "../models/reclamo.model";
 
 /**
  * Construye un objeto de filtros Sequelize a partir de los parámetros de consulta recibidos.
@@ -83,6 +84,10 @@ export const getTickets = async (req: Request, res: Response) => {
                         model: Empresa,
                         attributes: ['id', 'nombre', 'rut'],
                         required: false
+                    },
+                    {
+                        model: Reclamo,
+                        required: false
                     }
                 ]
             });
@@ -108,6 +113,10 @@ export const getTickets = async (req: Request, res: Response) => {
                         model: Empresa,
                         attributes: ['id', 'nombre', 'rut'],
                         required: false
+                    },
+                    {
+                        model: Reclamo,
+                        required: false
                     }
                 ]
             });
@@ -132,6 +141,10 @@ export const getTickets = async (req: Request, res: Response) => {
                     {
                         model: Empresa,
                         attributes: ['id', 'nombre', 'rut'],
+                        required: false
+                    },
+                    {
+                        model: Reclamo,
                         required: false
                     }
                 ]
@@ -921,6 +934,10 @@ export const getTicketsByEmpresa = async (
                     model: Pasajero,
                     attributes: ['id', 'nombre', 'rut', 'correo'],
                     include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }],
+                },
+                {
+                    model: Reclamo,
+                    required: false
                 }
             ],
             order: [['id', 'DESC']]

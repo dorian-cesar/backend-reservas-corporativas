@@ -246,43 +246,25 @@ export const generarEstadosPagoEmpresas = async () => {
             });
 
             if (estadoCuenta) {
-                if (esPeriodoActual) {
-                    // Período abierto: nunca tocar aunque exista
-                    console.log(`[${new Date().toISOString()}] Período ${periodo} aún abierto para empresa ${empresaId} — omitido`);
-                } else if (estadoCuenta.pagado) {
-                    // Período cerrado y YA PAGADO: congelado, no tocar
-                    console.log(`[${new Date().toISOString()}] EstadoCuenta PAGADO para empresa ${empresaId}, periodo ${periodo} — omitido`);
-                } else {
-                    // Período cerrado y no pagado: recalcular con datos definitivos
-                    await estadoCuenta.update({
-                        fecha_generacion: fin,
-                        total_tickets,
-                        total_tickets_anulados,
-                        monto_facturado,
-                        suma_devoluciones: devoluciones,
-                        porcentaje_descuento: porcentajeDescuento,
-                        detalle_por_cc: JSON.stringify(detallePorCC),
-                        fecha_facturacion,
-                        fecha_vencimiento,
-                        fecha_inicio: formatFecha(inicio),
-                        fecha_fin: formatFecha(fin)
-                    });
-                    console.log(`[${new Date().toISOString()}] EstadoCuenta recalculado para empresa ${empresaId}, periodo ${periodo}`);
-                }
+                console.log(`[${new Date().toISOString()}] EstadoCuenta ya existe para empresa ${empresaId}, periodo ${periodo} — omitido`);
             } else {
                 if (esPeriodoActual) {
                     // Período abierto sin EDP: no crear hasta que cierre
                     console.log(`[${new Date().toISOString()}] Período ${periodo} aún abierto para empresa ${empresaId} — EDP omitido hasta el día de facturación`);
                 } else {
-                    // Período cerrado sin EDP: crear definitivo
+                    // Período cerrado sin EDP: crear definitivo aplicando tramos y reclamos
+                    const descuentoReclamos = Number(empresa.descuento_pendiente_edp) || 0;
+                    const monto_facturado_final = Math.max(0, monto_facturado - descuentoReclamos);
+                    const suma_devoluciones_final = devoluciones + descuentoReclamos;
+
                     await EstadoCuenta.create({
                         empresa_id: empresaId,
                         periodo,
                         fecha_generacion: fin,
                         total_tickets,
                         total_tickets_anulados,
-                        monto_facturado,
-                        suma_devoluciones: devoluciones,
+                        monto_facturado: monto_facturado_final,
+                        suma_devoluciones: suma_devoluciones_final,
                         porcentaje_descuento: porcentajeDescuento,
                         detalle_por_cc: JSON.stringify(detallePorCC),
                         pagado: false,
@@ -291,38 +273,48 @@ export const generarEstadosPagoEmpresas = async () => {
                         fecha_inicio: formatFecha(inicio),
                         fecha_fin: formatFecha(fin)
                     });
-                    console.log(`[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}`);
-                }
-            }
+                    console.log(`[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}. Monto facturado final: ${monto_facturado_final} (descuento reclamos: ${descuentoReclamos})`);
 
-            // Cargo global en CuentaCorriente: solo cuando el período ya cerró
-            if (monto_facturado > 0 && !esPeriodoActual) {
-                const referenciaGlobal = `FACT-${empresaId}-${periodo}`;
-                const existeCargoGlobal = await CuentaCorriente.findOne({
-                    where: {
-                        empresa_id: empresaId,
-                        referencia: referenciaGlobal
+                    if (descuentoReclamos > 0) {
+                        await empresa.update({ descuento_pendiente_edp: 0 });
+                        console.log(`[${new Date().toISOString()}] descuento_pendiente_edp reseteado a 0 para empresa ${empresaId}`);
                     }
-                });
-                if (!existeCargoGlobal) {
-                    await CuentaCorriente.create({
-                        empresa_id: empresaId,
-                        tipo_movimiento: "cargo",
-                        monto: monto_facturado,
-                        descripcion: porcentajeDescuento > 0 
-                            ? `Cargo automático por facturación periodo ${periodo} (Descuento del ${porcentajeDescuento}% aplicado).`
-                            : `Cargo automático por facturación periodo ${periodo}.`,
-                        saldo: 0,
-                        referencia: referenciaGlobal
-                    });
-                    console.log(`[${new Date().toISOString()}] Cargo global creado en cuenta corriente para empresa ${empresaId}, periodo ${periodo}, monto: ${monto_facturado}`);
-                } else {
-                    console.log(`[${new Date().toISOString()}] Cargo global YA EXISTE en cuenta corriente para empresa ${empresaId}, periodo ${periodo}`);
+
+                    // Cargo global en CuentaCorriente: solo cuando el período ya cerró y hay monto facturado positivo
+                    if (monto_facturado_final > 0) {
+                        const referenciaGlobal = `FACT-${empresaId}-${periodo}`;
+                        const existeCargoGlobal = await CuentaCorriente.findOne({
+                            where: {
+                                empresa_id: empresaId,
+                                referencia: referenciaGlobal
+                            }
+                        });
+                        if (!existeCargoGlobal) {
+                            let descripcionCargo = `Cargo automático por facturación periodo ${periodo}.`;
+                            if (porcentajeDescuento > 0 && descuentoReclamos > 0) {
+                                descripcionCargo = `Cargo automático por facturación periodo ${periodo} (Descuento del ${porcentajeDescuento}% y descuento por reclamos de $${descuentoReclamos} aplicados).`;
+                            } else if (porcentajeDescuento > 0) {
+                                descripcionCargo = `Cargo automático por facturación periodo ${periodo} (Descuento del ${porcentajeDescuento}% aplicado).`;
+                            } else if (descuentoReclamos > 0) {
+                                descripcionCargo = `Cargo automático por facturación periodo ${periodo} (Descuento por reclamos de $${descuentoReclamos} aplicado).`;
+                            }
+
+                            await CuentaCorriente.create({
+                                empresa_id: empresaId,
+                                tipo_movimiento: "cargo",
+                                monto: monto_facturado_final,
+                                descripcion: descripcionCargo,
+                                saldo: 0, // Se actualizará después en el cálculo general si corresponde
+                                referencia: referenciaGlobal
+                            });
+                            console.log(`[${new Date().toISOString()}] Cargo global creado en cuenta corriente para empresa ${empresaId}, periodo ${periodo}, monto: ${monto_facturado_final}`);
+                        } else {
+                            console.log(`[${new Date().toISOString()}] Cargo global YA EXISTE en cuenta corriente para empresa ${empresaId}, periodo ${periodo}`);
+                        }
+                    } else {
+                        console.log(`[${new Date().toISOString()}] No se crea cargo para empresa ${empresaId}, periodo ${periodo} (monto_facturado_final <= 0)`);
+                    }
                 }
-            } else if (esPeriodoActual) {
-                console.log(`[${new Date().toISOString()}] Período ${periodo} aún abierto para empresa ${empresaId} — cargo omitido hasta el día de facturación`);
-            } else {
-                console.log(`[${new Date().toISOString()}] No se crea cargo para empresa ${empresaId}, periodo ${periodo} (monto_facturado <= 0)`);
             }
             } catch (err: any) {
                 // Si hay un error, simplemente lo registramos y no detenemos el resto del proceso.

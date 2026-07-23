@@ -17,5 +17,8 @@
       "./src/types",
       "./node_modules/@types"
     ]
-  }
+  },
+  "exclude": [
+    "src/cron/backup/**/*"
+  ]
 }

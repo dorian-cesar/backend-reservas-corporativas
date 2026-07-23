@@ -11,42 +11,45 @@ import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "../swagger.json";
 import ticketRoutes from "./routes/ticket.routes";
 import pdfRoutes from "./routes/pdf.routes";
-import estadoCuentaRoutes from "./routes/estadoCuenta.routes"
-import dashboardRoutes from "./routes/dashboard.routes"
-import pasajeroRoutes from "./routes/pasajeros.routes"
+import estadoCuentaRoutes from "./routes/estadoCuenta.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
+import pasajeroRoutes from "./routes/pasajeros.routes";
 import uploadRoutes from "./routes/upload.routes";
-import passwordRoutes from "./routes/password.routes"
+import passwordRoutes from "./routes/password.routes";
 import userEmpresaRoutes from "./routes/user_empresa.routes";
-import emailFormRoutes from "./routes/cotizacion.routes"
+import emailFormRoutes from "./routes/cotizacion.routes";
+import reclamoRoutes from "./routes/reclamo.routes";
 
 dotenv.config();
 
 const PORT = process.env.PORT || 4000;
 const app = express();
 
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 const allowedOrigins = [
-    "https://www.pullmanviajes.cl",
-    "https://pullmanviajes.cl",
-    "https://reservas-corporativas.pullmanbus.cl",
+  "https://www.pullmanviajes.cl",
+  "https://pullmanviajes.cl",
+  "https://reservas-corporativas.pullmanbus.cl",
 ];
 
-app.use(cors({
+app.use(
+  cors({
     origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true);
 
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = `El origen ${origin} no tiene permiso de acceso.`;
-            console.warn(msg);
-            return callback(new Error(msg), false);
-        }
-        return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = `El origen ${origin} no tiene permiso de acceso.`;
+        console.warn(msg);
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  }),
+);
 
 app.use(express.json());
 
@@ -57,31 +60,33 @@ app.use("/api/centros-costo", centroCostoRoutes);
 app.use("/api/cuenta-corriente", cuentaCorrienteRoutes);
 app.use("/api/estado-cuenta", estadoCuentaRoutes);
 app.use("/api/tickets", ticketRoutes);
-app.use('/api/pdf', pdfRoutes);
-app.use("/api/dashboard", dashboardRoutes)
-app.use("/api/pasajeros", pasajeroRoutes)
-app.use("/api/upload/", uploadRoutes)
-app.use("/api/password", passwordRoutes)
-app.use("/api/user-empresa/", userEmpresaRoutes)
-app.use("/api/email/", emailFormRoutes)
+app.use("/api/pdf", pdfRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/pasajeros", pasajeroRoutes);
+app.use("/api/upload/", uploadRoutes);
+app.use("/api/password", passwordRoutes);
+app.use("/api/user-empresa/", userEmpresaRoutes);
+app.use("/api/email/", emailFormRoutes);
+app.use("/api/reclamos", reclamoRoutes);
 
-
-app.get('/api/test', (req, res) => {
-    res.json({
-        status: 'OK',
-        message: 'Backend funcionando',
-        timestamp: new Date().toISOString()
-    });
+app.get("/api/test", (req, res) => {
+  res.json({
+    status: "OK",
+    message: "Backend funcionando",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Documentación Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 connectDB().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Servidor corriendo en puerto ${PORT}`);
-        console.log(`2FA ${process.env.ENABLE_2FA === "true" ? "habilitado" : "deshabilitado"}`);
-    });
+  app.listen(PORT, () => {
+    console.log(`Servidor corriendo en puerto ${PORT}`);
+    console.log(
+      `2FA ${process.env.ENABLE_2FA === "true" ? "habilitado" : "deshabilitado"}`,
+    );
+  });
 });
 
 export default app;

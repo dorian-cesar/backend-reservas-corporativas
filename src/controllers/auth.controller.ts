@@ -61,7 +61,7 @@ export const login = async (req: Request, res: Response) => {
       }
     }
 
-    if (user.rol === "superuser") {
+    if (user.rol === "superuser" || user.rol === "soporte") {
       const payload = {
         id: user.id,
         email: user.email,
