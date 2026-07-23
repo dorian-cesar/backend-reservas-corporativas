@@ -66,7 +66,9 @@ export class User extends Model<IUser> {
       "empresa",
       "subusuario",
       "auditoria",
-      "contralor"
+      "contralor",
+      "admincc",
+      "soporte"
     ),
     defaultValue: "empresa",
   })

@@ -40,6 +40,7 @@ router.get(
   authorizeRoles(
     "superuser",
     "admin",
+    "empresa",
     "subusuario",
     "contralor",
     "auditoria",
