@@ -227,36 +227,40 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
     // Generar detalle por centro de costo
     const detallePorCC: any = {};
 
-    // === DESCUENTO POR RECLAMOS ACEPTADOS ===
-    const descuentoReclamosDisponibles = Number(empresa.descuento_pendiente_edp) || 0;
+    // === DESCUENTO POR DEVOLUCIONES FUERA DE PERIODO Y RECLAMOS ===
+    const devolucionFueraPendiente = Number(empresa.devolucion_pendiente_edp) || 0;
+    const totalDevolucionesFueraDisponibles = devoluciones_fuera_periodo + devolucionFueraPendiente;
+    const reclamosDisponibles = Number(empresa.descuento_pendiente_edp) || 0;
+
     let balance = monto_facturado;
 
-    // 1. Aplicar devoluciones fuera de periodo
+    // 1. Aplicar devoluciones fuera de periodo (tickets del mes + saldo acumulado fuera de periodo)
     let devoluciones_fuera_periodo_aplicadas = 0;
     let devoluciones_fuera_periodo_restante = 0;
-    if (balance >= devoluciones_fuera_periodo) {
-      devoluciones_fuera_periodo_aplicadas = devoluciones_fuera_periodo;
+    if (balance >= totalDevolucionesFueraDisponibles) {
+      devoluciones_fuera_periodo_aplicadas = totalDevolucionesFueraDisponibles;
       balance -= devoluciones_fuera_periodo_aplicadas;
+      devoluciones_fuera_periodo_restante = 0;
     } else {
       devoluciones_fuera_periodo_aplicadas = balance;
-      devoluciones_fuera_periodo_restante = devoluciones_fuera_periodo - devoluciones_fuera_periodo_aplicadas;
+      devoluciones_fuera_periodo_restante = totalDevolucionesFueraDisponibles - devoluciones_fuera_periodo_aplicadas;
       balance = 0;
     }
 
-    // 2. Aplicar reclamos
+    // 2. Aplicar reclamos aceptados
     let reclamos_aplicados = 0;
     let reclamos_restante = 0;
-    if (balance >= descuentoReclamosDisponibles) {
-      reclamos_aplicados = descuentoReclamosDisponibles;
+    if (balance >= reclamosDisponibles) {
+      reclamos_aplicados = reclamosDisponibles;
       balance -= reclamos_aplicados;
+      reclamos_restante = 0;
     } else {
       reclamos_aplicados = balance;
-      reclamos_restante = descuentoReclamosDisponibles - reclamos_aplicados;
+      reclamos_restante = reclamosDisponibles - reclamos_aplicados;
       balance = 0;
     }
 
     const monto_facturado_con_reclamos = balance;
-    const nuevo_descuento_pendiente = devoluciones_fuera_periodo_restante + reclamos_restante;
     const suma_devoluciones_final = devoluciones + reclamos_aplicados + devoluciones_fuera_periodo_aplicadas;
 
     // Crear estado de cuenta
@@ -278,7 +282,11 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       pagado: false,
     });
 
-    await empresa.update({ descuento_pendiente_edp: nuevo_descuento_pendiente });
+    await empresa.update({
+      devolucion_pendiente_edp: devoluciones_fuera_periodo_restante,
+      descuento_pendiente_edp: reclamos_restante,
+    });
+
 
     // Crear cargo en cuenta corriente
     if (estadoCuenta && estadoCuenta.id) {

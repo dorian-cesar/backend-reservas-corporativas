@@ -31,7 +31,9 @@ export interface IEmpresa {
   ejecutivo_com_email?: string;
   ejecutivo_com_telefono?: string;
   descuento_pendiente_edp?: number;
+  devolucion_pendiente_edp?: number;
 }
+
 
 @Table({ tableName: "empresas", timestamps: false })
 export class Empresa extends Model<IEmpresa> {
@@ -153,4 +155,13 @@ export class Empresa extends Model<IEmpresa> {
     field: "descuento_pendiente_edp",
   })
   declare descuento_pendiente_edp: number;
+
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: "devolucion_pendiente_edp",
+  })
+  declare devolucion_pendiente_edp: number;
 }
+

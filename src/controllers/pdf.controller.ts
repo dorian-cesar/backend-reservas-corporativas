@@ -320,22 +320,19 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
 
         const centro = centrosMap.get(centroId);
         if (centro) {
-          centro.cantidad_tickets += 1;
           if (esAnulado) {
             centro.devoluciones += montoDevolucion;
           } else {
+            centro.cantidad_tickets += 1;
             centro.monto_facturado += montoTicket;
           }
         }
       });
     }
 
-    const devolucionesEstado =
-      Number(estadoData.suma_devoluciones || 0) -
-      Number(estadoData.reclamos_descuento || 0) -
-      Number(estadoData.devoluciones_fuera_periodo || 0);
 
-    // Calcular montos netos por centro de costo
+    // Calcular montos netos por centro de costo (solo centros con tickets confirmados > 0)
+
     const centrosCostoArray = Array.from(centrosMap.values())
       .filter((cc) => cc.cantidad_tickets > 0)
       .map((cc) => ({
@@ -344,21 +341,35 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
       }))
       .sort((a, b) => b.monto_neto - a.monto_neto); // Ordenar por monto neto
 
-    // El monto bruto antes de descuento es la suma de los montos netos de los centros de costos
+    // Monto bruto total de pasajes generados
     const montoBrutoAntesDeDescuento = centrosCostoArray.reduce(
       (sum, cc) => sum + cc.monto_neto,
       0,
     );
+
+
+    const devolucionesEstado =
+      Number(estadoData.suma_devoluciones || 0) -
+      Number(estadoData.reclamos_descuento || 0) -
+      Number(estadoData.devoluciones_fuera_periodo || 0);
+
+    // Consumo neto sobre el cual se calcula el descuento por tramos
+    const netoConsumoReal = montoBrutoAntesDeDescuento;
+
     const porcentajeDescuento = Number(estadoData.porcentaje_descuento || 0);
     const montoDescuento = Math.round(
-      montoBrutoAntesDeDescuento * (porcentajeDescuento / 100),
+      netoConsumoReal * (porcentajeDescuento / 100),
     );
+
     const montoReclamos = Number(estadoData.reclamos_descuento || 0);
     const montoFinalConDescuento = Number(estadoData.monto_facturado);
 
-    const totalDevolucionesYReclamos = devolucionesEstado + Number(estadoData.devoluciones_fuera_periodo || 0) + montoReclamos;
-    const consumoEfectivo = montoBrutoAntesDeDescuento - montoDescuento;
-    const saldoFavorRestante = Math.max(0, totalDevolucionesYReclamos - consumoEfectivo);
+    // Saldo a Favor Restante (Acumulado para próx. período) proviene de los campos de la empresa
+    const saldoFavorRestante =
+      Number(empresaData.devolucion_pendiente_edp || 0) +
+      Number(empresaData.descuento_pendiente_edp || 0);
+
+
 
     const edpData: EDPPDFData = {
       edp: {
@@ -401,8 +412,10 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         monto_facturado: cc.monto_neto, // Usar monto NETO en el desglose
       })),
       totales: {
-        cantidad_tickets:
-          estadoData.total_tickets - estadoData.total_tickets_anulados,
+        cantidad_tickets: centrosCostoArray.reduce(
+          (sum, cc) => sum + cc.cantidad_tickets,
+          0,
+        ),
         monto_facturado: montoBrutoAntesDeDescuento,
       },
     };

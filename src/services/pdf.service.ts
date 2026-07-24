@@ -1388,9 +1388,23 @@ export const generateEDPPDF = async (
   }
 
   // Tickets con Reclamo Aceptado
-  if (tieneReclamos) {
+  if (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) {
+    if (edpData.resumen.tickets_reclamados && edpData.resumen.tickets_reclamados > 0) {
+      currentPage.drawText(
+        `Tickets con Reclamos Aprobados: ${edpData.resumen.tickets_reclamados}`,
+        {
+          x: margin,
+          y: yPosition,
+          size: 10,
+          font: font,
+          color: rgb(0, 0, 0),
+        },
+      );
+      yPosition -= 20;
+    }
+
     currentPage.drawText(
-      `Tickets con Reclamos Aprobados: ${edpData.resumen.tickets_reclamados ?? 0}`,
+      `Descuento por Reclamos: -$${formatNumber(edpData.resumen.monto_reclamos)}`,
       {
         x: margin,
         y: yPosition,
@@ -1399,20 +1413,6 @@ export const generateEDPPDF = async (
         color: rgb(0, 0, 0),
       },
     );
-
-    yPosition -= 20;
-
-    currentPage.drawText(
-      `Descuento por Reclamos: -$${formatNumber(edpData.resumen.monto_reclamos ?? 0)}`,
-      {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      },
-    );
-
     yPosition -= 20;
   }
 
@@ -1432,7 +1432,7 @@ export const generateEDPPDF = async (
     yPosition -= 20;
 
     currentPage.drawText(
-      `Monto Descuento (${edpData.resumen.porcentaje_descuento}%): -$${formatNumber(edpData.resumen.monto_descuento || 0)}`,
+      `Monto Descuento por tramos (${edpData.resumen.porcentaje_descuento}%): -$${formatNumber(edpData.resumen.monto_descuento || 0)}`,
       {
         x: margin,
         y: yPosition,
@@ -1444,6 +1444,7 @@ export const generateEDPPDF = async (
 
     yPosition -= 20;
   }
+
 
   // Monto Facturado Final
   currentPage.drawText(
@@ -1482,7 +1483,7 @@ export const generateEDPPDF = async (
 
   const colCentroX = margin;
   const colCantidadX = margin + 200; // Desplazar a la derecha para dejar espacio al nombre del centro de costo
-  const colMontoX = margin + 400;    // Desplazar a la derecha para evitar superposición con el texto anterior
+  const colMontoX = margin + 400; // Desplazar a la derecha para evitar superposición con el texto anterior
 
   const drawTableHeaders = (page: any, posY: number) => {
     page.drawText("Centro de Costos", {
@@ -1614,10 +1615,36 @@ export const generateEDPPDF = async (
   const tieneCualquierDescuento = !!(
     (edpData.resumen.porcentaje_descuento &&
       edpData.resumen.porcentaje_descuento > 0) ||
-    (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0)
+    (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) ||
+    (edpData.resumen.devoluciones_fuera_periodo &&
+      edpData.resumen.devoluciones_fuera_periodo > 0)
   );
 
   if (tieneCualquierDescuento) {
+    if (
+      edpData.resumen.devoluciones_fuera_periodo &&
+      edpData.resumen.devoluciones_fuera_periodo > 0
+    ) {
+      yPosition -= 15;
+      currentPage.drawText("Devoluciones fuera de periodo", {
+        x: colCentroX,
+        y: yPosition,
+        size: 9,
+        font: font,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      currentPage.drawText(
+        `-$${formatNumber(edpData.resumen.devoluciones_fuera_periodo)}`,
+        {
+          x: colMontoX,
+          y: yPosition,
+          size: 9,
+          font: font,
+          color: rgb(0.4, 0.4, 0.4),
+        },
+      );
+    }
+
     if (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) {
       yPosition -= 15;
       currentPage.drawText("Descuento por Reclamos", {
