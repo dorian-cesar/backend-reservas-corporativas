@@ -1005,6 +1005,10 @@ export const getTicketsByUser = async (
                     model: Pasajero,
                     attributes: ['id', 'nombre', 'rut', 'correo'],
                     required: false
+                },
+                {
+                    model: Reclamo,
+                    required: false
                 }
             ]
         });
