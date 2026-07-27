@@ -19,6 +19,7 @@ export interface IEmpresaCreate {
     monto_acumulado?: number;
     newLogin?: boolean;
     fact_manual?: boolean;
+    morosidad?: boolean;
     tipo_facturacion?: "Masiva" | "Especial";
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;
@@ -42,6 +43,7 @@ export interface IEmpresaUpdate {
     monto_acumulado?: number;
     newLogin?: boolean;
     fact_manual?: boolean;
+    morosidad?: boolean;
     tipo_facturacion?: "Masiva" | "Especial";
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;

@@ -226,6 +226,14 @@ export const create = async (
 
         const empresaData = empresa.toJSON();
 
+        // Validar si la empresa está en morosidad
+        if (empresaData.morosidad) {
+            return res.status(400).json({
+                message: "La empresa se encuentra en estado de Morosidad. No es posible realizar reservas ni compras.",
+                morosidad: true
+            });
+        }
+
         // Validar límite de monto máximo
         if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
             const montoActual = empresaData.monto_acumulado || 0;
@@ -1071,6 +1079,15 @@ export const checkDisponibilidad = async (
         }
 
         const empresaData = empresa.toJSON();
+
+        // Validar si la empresa está en morosidad
+        if (empresaData.morosidad) {
+            return res.status(200).json({
+                disponible: false,
+                message: "La empresa se encuentra en estado de Morosidad. No es posible realizar reservas ni compras.",
+                morosidad: true
+            });
+        }
 
         // Verificar límite de monto máximo
         if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {

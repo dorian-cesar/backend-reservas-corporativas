@@ -23,6 +23,7 @@ export interface IEmpresa {
   monto_acumulado?: number;
   newLogin?: boolean;
   fact_manual?: boolean;
+  morosidad?: boolean;
   tipo_facturacion?: "Masiva" | "Especial";
   contacto_fact_nombre?: string;
   contacto_fact_email?: string;
@@ -79,6 +80,13 @@ export class Empresa extends Model<IEmpresa> {
     field: "fact_manual",
   })
   declare fact_manual?: boolean;
+
+  @Column({
+    type: DataType.BOOLEAN,
+    defaultValue: false,
+    field: "morosidad",
+  })
+  declare morosidad?: boolean;
 
   @Column({
     type: DataType.ENUM("Masiva", "Especial"),
