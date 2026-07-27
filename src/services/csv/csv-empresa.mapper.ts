@@ -58,6 +58,16 @@ export const EMPRESA_FIELD_MAP: Record<string, keyof IEmpresaCreate> = {
     acumulado: "monto_acumulado",
     saldo_acumulado: "monto_acumulado",
     consumo_acumulado: "monto_acumulado",
+
+    // Facturación Manual / Automática
+    fact_manual: "fact_manual",
+    facturacion_manual: "fact_manual",
+    facturacion_automatica: "fact_manual",
+
+    // Morosidad
+    morosidad: "morosidad",
+    estado_morosidad: "morosidad",
+    moroso: "morosidad",
 };
 
 export function normalizeHeader(header: string): string {
@@ -85,6 +95,21 @@ export function mapCSVRow(row: Record<string, string>): Partial<IEmpresaCreate> 
                     value.toLowerCase()
                 );
                 value = isActive;
+            }
+
+            if (modelField === "fact_manual") {
+                if (normalized === "facturacion_automatica") {
+                    const isAuto = ["true", "1", "si", "sí", "active", "activo"].includes(value.toLowerCase());
+                    value = !isAuto;
+                } else {
+                    const isManual = ["true", "1", "si", "sí", "manual"].includes(value.toLowerCase());
+                    value = isManual;
+                }
+            }
+
+            if (modelField === "morosidad") {
+                const isMoroso = ["true", "1", "si", "sí", "moroso", "morosidad"].includes(value.toLowerCase());
+                value = isMoroso;
             }
 
             // Campos numéricos
