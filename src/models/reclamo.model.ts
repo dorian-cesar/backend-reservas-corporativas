@@ -7,16 +7,19 @@ import {
   ForeignKey,
 } from "sequelize-typescript";
 import { Ticket } from "./ticket.model";
+import { User } from "./user.model";
 
 export interface IReclamo {
   id?: number;
   ticket_id: number;
+  user_id?: number | null;
   motivo: string;
   descripcion: string;
   estado?: string;
   motivo_rechazo?: string;
   fecha_creacion?: Date;
   fecha_resolucion?: Date;
+  user?: User;
 }
 
 @Table({ tableName: "reclamos", timestamps: false })
@@ -27,6 +30,10 @@ export class Reclamo extends Model<IReclamo> {
   @ForeignKey(() => Ticket)
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare ticket_id: number;
+
+  @ForeignKey(() => User)
+  @Column({ type: DataType.INTEGER, allowNull: true })
+  declare user_id?: number | null;
 
   @Column({ type: DataType.STRING(50), allowNull: false })
   declare motivo: string;
@@ -52,4 +59,7 @@ export class Reclamo extends Model<IReclamo> {
 
   @BelongsTo(() => Ticket)
   declare ticket: Ticket;
+
+  @BelongsTo(() => User, "user_id")
+  declare user?: User;
 }

@@ -20,11 +20,9 @@ export const crearReclamo = async (req: Request, res: Response) => {
     }
 
     if (ticket.ticketStatus !== "Confirmed") {
-      return res
-        .status(400)
-        .json({
-          message: "Solo se pueden ingresar reclamos de tickets confirmados",
-        });
+      return res.status(400).json({
+        message: "Solo se pueden ingresar reclamos de tickets confirmados",
+      });
     }
 
     const reclamoExistente = await Reclamo.findOne({
@@ -37,16 +35,16 @@ export const crearReclamo = async (req: Request, res: Response) => {
     });
 
     if (reclamoExistente) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Ya existe un reclamo en proceso o aceptado para este ticket",
-        });
+      return res.status(400).json({
+        message: "Ya existe un reclamo en proceso o aceptado para este ticket",
+      });
     }
+
+    const userId = (req as any).user?.id || null;
 
     const nuevoReclamo = await Reclamo.create({
       ticket_id,
+      user_id: userId,
       motivo,
       descripcion,
       estado: "Pendiente",
@@ -74,6 +72,7 @@ export const listarReclamos = async (req: Request, res: Response) => {
     const reclamos = await Reclamo.findAll({
       where: whereClause,
       include: [
+        { model: User, attributes: ["id", "nombre", "email"] },
         {
           model: Ticket,
           include: [
@@ -109,10 +108,7 @@ export const resolverReclamo = async (req: Request, res: Response) => {
       include: [
         {
           model: Ticket,
-          include: [
-            { model: Empresa },
-            { model: User }
-          ],
+          include: [{ model: Empresa }, { model: User }],
         },
       ],
     });
