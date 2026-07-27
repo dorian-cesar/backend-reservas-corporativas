@@ -9,6 +9,7 @@ import { Empresa } from "../models/empresa.model";
 import { CentroCosto } from "../models/centro_costo.model";
 import { EmpresaTramo } from "../models/empresa_tramos.model";
 import { Reclamo } from "../models/reclamo.model";
+import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
 
 export const ejecutarEDPManual = async (req: Request, res: Response) => {
   try {
@@ -130,6 +131,7 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
     }
 
     // Obtener tickets del período (usando las fechas ajustadas)
+    // Se incluyen todas las relaciones necesarias para generar un snapshot completo
     const tickets = await Ticket.findAll({
       where: {
         id_empresa: empresa_id,
@@ -155,6 +157,15 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
             "id_centro_costo",
           ],
           include: [{ model: CentroCosto, required: false }],
+        },
+        {
+          model: Empresa,
+          attributes: ["id", "nombre", "rut", "cuenta_corriente"],
+          required: false,
+        },
+        {
+          model: Reclamo,
+          required: false,
         },
       ],
     });
@@ -281,6 +292,15 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       detalle_por_cc: JSON.stringify(detallePorCC),
       pagado: false,
     });
+
+    // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots
+    if (tickets.length > 0) {
+      const snapshotRows = tickets.map((t) => ({
+        edp_id: estadoCuenta.id,
+        ticket_data: JSON.stringify(t.toJSON()),
+      }));
+      await EdpTicketSnapshot.bulkCreate(snapshotRows);
+    }
 
     await empresa.update({
       devolucion_pendiente_edp: devoluciones_fuera_periodo_restante,
@@ -453,6 +473,51 @@ export const listarTicketsDeEstadoCuenta = async (
 
     const estadoData = estado.toJSON();
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // CASO 1: El EDP tiene snapshots congelados en la tabla edp_ticket_snapshots
+    // ─────────────────────────────────────────────────────────────────────────
+    const snapshotsCount = await EdpTicketSnapshot.count({
+      where: { edp_id: id },
+    });
+
+    if (snapshotsCount > 0) {
+      const queryOpts: any = {
+        where: { edp_id: id },
+        order: [["id", "ASC"]],
+      };
+
+      if (page && limit) {
+        queryOpts.limit = limit;
+        queryOpts.offset = (page - 1) * limit;
+      }
+
+      const rows = await EdpTicketSnapshot.findAll(queryOpts);
+      const ticketObjects = rows.map((r) => {
+        try {
+          return JSON.parse(r.ticket_data);
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+
+      if (page && limit) {
+        return res.json({
+          data: ticketObjects,
+          pagination: {
+            total: snapshotsCount,
+            page,
+            limit,
+            totalPages: Math.ceil(snapshotsCount / limit) || 1,
+          },
+        });
+      }
+
+      return res.json(ticketObjects);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CASO 2: EDP sin snapshot (histórico) → comportamiento dinámico original
+    // ─────────────────────────────────────────────────────────────────────────
     if (!estadoData.fecha_inicio || !estadoData.fecha_fin) {
       return res.status(400).json({
         message: "El estado de cuenta no tiene fechas de período definidas",

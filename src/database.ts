@@ -16,6 +16,7 @@ import * as dotenv from "dotenv";
 import { Pasajero } from "./models/pasajero.model";
 import { UserEmpresa } from "./models/user_empresa.model";
 import { Reclamo } from "./models/reclamo.model";
+import { EdpTicketSnapshot } from "./models/edp_ticket_snapshot.model";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ export const sequelize = new Sequelize({
     Pasajero,
     UserEmpresa,
     Reclamo,
+    EdpTicketSnapshot,
   ],
   logging: false,
   timezone: (() => {

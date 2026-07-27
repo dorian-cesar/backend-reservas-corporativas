@@ -1341,9 +1341,9 @@ export const generateEDPPDF = async (
 
   yPosition -= 20;
 
-  // Suma de Devoluciones
+  // Devoluciones por anulación dentro del periodo
   currentPage.drawText(
-    `Suma de Devoluciones: $${formatNumber(edpData.resumen.suma_devoluciones)}`,
+    `Devoluciones por anulación dentro del periodo: $${formatNumber(edpData.resumen.suma_devoluciones)}`,
     {
       x: margin,
       y: yPosition,
@@ -1355,10 +1355,10 @@ export const generateEDPPDF = async (
 
   yPosition -= 20;
 
-  // Devoluciones fuera de periodo
+  // Devoluciones por anulación de periodo anterior
   if (tieneDevolucionesFuera) {
     currentPage.drawText(
-      `Devoluciones fuera de periodo: -$${formatNumber(edpData.resumen.devoluciones_fuera_periodo ?? 0)}`,
+      `Devoluciones por anulación de periodo anterior: -$${formatNumber(edpData.resumen.devoluciones_fuera_periodo ?? 0)}`,
       {
         x: margin,
         y: yPosition,
@@ -1389,7 +1389,10 @@ export const generateEDPPDF = async (
 
   // Tickets con Reclamo Aceptado
   if (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) {
-    if (edpData.resumen.tickets_reclamados && edpData.resumen.tickets_reclamados > 0) {
+    if (
+      edpData.resumen.tickets_reclamados &&
+      edpData.resumen.tickets_reclamados > 0
+    ) {
       currentPage.drawText(
         `Tickets con Reclamos Aprobados: ${edpData.resumen.tickets_reclamados}`,
         {
@@ -1416,21 +1419,8 @@ export const generateEDPPDF = async (
     yPosition -= 20;
   }
 
-  // Monto Bruto / Facturado / Descuento por tramos
+  // Descuento por tramos / Monto Bruto
   if (tieneDescuento) {
-    currentPage.drawText(
-      `Monto Bruto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`,
-      {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      },
-    );
-
-    yPosition -= 20;
-
     currentPage.drawText(
       `Monto Descuento por tramos (${edpData.resumen.porcentaje_descuento}%): -$${formatNumber(edpData.resumen.monto_descuento || 0)}`,
       {
@@ -1443,8 +1433,20 @@ export const generateEDPPDF = async (
     );
 
     yPosition -= 20;
-  }
 
+    currentPage.drawText(
+      `Monto Bruto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`,
+      {
+        x: margin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+      },
+    );
+
+    yPosition -= 20;
+  }
 
   // Monto Facturado Final
   currentPage.drawText(
@@ -1626,7 +1628,7 @@ export const generateEDPPDF = async (
       edpData.resumen.devoluciones_fuera_periodo > 0
     ) {
       yPosition -= 15;
-      currentPage.drawText("Devoluciones fuera de periodo", {
+      currentPage.drawText("Devoluciones por anulación de periodo anterior", {
         x: colCentroX,
         y: yPosition,
         size: 9,
@@ -1715,8 +1717,8 @@ export const generateEDPPDF = async (
   yPosition -= 40;
 
   // Firma de conformidad (solo en la última página)
-  if (yPosition > 100) {
-    // Verificar que haya espacio
+  if (yPosition > 140) {
+    // Verificar que haya espacio suficiente para firma ampliada
     currentPage.drawText("Firma de conformidad", {
       x: margin,
       y: yPosition,
@@ -1725,23 +1727,23 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     });
 
-    yPosition -= 40;
+    yPosition -= 65;
+
+    // Línea para firma
+    currentPage.drawLine({
+      start: { x: margin, y: yPosition },
+      end: { x: margin + 220, y: yPosition },
+      thickness: 1,
+      color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 15;
 
     currentPage.drawText("Firma Responsable", {
       x: margin,
       y: yPosition,
       size: 10,
       font: font,
-      color: rgb(0, 0, 0),
-    });
-
-    yPosition -= 20;
-
-    // Línea para firma
-    currentPage.drawLine({
-      start: { x: margin, y: yPosition },
-      end: { x: margin + 200, y: yPosition },
-      thickness: 1,
       color: rgb(0, 0, 0),
     });
   } else {
@@ -1757,23 +1759,23 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     });
 
-    yPosition -= 40;
+    yPosition -= 65;
+
+    // Línea para firma
+    currentPage.drawLine({
+      start: { x: margin, y: yPosition },
+      end: { x: margin + 220, y: yPosition },
+      thickness: 1,
+      color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 15;
 
     currentPage.drawText("Firma Responsable", {
       x: margin,
       y: yPosition,
       size: 10,
       font: font,
-      color: rgb(0, 0, 0),
-    });
-
-    yPosition -= 20;
-
-    // Línea para firma
-    currentPage.drawLine({
-      start: { x: margin, y: yPosition },
-      end: { x: margin + 200, y: yPosition },
-      thickness: 1,
       color: rgb(0, 0, 0),
     });
   }

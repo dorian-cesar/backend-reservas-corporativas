@@ -7,6 +7,8 @@ import { Ticket } from "../models/ticket.model";
 import { User } from "../models/user.model";
 import { CentroCosto } from "../models/centro_costo.model";
 import { Pasajero } from "../models/pasajero.model";
+import { Reclamo } from "../models/reclamo.model";
+import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
 import { Op } from "sequelize";
 
 /**
@@ -196,6 +198,7 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
         );
 
         // Buscar todos los tickets del periodo USANDO id_empresa DIRECTO y confirmedAt
+        // Se incluyen todas las relaciones necesarias para el snapshot completo
         const tickets = await Ticket.findAll({
           where: {
             id_empresa: empresaId,
@@ -207,6 +210,11 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
           },
           include: [
             {
+              model: User,
+              attributes: ["id", "nombre", "rut", "email"],
+              required: false,
+            },
+            {
               model: Pasajero,
               include: [
                 {
@@ -214,6 +222,15 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
                   attributes: ["id", "nombre"],
                 },
               ],
+              required: false,
+            },
+            {
+              model: Empresa,
+              attributes: ["id", "nombre", "rut", "cuenta_corriente"],
+              required: false,
+            },
+            {
+              model: Reclamo,
               required: false,
             },
           ],
@@ -395,7 +412,7 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
             const suma_devoluciones_final =
               devoluciones + reclamos_aplicados + devoluciones_fuera_periodo_aplicadas;
 
-            await EstadoCuenta.create({
+            const estadoCuenta = await EstadoCuenta.create({
               empresa_id: empresaId,
               periodo,
               fecha_generacion: fin,
@@ -413,6 +430,15 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
               fecha_inicio: formatFecha(inicio),
               fecha_fin: formatFecha(fin),
             });
+
+            // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots
+            if (tickets.length > 0) {
+              const snapshotRows = tickets.map((t) => ({
+                edp_id: estadoCuenta.id,
+                ticket_data: JSON.stringify(t.toJSON()),
+              }));
+              await EdpTicketSnapshot.bulkCreate(snapshotRows);
+            }
             console.log(
               `[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}. Monto facturado final: ${monto_facturado_final} (devoluciones fuera: ${devoluciones_fuera_periodo_aplicadas}, reclamos: ${reclamos_aplicados})`
             );

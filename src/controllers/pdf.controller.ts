@@ -8,6 +8,7 @@ import { CentroCosto } from "../models/centro_costo.model";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { request } from "http";
 import { Reclamo } from "../models/reclamo.model";
+import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
 import {
   generateTicketPDFTemplate1,
   generateTicketPDFTemplate2,
@@ -247,8 +248,29 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     let montoTotalBruto = 0;
     let devolucionesTotal = 0;
 
-    if (estadoData.fecha_inicio && estadoData.fecha_fin) {
-      const tickets = await Ticket.findAll({
+    let tickets: any[] = [];
+    let usingSnapshot = false;
+
+    const snapshots = await EdpTicketSnapshot.findAll({
+      where: { edp_id: id },
+      order: [["id", "ASC"]],
+    });
+
+    if (snapshots.length > 0) {
+      tickets = snapshots
+        .map((s) => {
+          try {
+            return JSON.parse(s.ticket_data);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      usingSnapshot = true;
+    }
+
+    if (!usingSnapshot && estadoData.fecha_inicio && estadoData.fecha_fin) {
+      const ticketsInstances = await Ticket.findAll({
         where: {
           id_empresa: estadoData.empresa_id,
           confirmedAt: {
@@ -277,11 +299,13 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
           },
         ],
       });
+      tickets = ticketsInstances.map(t => t.get({ plain: true }));
+    }
 
+    if (tickets.length > 0) {
       console.log("Tickets encontrados:", tickets.length);
 
-      tickets.forEach((ticket) => {
-        const ticketPlain = ticket.get({ plain: true });
+      tickets.forEach((ticketPlain) => {
         const pasajero = ticketPlain.pasajero;
         const esAnulado = ticketPlain.ticketStatus === "Anulado";
         const montoTicket = Number(ticketPlain.monto_boleto ?? 0);
