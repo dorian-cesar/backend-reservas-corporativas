@@ -150,6 +150,6 @@ export class Ticket extends Model<ITicket> {
   @Column({ type: DataType.DATE, allowNull: true })
   declare updated_at?: Date;
 
-  @HasMany(() => Reclamo)
+  @HasMany(() => Reclamo, { foreignKey: "ticket_id" })
   declare reclamos: Reclamo[];
 }

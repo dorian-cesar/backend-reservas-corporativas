@@ -5,6 +5,12 @@ import { Empresa } from "../models/empresa.model";
 import { User } from "../models/user.model";
 import { Pasajero } from "../models/pasajero.model";
 import { Op } from "sequelize";
+import {
+  sendReclamoIngresadoEmail,
+  sendReclamoAceptadoEmail,
+  sendReclamoRechazadoEmail,
+  determinarEdpInfo,
+} from "../services/mail.service";
 
 export const crearReclamo = async (req: Request, res: Response) => {
   try {
@@ -50,6 +56,38 @@ export const crearReclamo = async (req: Request, res: Response) => {
       estado: "Pendiente",
       fecha_creacion: new Date(),
     });
+
+    // ── Enviar email de notificación (no bloquea la respuesta) ──────────────
+    try {
+      const ticketConDatos = await Ticket.findByPk(ticket_id, {
+        include: [
+          { model: User, attributes: ["id", "nombre", "email"] },
+          { model: Empresa, attributes: ["ejecutivo_com_nombre", "ejecutivo_com_email"] },
+        ],
+      });
+
+      if (ticketConDatos) {
+        const userReclamador = ticketConDatos.user;
+        const empresa = ticketConDatos.empresa;
+
+        await sendReclamoIngresadoEmail({
+          reclamoId: nuevoReclamo.id,
+          ticketNumber: ticketConDatos.ticketNumber,
+          origin: ticketConDatos.origin,
+          destination: ticketConDatos.destination,
+          travelDate: ticketConDatos.travelDate,
+          motivo,
+          descripcion,
+          userName: userReclamador?.nombre || "Usuario",
+          userEmail: userReclamador?.email || "",
+          ejecutivoNombre: empresa?.ejecutivo_com_nombre || undefined,
+          ejecutivoEmail: empresa?.ejecutivo_com_email || undefined,
+        });
+      }
+    } catch (mailErr) {
+      console.error("[Reclamo] Error enviando email de ingreso:", mailErr);
+    }
+    // ───────────────────────────────────────────────────────────────────────
 
     return res
       .status(201)
@@ -134,6 +172,33 @@ export const resolverReclamo = async (req: Request, res: Response) => {
         fecha_resolucion: new Date(),
       });
 
+      // ── Email rechazo ──────────────────────────────────────────────────────
+      try {
+        const ticketDatos = reclamo.ticket;
+        const userReclamador = ticketDatos?.user;
+        const empresa = ticketDatos?.empresa;
+
+        if (userReclamador?.email) {
+          await sendReclamoRechazadoEmail({
+            reclamoId: reclamo.id,
+            ticketNumber: ticketDatos?.ticketNumber || "",
+            origin: ticketDatos?.origin || "",
+            destination: ticketDatos?.destination || "",
+            travelDate: ticketDatos?.travelDate || "",
+            motivo: reclamo.motivo,
+            descripcion: reclamo.descripcion,
+            userName: userReclamador.nombre || "Usuario",
+            userEmail: userReclamador.email,
+            motivoRechazo: motivo_rechazo,
+            ejecutivoNombre: empresa?.ejecutivo_com_nombre || undefined,
+            ejecutivoEmail: empresa?.ejecutivo_com_email || undefined,
+          });
+        }
+      } catch (mailErr) {
+        console.error("[Reclamo] Error enviando email de rechazo:", mailErr);
+      }
+      // ───────────────────────────────────────────────────────────────────────
+
       return res
         .status(200)
         .json({ message: "Reclamo rechazado exitosamente", reclamo });
@@ -172,6 +237,33 @@ export const resolverReclamo = async (req: Request, res: Response) => {
         estado: "Aceptado",
         fecha_resolucion: new Date(),
       });
+
+      // ── Email aceptación ───────────────────────────────────────────────────
+      try {
+        const ticketDatos = reclamo.ticket;
+        const userReclamador = ticketDatos?.user;
+
+        if (userReclamador?.email) {
+          await sendReclamoAceptadoEmail({
+            reclamoId: reclamo.id,
+            ticketNumber: ticketDatos?.ticketNumber || "",
+            origin: ticketDatos?.origin || "",
+            destination: ticketDatos?.destination || "",
+            travelDate: ticketDatos?.travelDate || "",
+            motivo: reclamo.motivo,
+            descripcion: reclamo.descripcion,
+            userName: userReclamador.nombre || "Usuario",
+            userEmail: userReclamador.email,
+            montoReembolso: montoReembolso || undefined,
+            edpInfo: determinarEdpInfo(empresa?.dia_facturacion ?? null),
+            ejecutivoNombre: empresa?.ejecutivo_com_nombre || undefined,
+            ejecutivoEmail: empresa?.ejecutivo_com_email || undefined,
+          });
+        }
+      } catch (mailErr) {
+        console.error("[Reclamo] Error enviando email de aceptación:", mailErr);
+      }
+      // ───────────────────────────────────────────────────────────────────────
 
       return res
         .status(200)
