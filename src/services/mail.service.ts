@@ -751,11 +751,11 @@ export function determinarEdpInfo(diaFacturacion?: number | null): string {
 export const sendReclamoIngresadoEmail = async (data: ReclamoEmailData): Promise<void> => {
   try {
     const recipients: string[] = [data.userEmail].filter(Boolean);
-    const cc: string[] = [];
+    const cc: string[] = ['clientes@pullmanbus.cl'];
 
     if (data.ejecutivoEmail && data.ejecutivoEmail.trim()) {
       const ejEmail = data.ejecutivoEmail.trim().toLowerCase();
-      if (ejEmail !== data.userEmail.toLowerCase()) {
+      if (ejEmail !== data.userEmail.toLowerCase() && ejEmail !== 'clientes@pullmanbus.cl') {
         cc.push(ejEmail);
       }
     }
@@ -782,11 +782,11 @@ export const sendReclamoIngresadoEmail = async (data: ReclamoEmailData): Promise
 export const sendReclamoAceptadoEmail = async (data: ReclamoEmailData): Promise<void> => {
   try {
     const recipients: string[] = [data.userEmail].filter(Boolean);
-    const cc: string[] = [];
+    const cc: string[] = ['clientes@pullmanbus.cl'];
 
     if (data.ejecutivoEmail && data.ejecutivoEmail.trim()) {
       const ejEmail = data.ejecutivoEmail.trim().toLowerCase();
-      if (ejEmail !== data.userEmail.toLowerCase()) {
+      if (ejEmail !== data.userEmail.toLowerCase() && ejEmail !== 'clientes@pullmanbus.cl') {
         cc.push(ejEmail);
       }
     }
@@ -813,11 +813,11 @@ export const sendReclamoAceptadoEmail = async (data: ReclamoEmailData): Promise<
 export const sendReclamoRechazadoEmail = async (data: ReclamoEmailData): Promise<void> => {
   try {
     const recipients: string[] = [data.userEmail].filter(Boolean);
-    const cc: string[] = [];
+    const cc: string[] = ['clientes@pullmanbus.cl'];
 
     if (data.ejecutivoEmail && data.ejecutivoEmail.trim()) {
       const ejEmail = data.ejecutivoEmail.trim().toLowerCase();
-      if (ejEmail !== data.userEmail.toLowerCase()) {
+      if (ejEmail !== data.userEmail.toLowerCase() && ejEmail !== 'clientes@pullmanbus.cl') {
         cc.push(ejEmail);
       }
     }
