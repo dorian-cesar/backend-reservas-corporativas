@@ -1,6 +1,8 @@
 import sgMail from "@sendgrid/mail";
 import * as dotenv from "dotenv";
 import * as moment from "moment-timezone";
+import * as fs from "fs";
+import * as path from "path";
 import { TicketPDFData } from "./pdf.service";
 import { User } from "../models/user.model";
 import { error } from "console";
@@ -761,6 +763,19 @@ export const sendReclamoIngresadoEmail = async (data: ReclamoEmailData): Promise
     }
 
     const html = generateReclamoIngresadoHTML(data);
+    const logoPath = path.resolve(__dirname, "../assets/logo-pullman-nuevo.png");
+    const attachments: any[] = [];
+    if (fs.existsSync(logoPath)) {
+      attachments.push({
+        content: fs.readFileSync(logoPath).toString("base64"),
+        filename: "logo-pullman-nuevo.png",
+        type: "image/png",
+        disposition: "inline",
+        contentId: "logo_pullman",
+        content_id: "logo_pullman",
+      });
+    }
+
     const msg: any = {
       to: recipients,
       from: 'viajes@pullmanbus.cl',
@@ -768,6 +783,7 @@ export const sendReclamoIngresadoEmail = async (data: ReclamoEmailData): Promise
       html,
     };
     if (cc.length > 0) msg.cc = cc;
+    if (attachments.length > 0) msg.attachments = attachments;
 
     await sgMail.send(msg);
     console.log(`✅ [Mail] Reclamo ingresado enviado a: ${recipients.join(', ')} cc: ${cc.join(', ')}`);
@@ -792,6 +808,19 @@ export const sendReclamoAceptadoEmail = async (data: ReclamoEmailData): Promise<
     }
 
     const html = generateReclamoAceptadoHTML(data);
+    const logoPath = path.resolve(__dirname, "../assets/logo-pullman-nuevo.png");
+    const attachments: any[] = [];
+    if (fs.existsSync(logoPath)) {
+      attachments.push({
+        content: fs.readFileSync(logoPath).toString("base64"),
+        filename: "logo-pullman-nuevo.png",
+        type: "image/png",
+        disposition: "inline",
+        contentId: "logo_pullman",
+        content_id: "logo_pullman",
+      });
+    }
+
     const msg: any = {
       to: recipients,
       from: 'viajes@pullmanbus.cl',
@@ -799,6 +828,7 @@ export const sendReclamoAceptadoEmail = async (data: ReclamoEmailData): Promise<
       html,
     };
     if (cc.length > 0) msg.cc = cc;
+    if (attachments.length > 0) msg.attachments = attachments;
 
     await sgMail.send(msg);
     console.log(`✅ [Mail] Reclamo aceptado enviado a: ${recipients.join(', ')}`);
@@ -823,6 +853,19 @@ export const sendReclamoRechazadoEmail = async (data: ReclamoEmailData): Promise
     }
 
     const html = generateReclamoRechazadoHTML(data);
+    const logoPath = path.resolve(__dirname, "../assets/logo-pullman-nuevo.png");
+    const attachments: any[] = [];
+    if (fs.existsSync(logoPath)) {
+      attachments.push({
+        content: fs.readFileSync(logoPath).toString("base64"),
+        filename: "logo-pullman-nuevo.png",
+        type: "image/png",
+        disposition: "inline",
+        contentId: "logo_pullman",
+        content_id: "logo_pullman",
+      });
+    }
+
     const msg: any = {
       to: recipients,
       from: 'viajes@pullmanbus.cl',
@@ -830,6 +873,7 @@ export const sendReclamoRechazadoEmail = async (data: ReclamoEmailData): Promise
       html,
     };
     if (cc.length > 0) msg.cc = cc;
+    if (attachments.length > 0) msg.attachments = attachments;
 
     await sgMail.send(msg);
     console.log(`✅ [Mail] Reclamo rechazado enviado a: ${recipients.join(', ')}`);
@@ -867,7 +911,7 @@ function reclamoEmailShell(badgeColor: string, badgeText: string, title: string,
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
                   <td align="center" style="padding:24px 0;">
-                    <div style="font-size:32px; font-weight:700; color:#ff6600;">pullmanbus</div>
+                    <img src="cid:logo_pullman" alt="Pullman Bus" style="max-width:220px; height:auto; display:block; border:0;" />
                   </td>
                 </tr>
               </table>
