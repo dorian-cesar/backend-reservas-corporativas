@@ -983,17 +983,17 @@ function generateReclamoAceptadoHTML(data: ReclamoEmailData): string {
   const edpBlock = montoFormateado
     ? `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:18px;">
         <tr>
-          <td align="center" style="padding:18px; background:#f0fdf4; border-radius:8px; border:1px solid #86efac;">
-            <div style="font-size:13px; color:#166534; font-weight:700; margin-bottom:6px;">Monto de reembolso aprobado</div>
-            <div style="font-size:24px; font-weight:700; color:#15803d; margin-bottom:8px;">${montoFormateado}</div>
-            <div style="font-size:12px; color:#166534;">Este monto será acreditado en el <strong>EDP ${data.edpInfo || 'en curso'}</strong>.</div>
+          <td align="center" style="padding:18px; background:#f2f7f4; border-radius:8px; border:1px solid #a8c5b5;">
+            <div style="font-size:13px; color:#1a4d35; font-weight:700; margin-bottom:6px;">Monto de reembolso aprobado</div>
+            <div style="font-size:24px; font-weight:700; color:#1a5c3a; margin-bottom:8px;">${montoFormateado}</div>
+            <div style="font-size:12px; color:#1a4d35;">Este monto será acreditado en el <strong>EDP ${data.edpInfo || 'en curso'}</strong>.</div>
           </td>
         </tr>
       </table>`
     : `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:18px;">
         <tr>
-          <td align="center" style="padding:14px; background:#f0fdf4; border-radius:8px; border:1px solid #86efac;">
-            <div style="font-size:13px; color:#166534; font-weight:600;">Tu reclamo ha sido aceptado y procesado exitosamente.</div>
+          <td align="center" style="padding:14px; background:#f2f7f4; border-radius:8px; border:1px solid #a8c5b5;">
+            <div style="font-size:13px; color:#1a4d35; font-weight:600;">Tu reclamo ha sido aceptado y procesado exitosamente.</div>
           </td>
         </tr>
       </table>`;
@@ -1004,7 +1004,7 @@ function generateReclamoAceptadoHTML(data: ReclamoEmailData): string {
     ${edpBlock}`;
 
   return reclamoEmailShell(
-    '#16a34a',
+    '#1a5c3a',
     `RECLAMO N° ${data.reclamoId} ACEPTADO`,
     `Tu reclamo fue aceptado, ${data.userName}`,
     'Tu solicitud ha sido resuelta favorablemente.',
@@ -1018,22 +1018,22 @@ function generateReclamoRechazadoHTML(data: ReclamoEmailData): string {
     ${row2col('Ruta', `${data.origin} → ${data.destination}`, 'Fecha de viaje', formatDateForEmail(data.travelDate))}
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:18px;">
       <tr>
-        <td style="padding:16px; background:#fef2f2; border-radius:8px; border:1px solid #fca5a5;">
-          <div style="font-size:12px; color:#991b1b; font-weight:700; text-transform:uppercase; margin-bottom:6px;">Motivo del rechazo</div>
-          <div style="font-size:14px; color:#7f1d1d; line-height:1.5;">${data.motivoRechazo || 'No especificado'}</div>
+        <td style="padding:16px; background:#f8f4f5; border-radius:8px; border:1px solid #d4b0b8;">
+          <div style="font-size:12px; color:#5c2030; font-weight:700; text-transform:uppercase; margin-bottom:6px;">Motivo del rechazo</div>
+          <div style="font-size:14px; color:#5c2030; line-height:1.5;">${data.motivoRechazo || 'No especificado'}</div>
         </td>
       </tr>
     </table>
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:14px;">
       <tr>
-        <td align="center" style="padding:12px; background:#fef2f2; border-radius:8px;">
-          <div style="font-size:12px; color:#991b1b;">Si tienes consultas, comunícate con tu ejecutivo comercial o con nuestro equipo de soporte.</div>
+        <td align="center" style="padding:12px; background:#f8f4f5; border-radius:8px;">
+          <div style="font-size:12px; color:#5c2030;">Si tienes consultas, comunícate con tu ejecutivo comercial o con nuestro equipo de soporte.</div>
         </td>
       </tr>
     </table>`;
 
   return reclamoEmailShell(
-    '#dc2626',
+    '#7c2d3e',
     `RECLAMO N° ${data.reclamoId} RECHAZADO`,
     `Tu reclamo fue rechazado, ${data.userName}`,
     'Lamentamos no poder resolver tu solicitud favorablemente.',
