@@ -1133,14 +1133,6 @@ export const generateEDPPDF = async (
         font: fontBold,
         color: rgb(0, 0, 0),
       });
-    } else {
-      page.drawText(`EDP N° ${edpData.edp.numero_edp} - Continuación...`, {
-        x: margin,
-        y: localY,
-        size: 12,
-        font: fontBold,
-        color: rgb(0.5, 0.5, 0.5),
-      });
     }
 
     return localY - 40;
@@ -1271,16 +1263,7 @@ export const generateEDPPDF = async (
     edpData.resumen.devoluciones_fuera_periodo &&
     edpData.resumen.devoluciones_fuera_periodo > 0
   );
-  const tieneSaldoFavor = !!(
-    edpData.resumen.saldo_favor_restante &&
-    edpData.resumen.saldo_favor_restante > 0
-  );
-
-  let rectHeight = 125;
-  if (tieneDescuento) rectHeight += 40;
-  if (tieneReclamos) rectHeight += 40;
-  if (tieneDevolucionesFuera) rectHeight += 20;
-  if (tieneSaldoFavor) rectHeight += 20;
+  const rectHeight = 230; // Altura del recuadro para cubrir las 10 líneas de texto con buen margen inferior
 
   const rectY = yPosition - (rectHeight - 20);
 
@@ -1314,9 +1297,9 @@ export const generateEDPPDF = async (
 
   yPosition -= 30;
 
-  // Total Tickets Generados
+  // A. Total Tickets Generados
   currentPage.drawText(
-    `Total Tickets Generados: ${edpData.resumen.tickets_generados}`,
+    `A. Total Tickets Generados: ${edpData.resumen.tickets_generados || 0}`,
     {
       x: margin,
       y: yPosition,
@@ -1325,12 +1308,11 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     },
   );
+  yPosition -= 18;
 
-  yPosition -= 20;
-
-  // Total Tickets Anulados
+  // B. Total Tickets Anulados
   currentPage.drawText(
-    `Total Tickets Anulados: ${edpData.resumen.tickets_anulados}`,
+    `B. Total Tickets Anulados: ${edpData.resumen.tickets_anulados || 0}`,
     {
       x: margin,
       y: yPosition,
@@ -1339,12 +1321,27 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     },
   );
+  yPosition -= 18;
 
-  yPosition -= 20;
+  // C. Tickets Confirmados
+  const confirmadosCount = Math.max(
+    0,
+    (edpData.resumen.tickets_generados || 0) -
+      (edpData.resumen.tickets_anulados || 0),
+  );
+  currentPage.drawText(`C. Tickets Confirmados (A - B): ${confirmadosCount}`, {
+    x: margin,
+    y: yPosition,
+    size: 10,
+    font: font,
+    color: rgb(0, 0, 0),
+  });
+  yPosition -= 22;
 
-  // Devoluciones por anulación dentro del periodo
+  // D. Devoluciones por anulación dentro del periodo
+  const devPeriodo = edpData.resumen.suma_devoluciones || 0;
   currentPage.drawText(
-    `Devoluciones por anulación dentro del periodo: $${formatNumber(edpData.resumen.suma_devoluciones)}`,
+    `D. Devoluciones por anulación dentro del periodo: ${devPeriodo > 0 ? "-$" : "$"}${formatNumber(devPeriodo)}`,
     {
       x: margin,
       y: yPosition,
@@ -1353,110 +1350,92 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     },
   );
+  yPosition -= 18;
 
-  yPosition -= 20;
-
-  // Devoluciones por anulación de periodo anterior
-  if (tieneDevolucionesFuera) {
-    currentPage.drawText(
-      `Devoluciones por anulación de periodo anterior: -$${formatNumber(edpData.resumen.devoluciones_fuera_periodo ?? 0)}`,
-      {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      },
-    );
-
-    yPosition -= 20;
-  }
-
-  // Saldo a Favor Restante
-  if (tieneSaldoFavor) {
-    currentPage.drawText(
-      `Saldo a Favor Restante (Acumulado para próx. periodo): $${formatNumber(edpData.resumen.saldo_favor_restante ?? 0)}`,
-      {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      },
-    );
-
-    yPosition -= 20;
-  }
-
-  // Tickets con Reclamo Aceptado
-  if (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) {
-    if (
-      edpData.resumen.tickets_reclamados &&
-      edpData.resumen.tickets_reclamados > 0
-    ) {
-      currentPage.drawText(
-        `Tickets con Reclamos Aprobados: ${edpData.resumen.tickets_reclamados}`,
-        {
-          x: margin,
-          y: yPosition,
-          size: 10,
-          font: font,
-          color: rgb(0, 0, 0),
-        },
-      );
-      yPosition -= 20;
-    }
-
-    currentPage.drawText(
-      `Descuento por Reclamos: -$${formatNumber(edpData.resumen.monto_reclamos)}`,
-      {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      },
-    );
-    yPosition -= 20;
-  }
-
-  // Descuento por tramos / Descuento Aplicado
-  if (tieneDescuento) {
-    const etiqueta = edpData.resumen.etiqueta_descuento || "Descuento por Tramos";
-    currentPage.drawText(
-      `Monto ${etiqueta} (${edpData.resumen.porcentaje_descuento}%): -$${formatNumber(edpData.resumen.monto_descuento || 0)}`,
-      {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      },
-    );
-
-    yPosition -= 20;
-
-    currentPage.drawText(
-      `Monto Bruto Facturado: $${formatNumber(edpData.resumen.monto_bruto_facturado)}`,
-      {
-        x: margin,
-        y: yPosition,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      },
-    );
-
-    yPosition -= 20;
-  }
-
-  // Monto Facturado Final
+  // E. Devoluciones por anulación de periodo anterior
+  const devFuera = edpData.resumen.devoluciones_fuera_periodo || 0;
   currentPage.drawText(
-    `Monto Facturado: $${formatNumber(edpData.resumen.monto_final || 0)}`,
+    `E. Devoluciones por anulación de periodo anterior: ${devFuera > 0 ? "-$" : "$"}${formatNumber(devFuera)}`,
     {
       x: margin,
       y: yPosition,
       size: 10,
+      font: font,
+      color: rgb(0, 0, 0),
+    },
+  );
+  yPosition -= 18;
+
+  // F. Descuentos por Reclamos
+  const mReclamos = edpData.resumen.monto_reclamos || 0;
+  currentPage.drawText(
+    `F. Descuentos por Reclamos: ${mReclamos > 0 ? "-$" : "$"}${formatNumber(mReclamos)}`,
+    {
+      x: margin,
+      y: yPosition,
+      size: 10,
+      font: font,
+      color: rgb(0, 0, 0),
+    },
+  );
+  yPosition -= 22;
+
+  // G. Monto Ticket Generados
+  const montoGenerados = edpData.resumen.monto_bruto_facturado
+    ? edpData.resumen.monto_bruto_facturado +
+      (edpData.resumen.monto_descuento || 0)
+    : edpData.resumen.monto_final || 0;
+  currentPage.drawText(
+    `G. Monto Ticket Generados: $${formatNumber(montoGenerados)}`,
+    {
+      x: margin,
+      y: yPosition,
+      size: 10,
+      font: font,
+      color: rgb(0, 0, 0),
+    },
+  );
+  yPosition -= 18;
+
+  // H. Monto Descuento por tramos
+  const porcentaje = edpData.resumen.porcentaje_descuento || 0;
+  const mDescuento = edpData.resumen.monto_descuento || 0;
+  currentPage.drawText(
+    `H. Monto Descuento por tramos (G * ${porcentaje}%): ${mDescuento > 0 ? "-$" : "$"}${formatNumber(mDescuento)}`,
+    {
+      x: margin,
+      y: yPosition,
+      size: 10,
+      font: font,
+      color: rgb(0, 0, 0),
+    },
+  );
+  yPosition -= 18;
+
+  // I. Monto Total EDP
+  const montoBrutoEDP = Math.max(
+    0,
+    montoGenerados - (edpData.resumen.monto_descuento || 0),
+  );
+  currentPage.drawText(
+    `I. Monto Total EDP (G - H): $${formatNumber(montoBrutoEDP)}`,
+    {
+      x: margin,
+      y: yPosition,
+      size: 10,
+      font: font,
+      color: rgb(0, 0, 0),
+    },
+  );
+  yPosition -= 22;
+
+  // J. Monto EDP Final
+  currentPage.drawText(
+    `J. Monto EDP Final (I - D - E - F): $${formatNumber(edpData.resumen.monto_final || 0)}`,
+    {
+      x: margin,
+      y: yPosition,
+      size: 11,
       font: fontBold,
       color: rgb(0, 0, 0),
     },
@@ -1481,7 +1460,7 @@ export const generateEDPPDF = async (
     color: rgb(0, 0, 0),
   });
 
-  yPosition -= 30;
+  yPosition -= 40;
 
   const tableWidth = width - margin * 2;
 
@@ -1506,7 +1485,7 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     });
 
-    page.drawText("Monto Facturado", {
+    page.drawText("Monto Total", {
       x: colMontoX,
       y: posY,
       size: 10,
@@ -1621,10 +1600,35 @@ export const generateEDPPDF = async (
       edpData.resumen.porcentaje_descuento > 0) ||
     (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) ||
     (edpData.resumen.devoluciones_fuera_periodo &&
-      edpData.resumen.devoluciones_fuera_periodo > 0)
+      edpData.resumen.devoluciones_fuera_periodo > 0) ||
+    (edpData.resumen.suma_devoluciones && edpData.resumen.suma_devoluciones > 0)
   );
 
   if (tieneCualquierDescuento) {
+    if (
+      edpData.resumen.suma_devoluciones &&
+      edpData.resumen.suma_devoluciones > 0
+    ) {
+      yPosition -= 15;
+      currentPage.drawText("Devoluciones por anulación dentro del periodo", {
+        x: colCentroX,
+        y: yPosition,
+        size: 9,
+        font: font,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      currentPage.drawText(
+        `-$${formatNumber(edpData.resumen.suma_devoluciones)}`,
+        {
+          x: colMontoX,
+          y: yPosition,
+          size: 9,
+          font: font,
+          color: rgb(0.4, 0.4, 0.4),
+        },
+      );
+    }
+
     if (
       edpData.resumen.devoluciones_fuera_periodo &&
       edpData.resumen.devoluciones_fuera_periodo > 0
@@ -1674,7 +1678,8 @@ export const generateEDPPDF = async (
       edpData.resumen.porcentaje_descuento &&
       edpData.resumen.porcentaje_descuento > 0
     ) {
-      const etiqueta = edpData.resumen.etiqueta_descuento || "Descuento por Tramos";
+      const etiqueta =
+        edpData.resumen.etiqueta_descuento || "Descuento por Tramos";
       yPosition -= 15;
       currentPage.drawText(
         `${etiqueta} (${edpData.resumen.porcentaje_descuento}%)`,
@@ -1698,9 +1703,15 @@ export const generateEDPPDF = async (
       );
     }
 
-    yPosition -= 20;
+    yPosition -= 18;
+    currentPage.drawLine({
+      start: { x: colCentroX, y: yPosition + 12 },
+      end: { x: width - margin, y: yPosition + 12 },
+      thickness: 0.5,
+      color: rgb(0.7, 0.7, 0.7),
+    });
 
-    currentPage.drawText("Monto Facturado Final", {
+    currentPage.drawText("MONTO EDP FINAL", {
       x: colCentroX,
       y: yPosition,
       size: 10,
