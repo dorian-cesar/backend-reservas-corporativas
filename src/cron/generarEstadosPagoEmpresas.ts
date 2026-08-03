@@ -75,12 +75,12 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
       );
     }
 
-    // Si no hay tickets, igual debe generar estados de cuenta vacíos desde la fecha de creación de la empresa
+    // Si no hay tickets para la empresa, evaluar únicamente el ciclo previo más reciente sin recorrer años de historia
     let fechaInicio: Date;
     if (primerTicket && primerTicket.created_at) {
       fechaInicio = new Date(primerTicket.created_at);
     } else {
-      fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0);
+      fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1, 0, 0, 0);
     }
 
     // Ajustar fechaInicio al primer día de facturación posterior o igual
@@ -375,10 +375,22 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
               `[${new Date().toISOString()}] Período ${periodo} aún abierto para empresa ${empresaId} — EDP omitido hasta el día de facturación`,
             );
           } else {
-            // Período cerrado sin EDP: crear definitivo aplicando tramos y reclamos
+            // Período cerrado sin EDP: verificar si tiene tickets o devoluciones pendientes
             const devolucionFueraPendiente = Number(empresa.devolucion_pendiente_edp) || 0;
             const totalDevolucionesFueraDisponibles = devoluciones_fuera_periodo + devolucionFueraPendiente;
             const reclamosDisponibles = Number(empresa.descuento_pendiente_edp) || 0;
+
+            const tieneMovimiento =
+              tickets.length > 0 ||
+              totalDevolucionesFueraDisponibles > 0 ||
+              reclamosDisponibles > 0;
+
+            if (!tieneMovimiento) {
+              console.log(
+                `[${new Date().toISOString()}] Período ${periodo} cerrado para empresa ${empresaId} con 0 tickets y 0 devoluciones — EDP omitido`
+              );
+              continue;
+            }
 
             let balance = monto_facturado;
 
