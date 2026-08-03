@@ -10,32 +10,25 @@ import { Pasajero } from "../models/pasajero.model";
 import { Reclamo } from "../models/reclamo.model";
 import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
 import { Op } from "sequelize";
+import moment from "moment-timezone";
+
+const TIMEZONE = "America/Santiago";
 
 /**
- * Genera o actualiza automáticamente los estados de pago para las empresas para todos los periodos históricos,
- * desde el primer ticket registrado hasta el mes actual, usando los días de facturación y vencimiento definidos en la base de datos.
- * El estado de cuenta del periodo actual se genera hasta la fecha de hoy.
- * Si detecta más de un periodo a cerrar según el día de facturación, crea o actualiza todos los estados de cuenta necesarios.
- * Genera estados de cuenta vacíos si no hay tickets en el periodo.
- *
- * Se añaden logs detallados para depuración.
- *
- * Ahora incluye fecha_facturacion y fecha_vencimiento calculadas en base a los días configurados en la empresa.
- * USANDO id_empresa DIRECTO de tickets
+ * Formatea una fecha al huso horario de Chile (America/Santiago) en string 'YYYY-MM-DD HH:mm:ss'
  */
-const formatFecha = (d: Date): string => {
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const formatFecha = (d: Date | string | moment.Moment): string => {
+  return moment(d).tz(TIMEZONE).format("YYYY-MM-DD HH:mm:ss");
 };
 
 export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
   await connectDB();
-  const hoy = fechaActual || new Date();
-  const periodoActual = `${hoy.getFullYear()}-${(hoy.getMonth() + 1).toString().padStart(2, "0")}`;
-
+  const hoyChile = fechaActual ? moment(fechaActual).tz(TIMEZONE) : moment().tz(TIMEZONE);
+  const hoy = hoyChile.toDate();
+  const periodoActual = hoyChile.format("YYYY-MM");
 
   console.log(
-    `[${new Date().toISOString()}] === INICIO generarEstadosPagoEmpresas ===`,
+    `[${new Date().toISOString()}] === INICIO generarEstadosPagoEmpresas (Hora Chile: ${hoyChile.format("YYYY-MM-DD HH:mm:ss")}) ===`,
   );
 
   // Buscar solo empresas con facturación automática (excluir fact_manual = true)
@@ -54,15 +47,10 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
       `[${new Date().toISOString()}] Procesando empresa ID: ${empresaId} (${empresaNombre}), Día facturación: ${diaFacturacion}, Día vencimiento: ${diaVencimiento}`,
     );
 
-    // Buscar el primer y último ticket de la empresa USANDO id_empresa DIRECTO
+    // Buscar el primer ticket de la empresa
     const primerTicket = await Ticket.findOne({
       where: { id_empresa: empresaId },
       order: [["created_at", "ASC"]],
-    });
-
-    const ultimoTicket = await Ticket.findOne({
-      where: { id_empresa: empresaId },
-      order: [["created_at", "DESC"]],
     });
 
     if (primerTicket) {
@@ -75,60 +63,51 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
       );
     }
 
-    // Si no hay tickets para la empresa, evaluar únicamente el ciclo previo más reciente sin recorrer años de historia
-    let fechaInicio: Date;
+    // Calcular fechaInicio fijada en horario de Chile
+    let fechaInicioChile: moment.Moment;
     if (primerTicket && primerTicket.created_at) {
-      fechaInicio = new Date(primerTicket.created_at);
+      fechaInicioChile = moment(primerTicket.created_at).tz(TIMEZONE);
     } else {
-      fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1, 0, 0, 0);
+      fechaInicioChile = moment(hoyChile).subtract(1, "month").date(1).startOf("day");
     }
 
-    // Ajustar fechaInicio al primer día de facturación posterior o igual
-    if (fechaInicio.getDate() > diaFacturacion) {
-      fechaInicio.setMonth(fechaInicio.getMonth() + 1);
+    // Ajustar fechaInicioChile al día de facturación en hora local de Chile
+    if (fechaInicioChile.date() > diaFacturacion) {
+      fechaInicioChile.add(1, "month");
     }
-    fechaInicio.setDate(diaFacturacion);
-    fechaInicio.setHours(0, 0, 0, 0);
+    const maxDays = fechaInicioChile.daysInMonth();
+    fechaInicioChile.date(Math.min(diaFacturacion, maxDays)).startOf("day");
 
-    const fechaFin = new Date(
-      hoy.getFullYear(),
-      hoy.getMonth(),
-      hoy.getDate(),
-      23,
-      59,
-      59,
-    );
+    const fechaFinChile = moment(hoyChile).endOf("day");
 
-    // Generar periodos mensuales desde fechaInicio hasta fechaFin
+    // Generar periodos mensuales desde fechaInicioChile hasta fechaFinChile
     const periodos: {
       periodo: string;
       inicio: Date;
       fin: Date;
       esPeriodoActual: boolean;
     }[] = [];
-    let fechaIter = new Date(fechaInicio);
-
+    
+    let fechaIterChile = moment(fechaInicioChile);
     let periodosGenerados = 0;
-    while (fechaIter <= fechaFin) {
-      const inicioPeriodo = new Date(fechaIter);
-      const siguientePeriodo = new Date(inicioPeriodo);
-      siguientePeriodo.setMonth(siguientePeriodo.getMonth() + 1);
-      // El período cierra el día anterior al día de facturación, al final del día
-      const finPeriodo = new Date(siguientePeriodo);
-      finPeriodo.setDate(finPeriodo.getDate() - 1);
-      finPeriodo.setHours(23, 59, 59, 999);
 
-      const periodo = `${inicioPeriodo.getFullYear()}-${(inicioPeriodo.getMonth() + 1).toString().padStart(2, "0")}`;
-      const esPeriodoActual = hoy >= inicioPeriodo && hoy < finPeriodo;
+    while (fechaIterChile.isSameOrBefore(fechaFinChile, "day")) {
+      const inicioPeriodoChile = moment(fechaIterChile).startOf("day");
+      const siguientePeriodoChile = moment(inicioPeriodoChile).add(1, "month");
+      const finPeriodoChile = moment(siguientePeriodoChile).subtract(1, "day").endOf("day");
+
+      const periodoStr = inicioPeriodoChile.format("YYYY-MM");
+      const esPeriodoCerrado = hoyChile.isAfter(finPeriodoChile);
+      const esPeriodoActual = !esPeriodoCerrado;
 
       periodos.push({
-        periodo,
-        inicio: inicioPeriodo,
-        fin: esPeriodoActual ? fechaFin : finPeriodo,
+        periodo: periodoStr,
+        inicio: inicioPeriodoChile.toDate(),
+        fin: esPeriodoActual ? hoy : finPeriodoChile.toDate(),
         esPeriodoActual,
       });
 
-      fechaIter = new Date(siguientePeriodo);
+      fechaIterChile = moment(siguientePeriodoChile);
       periodosGenerados++;
     }
 
@@ -153,7 +132,7 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
       periodos.push({
         periodo,
         inicio: inicioPeriodo,
-        fin: esPeriodoActual ? fechaFin : finPeriodo,
+        fin: esPeriodoActual ? hoy : finPeriodo,
         esPeriodoActual,
       });
     }
@@ -168,34 +147,21 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
         `[${new Date().toISOString()}] === Procesando periodo ${periodo} (inicio: ${inicio.toISOString()}, fin: ${fin.toISOString()}) ===`,
       );
       try {
-        // Calcular fecha_facturacion y fecha_vencimiento para el periodo
-        let fecha_facturacion: Date | null = null;
-        let fecha_vencimiento: Date | null = null;
+        // Calcular fecha_facturacion y fecha_vencimiento para el periodo en horario de Chile
+        const inicioMoment = moment(inicio).tz(TIMEZONE);
+        const siguienteMesMoment = moment(inicioMoment).add(1, "month");
 
-        const anioSiguiente =
-          inicio.getMonth() === 11
-            ? inicio.getFullYear() + 1
-            : inicio.getFullYear();
-        const mesSiguiente = (inicio.getMonth() + 1) % 12;
+        const fecha_facturacion = siguienteMesMoment
+          .clone()
+          .date(Math.min(diaFacturacion, siguienteMesMoment.daysInMonth()))
+          .startOf("day")
+          .toDate();
 
-        fecha_facturacion = new Date(
-          anioSiguiente,
-          mesSiguiente,
-          diaFacturacion,
-          0,
-          0,
-          0,
-          0,
-        );
-        fecha_vencimiento = new Date(
-          anioSiguiente,
-          mesSiguiente,
-          diaVencimiento,
-          0,
-          0,
-          0,
-          0,
-        );
+        const fecha_vencimiento = siguienteMesMoment
+          .clone()
+          .date(Math.min(diaVencimiento, siguienteMesMoment.daysInMonth()))
+          .startOf("day")
+          .toDate();
 
         // Buscar todos los tickets del periodo USANDO id_empresa DIRECTO y confirmedAt
         // Se incluyen todas las relaciones necesarias para el snapshot completo
