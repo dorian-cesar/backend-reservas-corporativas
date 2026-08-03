@@ -211,8 +211,9 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
     let descuentoTramos = 0;
     let monto_facturado = 0;
 
-    if (monto_bruto >= 0) {
-      // Calcular descuento por tramos sobre el monto bruto si aplica
+    if (monto_neto_consumo_real >= 0) {
+      monto_neto_consumo = monto_neto_consumo_real;
+      // Calcular descuento por tramos sobre el monto neto del periodo (tickets del periodo - devoluciones del periodo)
       const tramos = await EmpresaTramo.findAll({
         where: { id_empresa: empresa_id },
         order: [["monto_desde", "ASC"]],
@@ -224,14 +225,14 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
             ? Number(tramo.monto_hasta)
             : null;
         if (
-          monto_bruto >= desde &&
-          (hasta === null || monto_bruto <= hasta)
+          monto_neto_consumo >= desde &&
+          (hasta === null || monto_neto_consumo <= hasta)
         ) {
           porcentajeDescuento = Number(tramo.porcentaje_descuento);
         }
       }
-      descuentoTramos = monto_bruto * (porcentajeDescuento / 100);
-      monto_facturado = monto_bruto - devoluciones - descuentoTramos;
+      descuentoTramos = monto_neto_consumo * (porcentajeDescuento / 100);
+      monto_facturado = monto_neto_consumo - descuentoTramos;
       if (monto_facturado < 0) monto_facturado = 0;
     }
 
@@ -719,13 +720,14 @@ export const aplicarDescuentoEstadoCuenta = async (
       });
     }
 
-    // Calcular montos sobre el Monto Bruto Facturado (antes de devoluciones fuera de periodo y reclamos)
-    const montoBruto =
+    // Base del descuento: consumo neto de tickets del periodo (tickets del periodo menos devoluciones dentro del periodo)
+    // Excluye devoluciones fuera de periodo y reclamos
+    const montoConsumoNetoPeriodo =
       Number(estadoCuenta.monto_facturado) +
       Number(estadoCuenta.devoluciones_fuera_periodo || 0) +
       Number(estadoCuenta.reclamos_descuento || 0);
 
-    const montoDescuento = Math.round(montoBruto * (porcentaje / 100));
+    const montoDescuento = Math.round(montoConsumoNetoPeriodo * (porcentaje / 100));
 
     // 1. Obtener último saldo para calcular nuevo
     const ultimoMovimiento = await CuentaCorriente.findOne({
@@ -765,7 +767,7 @@ export const aplicarDescuentoEstadoCuenta = async (
       descuento_aplicado: {
         porcentaje,
         monto_descuento: montoDescuento,
-        monto_original: montoBruto,
+        monto_original: montoConsumoNetoPeriodo,
         nuevo_saldo_empresa: nuevoSaldo,
       },
       movimiento_descuento: abonoDescuento,
