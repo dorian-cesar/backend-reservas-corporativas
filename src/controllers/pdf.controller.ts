@@ -8,6 +8,7 @@ import { CentroCosto } from "../models/centro_costo.model";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { request } from "http";
 import { Reclamo } from "../models/reclamo.model";
+import { EmpresaTramo } from "../models/empresa_tramos.model";
 import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
 import {
   generateTicketPDFTemplate1,
@@ -377,13 +378,27 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
       Number(estadoData.reclamos_descuento || 0) -
       Number(estadoData.devoluciones_fuera_periodo || 0);
 
-    // Consumo neto sobre el cual se calcula el descuento por tramos
+    // Consumo neto sobre el cual se calcula el descuento
     const netoConsumoReal = montoBrutoAntesDeDescuento;
 
     const porcentajeDescuento = Number(estadoData.porcentaje_descuento || 0);
     const montoDescuento = Math.round(
       netoConsumoReal * (porcentajeDescuento / 100),
     );
+
+    // Determinar si el descuento proviene de tramos comerciales de la empresa o fue aplicado manualmente
+    const tramosEmpresa = await EmpresaTramo.findAll({
+      where: { id_empresa: estadoData.empresa_id },
+    });
+    const esDescuentoTramo =
+      tramosEmpresa.length > 0 &&
+      tramosEmpresa.some(
+        (t) => Number(t.porcentaje_descuento) === porcentajeDescuento,
+      );
+
+    const etiquetaDescuento = esDescuentoTramo
+      ? "Descuento por Tramos"
+      : "Descuento Aplicado";
 
     const montoReclamos = Number(estadoData.reclamos_descuento || 0);
     const montoFinalConDescuento = Number(estadoData.monto_facturado);
@@ -392,8 +407,6 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     const saldoFavorRestante =
       Number(empresaData.devolucion_pendiente_edp || 0) +
       Number(empresaData.descuento_pendiente_edp || 0);
-
-
 
     const edpData: EDPPDFData = {
       edp: {
@@ -420,6 +433,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         suma_devoluciones: devolucionesEstado,
         monto_bruto_facturado: montoBrutoAntesDeDescuento,
         porcentaje_descuento: porcentajeDescuento,
+        etiqueta_descuento: etiquetaDescuento,
         monto_descuento: montoDescuento,
         monto_final: montoFinalConDescuento,
         tickets_reclamados: ticketsReclamadosCount,

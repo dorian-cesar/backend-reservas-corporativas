@@ -71,6 +71,7 @@ export interface EDPPDFData {
     monto_bruto_facturado: number;
     monto_neto?: number;
     porcentaje_descuento?: number;
+    etiqueta_descuento?: string;
     monto_descuento?: number;
     monto_final?: number;
     tickets_reclamados?: number;
@@ -1419,10 +1420,11 @@ export const generateEDPPDF = async (
     yPosition -= 20;
   }
 
-  // Descuento por tramos / Monto Bruto
+  // Descuento por tramos / Descuento Aplicado
   if (tieneDescuento) {
+    const etiqueta = edpData.resumen.etiqueta_descuento || "Descuento por Tramos";
     currentPage.drawText(
-      `Monto Descuento por tramos (${edpData.resumen.porcentaje_descuento}%): -$${formatNumber(edpData.resumen.monto_descuento || 0)}`,
+      `Monto ${etiqueta} (${edpData.resumen.porcentaje_descuento}%): -$${formatNumber(edpData.resumen.monto_descuento || 0)}`,
       {
         x: margin,
         y: yPosition,
@@ -1672,9 +1674,10 @@ export const generateEDPPDF = async (
       edpData.resumen.porcentaje_descuento &&
       edpData.resumen.porcentaje_descuento > 0
     ) {
+      const etiqueta = edpData.resumen.etiqueta_descuento || "Descuento por Tramos";
       yPosition -= 15;
       currentPage.drawText(
-        `Descuento por Tramos (${edpData.resumen.porcentaje_descuento}%)`,
+        `${etiqueta} (${edpData.resumen.porcentaje_descuento}%)`,
         {
           x: colCentroX,
           y: yPosition,

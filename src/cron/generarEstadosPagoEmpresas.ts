@@ -278,9 +278,8 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
         let descuento = 0;
         let monto_facturado = 0;
 
-        if (monto_neto_consumo_real >= 0) {
-          monto_neto_consumo = monto_neto_consumo_real;
-          // Calcular descuento por tramos si aplica (para todas las empresas)
+        if (monto_bruto >= 0) {
+          // Calcular descuento por tramos sobre el monto bruto si aplica (para todas las empresas)
           const tramos = await EmpresaTramo.findAll({
             where: { id_empresa: empresaId },
             order: [["monto_desde", "ASC"]],
@@ -292,14 +291,15 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
                 ? Number(tramo.monto_hasta)
                 : null;
             if (
-              monto_neto_consumo >= desde &&
-              (hasta === null || monto_neto_consumo <= hasta)
+              monto_bruto >= desde &&
+              (hasta === null || monto_bruto <= hasta)
             ) {
               porcentajeDescuento = Number(tramo.porcentaje_descuento);
             }
           }
-          descuento = monto_neto_consumo * (porcentajeDescuento / 100);
-          monto_facturado = monto_neto_consumo - descuento;
+          descuento = monto_bruto * (porcentajeDescuento / 100);
+          monto_facturado = monto_bruto - devoluciones - descuento;
+          if (monto_facturado < 0) monto_facturado = 0;
         }
 
         console.log(
