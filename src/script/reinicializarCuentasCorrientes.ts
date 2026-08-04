@@ -44,7 +44,9 @@ export const reinicializarCuentasCorrientes = async () => {
 
     const saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
-    // Si no existian movimientos previos o si el saldo actual es 0, igual se crea el movimiento marcador de reinicio con monto 0 y saldo 0
+    let tipo_movimiento: "abono" | "cargo" = "abono";
+    let monto = 0;
+
     if (saldoActual < 0) {
       // Tiene deuda (ej: -150000). Abono positivo de 150000 para llevar a 0.
       tipo_movimiento = "abono";
