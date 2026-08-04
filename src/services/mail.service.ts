@@ -1,4 +1,4 @@
-import sgMail from "@sendgrid/mail";
+ï»¿import sgMail from "@sendgrid/mail";
 import * as dotenv from "dotenv";
 import * as moment from "moment-timezone";
 import * as fs from "fs";
@@ -1109,9 +1109,22 @@ export interface SendEDPEmailParams {
 }
 
 export const sendEDPEmail = async (params: SendEDPEmailParams): Promise<void> => {
-  const { recipients, empresaNombre, rutEmpresa, cuentaCorriente, periodo, fechaGeneracion,
-    periodoReservas, totalTickets, totalAnulados, montoFacturado, pdfBuffer, pdfFilename,
-    excelBuffer, excelFilename } = params;
+  const {
+    recipients,
+    empresaNombre,
+    rutEmpresa,
+    cuentaCorriente,
+    periodo,
+    fechaGeneracion,
+    periodoReservas,
+    totalTickets,
+    totalAnulados,
+    montoFacturado,
+    pdfBuffer,
+    pdfFilename,
+    excelBuffer,
+    excelFilename,
+  } = params;
 
   const validRecipients = recipients.filter((r) => r && r.trim().length > 0);
   if (validRecipients.length === 0) {
@@ -1119,72 +1132,177 @@ export const sendEDPEmail = async (params: SendEDPEmailParams): Promise<void> =>
     return;
   }
 
-  const formatoCLP = (monto: number) => `$${monto.toLocaleString('es-CL')}`;
+  const formatoCLP = (monto: number) => `$${Number(monto || 0).toLocaleString('es-CL')}`;
 
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><title>EDP ${empresaNombre}</title></head>
-<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;color:#333;">
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px;">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.10);">
-<tr><td style="background:#1a1a2e;padding:28px 32px;text-align:center;">
-<div style="font-size:28px;font-weight:900;color:#ff6600;">pullmanbus</div>
-<div style="font-size:12px;color:#aaa;margin-top:4px;letter-spacing:2px;text-transform:uppercase;">Reservas Corporativas</div>
-</td></tr>
-<tr><td style="background:#ff6600;padding:14px 32px;text-align:center;">
-<span style="font-size:15px;font-weight:700;color:#fff;">ESTADO DE PAGO (EDP) — PERÍODO ${periodo}</span>
-</td></tr>
-<tr><td style="padding:32px;">
-<p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.6;">Estimado(a),<br><br>
-Adjunto encontrará el <strong>Estado de Pago correspondiente al período ${periodoReservas}</strong>
-para la empresa <strong>${empresaNombre}</strong>, junto con el detalle completo de pasajes en formato Excel.</p>
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef;margin-bottom:24px;">
-<tr><td style="padding:20px 24px;">
-<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Datos de la Empresa</div>
-<table width="100%">
-<tr><td style="font-size:13px;color:#555;padding:4px 0;width:45%;">Razón Social:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${empresaNombre}</td></tr>
-<tr><td style="font-size:13px;color:#555;padding:4px 0;">RUT:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${rutEmpresa}</td></tr>
-<tr><td style="font-size:13px;color:#555;padding:4px 0;">Cuenta Corriente:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${cuentaCorriente}</td></tr>
-<tr><td style="font-size:13px;color:#555;padding:4px 0;">Período:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${periodoReservas}</td></tr>
-<tr><td style="font-size:13px;color:#555;padding:4px 0;">Fecha Generación:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${fechaGeneracion}</td></tr>
-</table></td></tr></table>
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr>
-<td style="width:33%;padding:0 8px 0 0;">
-<div style="background:#fff8f4;border:1px solid #ffe0c8;border-radius:8px;padding:16px;text-align:center;">
-<div style="font-size:24px;font-weight:900;color:#ff6600;">${totalTickets}</div>
-<div style="font-size:11px;color:#888;text-transform:uppercase;margin-top:4px;">Tickets Generados</div></div></td>
-<td style="width:33%;padding:0 4px;">
-<div style="background:#fff8f4;border:1px solid #ffe0c8;border-radius:8px;padding:16px;text-align:center;">
-<div style="font-size:24px;font-weight:900;color:#dc2626;">${totalAnulados}</div>
-<div style="font-size:11px;color:#888;text-transform:uppercase;margin-top:4px;">Tickets Anulados</div></div></td>
-<td style="width:33%;padding:0 0 0 8px;">
-<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;text-align:center;">
-<div style="font-size:18px;font-weight:900;color:#16a34a;">${formatoCLP(montoFacturado)}</div>
-<div style="font-size:11px;color:#888;text-transform:uppercase;margin-top:4px;">Monto EDP Final</div></div></td>
-</tr></table>
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4ff;border-radius:8px;border:1px solid #c7d7ff;margin-bottom:28px;">
-<tr><td style="padding:18px 24px;">
-<div style="font-size:11px;font-weight:700;color:#4466cc;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Archivos Adjuntos</div>
-<div style="font-size:13px;color:#444;margin-bottom:6px;"><strong>${pdfFilename}</strong> — Estado de Pago en formato PDF</div>
-<div style="font-size:13px;color:#444;"><strong>${excelFilename}</strong> — Detalle de pasajes en formato Excel</div>
-</td></tr></table>
-<p style="margin:0 0 8px;font-size:13px;color:#666;">
-Consultas: <a href="mailto:contacto@pullmanviajes.cl" style="color:#ff6600;text-decoration:none;">contacto@pullmanviajes.cl</a> &nbsp;•&nbsp; Tel: +56 2 3304 8632</p>
-</td></tr>
-<tr><td style="background:#f8f9fa;border-top:1px solid #e9ecef;padding:20px 32px;text-align:center;">
-<div style="font-size:11px;color:#999;line-height:1.6;">
-<strong>Pullman Bus · WIT Innovación Tecnológica</strong><br>Este correo es generado automáticamente. Por favor no responda a esta dirección.</div>
-</td></tr></table></td></tr></table></body></html>`;
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estado de Pago - Pullman Bus</title>
+  <style>
+    @media only screen and (max-width:600px) {
+      .container { width: 100% !important; padding: 12px !important; }
+      .ticket-padding { padding: 18px !important; }
+      .two-col td { display: block !important; width: 100% !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f5f5; font-family: Arial, Helvetica, sans-serif; color:#333;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <table class="container" width="600" cellpadding="0" cellspacing="0" role="presentation"
+          style="width:600px; max-width:600px; background-color:#f5f5f5;">
+          <tr>
+            <td style="padding:20px;">
+
+              <!-- Header -->
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center" style="padding:24px 0;">
+                    <div style="font-size:32px; font-weight:700; color:#ff6600;">pullmanbus</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Header Message -->
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center" style="padding:8px 0 18px;">
+                    <h1 style="font-size:20px; margin:0 0 6px; font-weight:600; color:#333;">Estado de Pago (EDP) N&deg; [${periodo}]</h1>
+                    <p style="margin:0; font-size:14px; color:#666;">Estimado(a), adjuntamos el Estado de Pago de su empresa.</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Main Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                style="background:#ffffff; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.08); overflow:hidden;">
+                <tr>
+                  <td class="ticket-padding" style="padding:26px;">
+
+                    <!-- Badge -->
+                    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                      <tr>
+                        <td style="text-align:center; padding-bottom:14px;">
+                          <span style="display:inline-block; background:#0047ab; color:#fff; padding:10px 18px; border-radius:30px; font-weight:700; font-size:13px;">
+                            PER&Iacute;ODO DE RESERVAS: ${periodoReservas}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <div style="height:14px; line-height:14px; font-size:1px;">&nbsp;</div>
+
+                    <!-- Datos Empresa -->
+                    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-bottom:1px solid #eee; padding-bottom:14px; margin-bottom:16px;">
+                      <tr>
+                        <td style="font-size:13px; color:#666; padding:4px 0; width:40%;">Nombre Empresa:</td>
+                        <td style="font-size:13px; font-weight:600; color:#333; padding:4px 0;">${empresaNombre}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:13px; color:#666; padding:4px 0;">RUT Empresa:</td>
+                        <td style="font-size:13px; font-weight:600; color:#333; padding:4px 0;">${rutEmpresa}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:13px; color:#666; padding:4px 0;">Cuenta Corriente:</td>
+                        <td style="font-size:13px; font-weight:600; color:#333; padding:4px 0;">${cuentaCorriente || 'Sin asignar'}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:13px; color:#666; padding:4px 0;">Fecha de Generaci&oacute;n:</td>
+                        <td style="font-size:13px; font-weight:600; color:#333; padding:4px 0;">${fechaGeneracion}</td>
+                      </tr>
+                    </table>
+
+                    <!-- Resumen Cuadros Sutiles -->
+                    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:18px;">
+                      <tr>
+                        <td style="padding:6px; width:33%;">
+                          <div style="background:#f9fafb; border:1px solid #eaecf0; border-radius:6px; padding:12px; text-align:center;">
+                            <div style="font-size:11px; color:#666; text-transform:uppercase; font-weight:600; margin-bottom:4px;">Tickets Generados</div>
+                            <div style="font-size:16px; font-weight:700; color:#333;">${totalTickets}</div>
+                          </div>
+                        </td>
+                        <td style="padding:6px; width:33%;">
+                          <div style="background:#f9fafb; border:1px solid #eaecf0; border-radius:6px; padding:12px; text-align:center;">
+                            <div style="font-size:11px; color:#666; text-transform:uppercase; font-weight:600; margin-bottom:4px;">Tickets Anulados</div>
+                            <div style="font-size:16px; font-weight:700; color:#dc2626;">${totalAnulados}</div>
+                          </div>
+                        </td>
+                        <td style="padding:6px; width:33%;">
+                          <div style="background:#f9fafb; border:1px solid #eaecf0; border-radius:6px; padding:12px; text-align:center;">
+                            <div style="font-size:11px; color:#666; text-transform:uppercase; font-weight:600; margin-bottom:4px;">Monto EDP Final</div>
+                            <div style="font-size:16px; font-weight:700; color:#16a34a;">${formatoCLP(montoFacturado)}</div>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Archivos Adjuntos -->
+                    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f8fafc; border-radius:6px; padding:14px; border:1px dashed #cbd5e1;">
+                      <tr>
+                        <td>
+                          <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">Archivos Adjuntos en este correo:</div>
+                          <div style="font-size:12px; color:#475569; margin-bottom:4px;">&bull; <strong>${pdfFilename}</strong> (Documento oficial EDP en PDF)</div>
+                          <div style="font-size:12px; color:#475569;">&bull; <strong>${excelFilename}</strong> (Detalle completo de pasajes en Excel)</div>
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Contact & Footer -->
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:16px;">
+                <tr>
+                  <td align="center" style="padding:18px 8px 8px;">
+                    <div style="font-size:14px; font-weight:700; color:#333; margin-bottom:10px;">&iquest;Necesitas ayuda?</div>
+                    <div style="font-size:13px; color:#333; margin-bottom:8px;">Tel: +56 2 3304 8632 &bull; Email: clientes@pullmanbus.cl</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding:14px 8px 28px;">
+                    <div style="font-size:11px; color:#666; line-height:1.6; text-align:center;">
+                      <strong>pullmanbus.cl</strong> &middot; Todos los derechos reservados.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
   const msg: any = {
     to: validRecipients,
-    from: 'viajes@pullmanbus.cl',
-    subject: `Estado de Pago (EDP) — ${empresaNombre} — Período ${periodo}`,
+    from: "viajes@pullmanbus.cl",
+    subject: `Estado de Pago (EDP) NÂ° [${periodo}] - ${empresaNombre}`,
     html,
     attachments: [
-      { content: pdfBuffer.toString('base64'), filename: pdfFilename, type: 'application/pdf', disposition: 'attachment' },
-      { content: excelBuffer.toString('base64'), filename: excelFilename, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', disposition: 'attachment' },
+      {
+        content: pdfBuffer.toString("base64"),
+        filename: pdfFilename,
+        type: "application/pdf",
+        disposition: "attachment",
+      },
+      {
+        content: excelBuffer.toString("base64"),
+        filename: excelFilename,
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        disposition: "attachment",
+      },
     ],
   };
 
   await sgMail.send(msg);
-  console.log(`[EDP Mail] Enviado a: ${validRecipients.join(', ')} | Empresa: ${empresaNombre} | Período: ${periodo}`);
+  console.log(
+    `[EDP Mail] Enviado exitosamente a: ${validRecipients.join(", ")} | Empresa: ${empresaNombre} | PerÃ­odo: ${periodo}`,
+  );
 };
