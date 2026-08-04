@@ -378,13 +378,15 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
       Number(estadoData.reclamos_descuento || 0) -
       Number(estadoData.devoluciones_fuera_periodo || 0);
 
-    // Consumo neto sobre el cual se calcula el descuento
+    // Consumo de boletos confirmados del periodo sobre el cual se aplica el descuento por tramos
     const netoConsumoReal = montoBrutoAntesDeDescuento;
 
     const porcentajeDescuento = Number(estadoData.porcentaje_descuento || 0);
     const montoDescuento = Math.round(
       netoConsumoReal * (porcentajeDescuento / 100),
     );
+
+
 
     // Determinar si el descuento proviene de tramos comerciales de la empresa o fue aplicado manualmente
     const tramosEmpresa = await EmpresaTramo.findAll({
@@ -450,13 +452,12 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         monto_facturado: cc.monto_neto, // Usar monto NETO en el desglose
       })),
       totales: {
-        cantidad_tickets: centrosCostoArray.reduce(
-          (sum, cc) => sum + cc.cantidad_tickets,
-          0,
-        ),
+        cantidad_tickets: ticketsConfirmados,
         monto_facturado: montoBrutoAntesDeDescuento,
       },
+
     };
+
 
     const pdfBytes = await generateEDPPDF(edpData);
     const pdfBuffer = Buffer.from(pdfBytes);

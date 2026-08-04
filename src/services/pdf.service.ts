@@ -1341,7 +1341,7 @@ export const generateEDPPDF = async (
   // D. Devoluciones por anulación dentro del periodo
   const devPeriodo = edpData.resumen.suma_devoluciones || 0;
   currentPage.drawText(
-    `D. Devoluciones por anulación dentro del periodo: ${devPeriodo > 0 ? "-$" : "$"}${formatNumber(devPeriodo)}`,
+    `D. Devoluciones por anulación dentro del periodo: $${formatNumber(devPeriodo)}`,
     {
       x: margin,
       y: yPosition,
@@ -1380,13 +1380,10 @@ export const generateEDPPDF = async (
   );
   yPosition -= 22;
 
-  // G. Monto Ticket Generados
-  const montoGenerados = edpData.resumen.monto_bruto_facturado
-    ? edpData.resumen.monto_bruto_facturado +
-      (edpData.resumen.monto_descuento || 0)
-    : edpData.resumen.monto_final || 0;
+  // G. Monto Tickets Confirmados
+  const montoConfirmados = edpData.resumen.monto_bruto_facturado || 0;
   currentPage.drawText(
-    `G. Monto Ticket Generados: $${formatNumber(montoGenerados)}`,
+    `G. Monto Tickets Confirmados: $${formatNumber(montoConfirmados)}`,
     {
       x: margin,
       y: yPosition,
@@ -1415,7 +1412,7 @@ export const generateEDPPDF = async (
   // I. Monto Total EDP
   const montoBrutoEDP = Math.max(
     0,
-    montoGenerados - (edpData.resumen.monto_descuento || 0),
+    montoConfirmados - mDescuento,
   );
   currentPage.drawText(
     `I. Monto Total EDP (G - H): $${formatNumber(montoBrutoEDP)}`,
@@ -1427,11 +1424,12 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     },
   );
+
   yPosition -= 22;
 
   // J. Monto EDP Final
   currentPage.drawText(
-    `J. Monto EDP Final (I - D - E - F): $${formatNumber(edpData.resumen.monto_final || 0)}`,
+    `J. Monto EDP Final (I - E - F): $${formatNumber(edpData.resumen.monto_final || 0)}`,
     {
       x: margin,
       y: yPosition,
@@ -1440,6 +1438,7 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     },
   );
+
 
   yPosition -= 40;
 
@@ -1605,75 +1604,7 @@ export const generateEDPPDF = async (
   );
 
   if (tieneCualquierDescuento) {
-    if (
-      edpData.resumen.suma_devoluciones &&
-      edpData.resumen.suma_devoluciones > 0
-    ) {
-      yPosition -= 15;
-      currentPage.drawText("Devoluciones por anulación dentro del periodo", {
-        x: colCentroX,
-        y: yPosition,
-        size: 9,
-        font: font,
-        color: rgb(0.4, 0.4, 0.4),
-      });
-      currentPage.drawText(
-        `-$${formatNumber(edpData.resumen.suma_devoluciones)}`,
-        {
-          x: colMontoX,
-          y: yPosition,
-          size: 9,
-          font: font,
-          color: rgb(0.4, 0.4, 0.4),
-        },
-      );
-    }
-
-    if (
-      edpData.resumen.devoluciones_fuera_periodo &&
-      edpData.resumen.devoluciones_fuera_periodo > 0
-    ) {
-      yPosition -= 15;
-      currentPage.drawText("Devoluciones por anulación de periodo anterior", {
-        x: colCentroX,
-        y: yPosition,
-        size: 9,
-        font: font,
-        color: rgb(0.4, 0.4, 0.4),
-      });
-      currentPage.drawText(
-        `-$${formatNumber(edpData.resumen.devoluciones_fuera_periodo)}`,
-        {
-          x: colMontoX,
-          y: yPosition,
-          size: 9,
-          font: font,
-          color: rgb(0.4, 0.4, 0.4),
-        },
-      );
-    }
-
-    if (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) {
-      yPosition -= 15;
-      currentPage.drawText("Descuento por Reclamos", {
-        x: colCentroX,
-        y: yPosition,
-        size: 9,
-        font: font,
-        color: rgb(0.4, 0.4, 0.4),
-      });
-      currentPage.drawText(
-        `-$${formatNumber(edpData.resumen.monto_reclamos)}`,
-        {
-          x: colMontoX,
-          y: yPosition,
-          size: 9,
-          font: font,
-          color: rgb(0.4, 0.4, 0.4),
-        },
-      );
-    }
-
+    // 1. (-) Descuento por Tramos (15%)
     if (
       edpData.resumen.porcentaje_descuento &&
       edpData.resumen.porcentaje_descuento > 0
@@ -1682,7 +1613,7 @@ export const generateEDPPDF = async (
         edpData.resumen.etiqueta_descuento || "Descuento por Tramos";
       yPosition -= 15;
       currentPage.drawText(
-        `${etiqueta} (${edpData.resumen.porcentaje_descuento}%)`,
+        `(-) ${etiqueta} (${edpData.resumen.porcentaje_descuento}%)`,
         {
           x: colCentroX,
           y: yPosition,
@@ -1701,6 +1632,74 @@ export const generateEDPPDF = async (
           color: rgb(0.4, 0.4, 0.4),
         },
       );
+
+      // (=) Subtotal Servicio (Monto Total EDP)
+      const montoBrutoEDP = Math.max(
+        0,
+        (edpData.totales.monto_facturado || 0) - (edpData.resumen.monto_descuento || 0),
+      );
+      yPosition -= 15;
+      currentPage.drawText("(=) Subtotal Servicio (Monto Total EDP)", {
+        x: colCentroX,
+        y: yPosition,
+        size: 9,
+        font: fontBold,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+      currentPage.drawText(`$${formatNumber(montoBrutoEDP)}`, {
+        x: colMontoX,
+        y: yPosition,
+        size: 9,
+        font: fontBold,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+    }
+
+    // 2. (-) Devoluciones por anulación de período anterior
+    if (
+      edpData.resumen.devoluciones_fuera_periodo &&
+      edpData.resumen.devoluciones_fuera_periodo > 0
+    ) {
+      yPosition -= 15;
+      currentPage.drawText("(-) Devoluciones por anulación de periodo anterior", {
+        x: colCentroX,
+        y: yPosition,
+        size: 9,
+        font: font,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      currentPage.drawText(
+        `-$${formatNumber(edpData.resumen.devoluciones_fuera_periodo)}`,
+        {
+          x: colMontoX,
+          y: yPosition,
+          size: 9,
+          font: font,
+          color: rgb(0.4, 0.4, 0.4),
+        },
+      );
+    }
+
+    // 3. (-) Descuento por Reclamos
+    if (edpData.resumen.monto_reclamos && edpData.resumen.monto_reclamos > 0) {
+      yPosition -= 15;
+      currentPage.drawText("(-) Descuento por Reclamos", {
+        x: colCentroX,
+        y: yPosition,
+        size: 9,
+        font: font,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      currentPage.drawText(
+        `-$${formatNumber(edpData.resumen.monto_reclamos)}`,
+        {
+          x: colMontoX,
+          y: yPosition,
+          size: 9,
+          font: font,
+          color: rgb(0.4, 0.4, 0.4),
+        },
+      );
     }
 
     yPosition -= 18;
@@ -1711,13 +1710,14 @@ export const generateEDPPDF = async (
       color: rgb(0.7, 0.7, 0.7),
     });
 
-    currentPage.drawText("MONTO EDP FINAL", {
+    currentPage.drawText("(=) MONTO EDP FINAL", {
       x: colCentroX,
       y: yPosition,
       size: 10,
       font: fontBold,
       color: rgb(0, 0, 0),
     });
+
 
     currentPage.drawText(`$${formatNumber(edpData.resumen.monto_final || 0)}`, {
       x: colMontoX,
@@ -1727,6 +1727,7 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     });
   }
+
 
   yPosition -= 40;
 
