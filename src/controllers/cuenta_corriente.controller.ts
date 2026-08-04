@@ -14,7 +14,20 @@ export const listarMovimientos = async (req: Request, res: Response) => {
         const limitNum = parseInt(limit as string, 10) || 10;
         const offset = (pageNum - 1) * limitNum;
 
+        // Buscar movimiento de reinicio por sistema más reciente para esta empresa
+        const movimientoReinicio = await CuentaCorriente.findOne({
+            where: {
+                empresa_id,
+                referencia: { [Op.like]: "REINICIO-SISTEMA%" }
+            },
+            order: [["id", "DESC"]]
+        });
+
         const where: any = { empresa_id };
+
+        if (movimientoReinicio) {
+            where.id = { [Op.gt]: movimientoReinicio.id };
+        }
 
         if (tipo && (tipo === "abono" || tipo === "cargo")) {
             where.tipo_movimiento = tipo;
