@@ -30,6 +30,7 @@ export const reinicializarCuentasCorrientes = async () => {
   for (const empresa of empresas) {
     const empresaId = Number(empresa.id);
     const nombreEmpresa = empresa.nombre || `#${empresaId}`;
+    procesadas++;
 
     // Resetear monto_acumulado en tabla empresas
     const montoAcumuladoAnterior = empresa.monto_acumulado || 0;
@@ -78,6 +79,7 @@ export const reinicializarCuentasCorrientes = async () => {
       fecha_movimiento: fechaReinicio,
     });
 
+    procesadas++;
     ajustadas++;
     console.log(
       `✅ [Empresa ${empresaId} - ${nombreEmpresa}] monto_acumulado: $${montoAcumuladoAnterior.toLocaleString("es-CL")} → $0 | Saldo CC anterior: $${saldoActual.toLocaleString(
@@ -86,8 +88,6 @@ export const reinicializarCuentasCorrientes = async () => {
         "es-CL"
       )} | Nuevo Saldo: $0 | ID Movimiento: ${nuevoMovimiento.id}`
     );
-
-    procesadas++;
   }
 
   console.log(`\n==================================================`);
