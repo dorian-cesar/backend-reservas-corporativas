@@ -22,7 +22,10 @@ import { connectDB } from "../database";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { Empresa } from "../models/empresa.model";
 import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
-import { processEDPMailQueue, EDPMailQueueItem } from "../services/edpMailBatch.service";
+import {
+  processEDPMailQueue,
+  EDPMailQueueItem,
+} from "../services/edpMailBatch.service";
 import { Op } from "sequelize";
 
 // ─── Configuración ────────────────────────────────────────────────────────────
@@ -30,7 +33,7 @@ const TEST_EMAIL = "dwigodski@wit.la";
 
 // EDP específico a usar (opcional). Si es null, se busca automáticamente.
 // Puedes forzar uno de los EDPs de producción conocidos: 7772, 7767, 7765, 7758, 7757
-const FORCE_EDP_ID: number | null = 7758; // Empresa 9 — 1095 tickets (el más completo)
+const FORCE_EDP_ID: number | null = 6443; // Empresa 9 — 1095 tickets (el más completo)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const main = async () => {
@@ -57,7 +60,9 @@ const main = async () => {
     });
 
     if (snapshotIds.length === 0) {
-      console.error("[Server Test] No se encontraron EDPs con snapshots en la DB.");
+      console.error(
+        "[Server Test] No se encontraron EDPs con snapshots en la DB.",
+      );
       process.exit(1);
     }
 
@@ -99,14 +104,21 @@ const main = async () => {
   console.log(`[Server Test] RUT: ${empresa.rut}`);
   console.log(`[Server Test] Período: ${estadoCuenta.periodo}`);
   console.log(`[Server Test] Tickets en snapshot: ${tickets.length}`);
-  console.log(`[Server Test] Monto facturado: $${Number(estadoCuenta.monto_facturado).toLocaleString("es-CL")}`);
+  console.log(
+    `[Server Test] Monto facturado: $${Number(estadoCuenta.monto_facturado).toLocaleString("es-CL")}`,
+  );
   console.log(`[Server Test] Destinatario de prueba: ${TEST_EMAIL}`);
   console.log("");
 
   // Calcular detallePorCC desde los tickets del snapshot
   const detallePorCC: Record<
     string,
-    { nombre: string; total_tickets: number; total_anulados: number; monto_facturado: number }
+    {
+      nombre: string;
+      total_tickets: number;
+      total_anulados: number;
+      monto_facturado: number;
+    }
   > = {};
 
   for (const t of tickets) {
@@ -130,7 +142,9 @@ const main = async () => {
   // Calcular descuento
   const porcentajeDescuento = Number(estadoCuenta.porcentaje_descuento || 0);
   const montoFacturado = Number(estadoCuenta.monto_facturado || 0);
-  const montoDescuento = Math.round(montoFacturado * (porcentajeDescuento / 100));
+  const montoDescuento = Math.round(
+    montoFacturado * (porcentajeDescuento / 100),
+  );
 
   const devolucionesDentro =
     Number(estadoCuenta.suma_devoluciones || 0) -
@@ -156,7 +170,9 @@ const main = async () => {
     porcentajeDescuento,
     montoDescuento,
     devolucionesDentroDelPeriodo: devolucionesDentro,
-    devolucionesFueraPeriodo: Number(estadoCuenta.devoluciones_fuera_periodo || 0),
+    devolucionesFueraPeriodo: Number(
+      estadoCuenta.devoluciones_fuera_periodo || 0,
+    ),
     reclamosDescuento: Number(estadoCuenta.reclamos_descuento || 0),
     empresa: {
       id: empresa.id,
@@ -172,7 +188,9 @@ const main = async () => {
     detallePorCC,
   };
 
-  console.log("[Server Test] Iniciando generación de PDF + Excel y envío de email...");
+  console.log(
+    "[Server Test] Iniciando generación de PDF + Excel y envío de email...",
+  );
 
   await processEDPMailQueue([queueItem]);
 
