@@ -11,6 +11,7 @@ import { Reclamo } from "../models/reclamo.model";
 import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
 import { Op } from "sequelize";
 import moment from "moment-timezone";
+import { processEDPMailQueue, EDPMailQueueItem } from "../services/edpMailBatch.service";
 
 const TIMEZONE = "America/Santiago";
 
@@ -30,6 +31,9 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
   console.log(
     `[${new Date().toISOString()}] === INICIO generarEstadosPagoEmpresas (Hora Chile: ${hoyChile.format("YYYY-MM-DD HH:mm:ss")}) ===`,
   );
+
+  // Cola de EDPs para envio de email (solo se acumula, no afecta la generacion de EDPs)
+  const edpCreatedForEmail: EDPMailQueueItem[] = [];
 
   // Buscar solo empresas con facturación automática (excluir fact_manual = true)
   const empresas = await Empresa.findAll({ where: { fact_manual: false } });
@@ -421,6 +425,36 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
               `[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}. Monto facturado final: ${monto_facturado_final} (devoluciones fuera: ${devoluciones_fuera_periodo_aplicadas}, reclamos: ${reclamos_aplicados})`
             );
 
+            // Acumular en cola de email si la empresa es de tipo Masiva
+            if (empresa.tipo_facturacion === "Masiva") {
+              edpCreatedForEmail.push({
+                estadoCuentaId: estadoCuenta.id,
+                periodo,
+                fechaInicio: inicio,
+                fechaFin: fin,
+                fechaGeneracion: fin,
+                totalTickets: total_tickets,
+                totalTicketsAnulados: total_tickets_anulados,
+                montoFacturado: monto_facturado_final,
+                porcentajeDescuento: porcentajeDescuento,
+                montoDescuento: descuento,
+                devolucionesDentroDelPeriodo: devoluciones,
+                devolucionesFueraPeriodo: devoluciones_fuera_periodo_aplicadas,
+                reclamosDescuento: reclamos_aplicados,
+                empresa: {
+                  id: empresa.id,
+                  nombre: empresa.nombre,
+                  rut: empresa.rut,
+                  cuenta_corriente: empresa.cuenta_corriente,
+                  contacto_fact_email: empresa.contacto_fact_email || "",
+                  ejecutivo_com_email: empresa.ejecutivo_com_email || "",
+                  tipo_facturacion: empresa.tipo_facturacion,
+                },
+                tickets: tickets.map((t) => t.toJSON ? t.toJSON() : t),
+                detallePorCC,
+              });
+            }
+
             await empresa.update({
               devolucion_pendiente_edp: devoluciones_fuera_periodo_restante,
               descuento_pendiente_edp: reclamos_restante,
@@ -493,4 +527,17 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
   console.log(
     `[${new Date().toISOString()}] === FIN generarEstadosPagoEmpresas ===`,
   );
+
+  // Procesar cola de emails de EDP (no bloquea el cron si falla)
+  if (edpCreatedForEmail.length > 0) {
+    console.log(
+      `[${new Date().toISOString()}] Iniciando envio de emails EDP para ${edpCreatedForEmail.length} EDPs...`,
+    );
+    processEDPMailQueue(edpCreatedForEmail).catch((err) => {
+      console.error(
+        `[${new Date().toISOString()}] Error en processEDPMailQueue:`,
+        err,
+      );
+    });
+  }
 };

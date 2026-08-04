@@ -1084,3 +1084,107 @@ function generateReclamoRechazadoHTML(data: ReclamoEmailData): string {
     body
   );
 }
+
+
+
+// =============================================================
+// EDP EMAIL
+// =============================================================
+
+export interface SendEDPEmailParams {
+  recipients: string[];
+  empresaNombre: string;
+  rutEmpresa: string;
+  cuentaCorriente: string;
+  periodo: string;
+  fechaGeneracion: string;
+  periodoReservas: string;
+  totalTickets: number;
+  totalAnulados: number;
+  montoFacturado: number;
+  pdfBuffer: Buffer;
+  pdfFilename: string;
+  excelBuffer: Buffer;
+  excelFilename: string;
+}
+
+export const sendEDPEmail = async (params: SendEDPEmailParams): Promise<void> => {
+  const { recipients, empresaNombre, rutEmpresa, cuentaCorriente, periodo, fechaGeneracion,
+    periodoReservas, totalTickets, totalAnulados, montoFacturado, pdfBuffer, pdfFilename,
+    excelBuffer, excelFilename } = params;
+
+  const validRecipients = recipients.filter((r) => r && r.trim().length > 0);
+  if (validRecipients.length === 0) {
+    console.warn(`[EDP Mail] Sin destinatarios validos para empresa: ${empresaNombre}`);
+    return;
+  }
+
+  const formatoCLP = (monto: number) => `$${monto.toLocaleString('es-CL')}`;
+
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><title>EDP ${empresaNombre}</title></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;color:#333;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px;">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.10);">
+<tr><td style="background:#1a1a2e;padding:28px 32px;text-align:center;">
+<div style="font-size:28px;font-weight:900;color:#ff6600;">pullmanbus</div>
+<div style="font-size:12px;color:#aaa;margin-top:4px;letter-spacing:2px;text-transform:uppercase;">Reservas Corporativas</div>
+</td></tr>
+<tr><td style="background:#ff6600;padding:14px 32px;text-align:center;">
+<span style="font-size:15px;font-weight:700;color:#fff;">ESTADO DE PAGO (EDP) — PERÍODO ${periodo}</span>
+</td></tr>
+<tr><td style="padding:32px;">
+<p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.6;">Estimado(a),<br><br>
+Adjunto encontrará el <strong>Estado de Pago correspondiente al período ${periodoReservas}</strong>
+para la empresa <strong>${empresaNombre}</strong>, junto con el detalle completo de pasajes en formato Excel.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef;margin-bottom:24px;">
+<tr><td style="padding:20px 24px;">
+<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Datos de la Empresa</div>
+<table width="100%">
+<tr><td style="font-size:13px;color:#555;padding:4px 0;width:45%;">Razón Social:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${empresaNombre}</td></tr>
+<tr><td style="font-size:13px;color:#555;padding:4px 0;">RUT:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${rutEmpresa}</td></tr>
+<tr><td style="font-size:13px;color:#555;padding:4px 0;">Cuenta Corriente:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${cuentaCorriente}</td></tr>
+<tr><td style="font-size:13px;color:#555;padding:4px 0;">Período:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${periodoReservas}</td></tr>
+<tr><td style="font-size:13px;color:#555;padding:4px 0;">Fecha Generación:</td><td style="font-size:13px;font-weight:700;color:#222;padding:4px 0;">${fechaGeneracion}</td></tr>
+</table></td></tr></table>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr>
+<td style="width:33%;padding:0 8px 0 0;">
+<div style="background:#fff8f4;border:1px solid #ffe0c8;border-radius:8px;padding:16px;text-align:center;">
+<div style="font-size:24px;font-weight:900;color:#ff6600;">${totalTickets}</div>
+<div style="font-size:11px;color:#888;text-transform:uppercase;margin-top:4px;">Tickets Generados</div></div></td>
+<td style="width:33%;padding:0 4px;">
+<div style="background:#fff8f4;border:1px solid #ffe0c8;border-radius:8px;padding:16px;text-align:center;">
+<div style="font-size:24px;font-weight:900;color:#dc2626;">${totalAnulados}</div>
+<div style="font-size:11px;color:#888;text-transform:uppercase;margin-top:4px;">Tickets Anulados</div></div></td>
+<td style="width:33%;padding:0 0 0 8px;">
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;text-align:center;">
+<div style="font-size:18px;font-weight:900;color:#16a34a;">${formatoCLP(montoFacturado)}</div>
+<div style="font-size:11px;color:#888;text-transform:uppercase;margin-top:4px;">Monto EDP Final</div></div></td>
+</tr></table>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4ff;border-radius:8px;border:1px solid #c7d7ff;margin-bottom:28px;">
+<tr><td style="padding:18px 24px;">
+<div style="font-size:11px;font-weight:700;color:#4466cc;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Archivos Adjuntos</div>
+<div style="font-size:13px;color:#444;margin-bottom:6px;"><strong>${pdfFilename}</strong> — Estado de Pago en formato PDF</div>
+<div style="font-size:13px;color:#444;"><strong>${excelFilename}</strong> — Detalle de pasajes en formato Excel</div>
+</td></tr></table>
+<p style="margin:0 0 8px;font-size:13px;color:#666;">
+Consultas: <a href="mailto:contacto@pullmanviajes.cl" style="color:#ff6600;text-decoration:none;">contacto@pullmanviajes.cl</a> &nbsp;•&nbsp; Tel: +56 2 3304 8632</p>
+</td></tr>
+<tr><td style="background:#f8f9fa;border-top:1px solid #e9ecef;padding:20px 32px;text-align:center;">
+<div style="font-size:11px;color:#999;line-height:1.6;">
+<strong>Pullman Bus · WIT Innovación Tecnológica</strong><br>Este correo es generado automáticamente. Por favor no responda a esta dirección.</div>
+</td></tr></table></td></tr></table></body></html>`;
+
+  const msg: any = {
+    to: validRecipients,
+    from: 'viajes@pullmanbus.cl',
+    subject: `Estado de Pago (EDP) — ${empresaNombre} — Período ${periodo}`,
+    html,
+    attachments: [
+      { content: pdfBuffer.toString('base64'), filename: pdfFilename, type: 'application/pdf', disposition: 'attachment' },
+      { content: excelBuffer.toString('base64'), filename: excelFilename, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', disposition: 'attachment' },
+    ],
+  };
+
+  await sgMail.send(msg);
+  console.log(`[EDP Mail] Enviado a: ${validRecipients.join(', ')} | Empresa: ${empresaNombre} | Período: ${periodo}`);
+};
