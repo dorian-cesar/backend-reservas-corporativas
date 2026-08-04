@@ -31,6 +31,10 @@ export const reinicializarCuentasCorrientes = async () => {
     const empresaId = Number(empresa.id);
     const nombreEmpresa = empresa.nombre || `#${empresaId}`;
 
+    // Resetear monto_acumulado en tabla empresas
+    const montoAcumuladoAnterior = empresa.monto_acumulado || 0;
+    await empresa.update({ monto_acumulado: 0 });
+
     // Obtener último movimiento
     const ultimoMovimiento = await CuentaCorriente.findOne({
       where: { empresa_id: empresaId },
@@ -41,7 +45,12 @@ export const reinicializarCuentasCorrientes = async () => {
 
     // Solo creamos movimiento si existen movimientos previos
     if (!ultimoMovimiento) {
-      console.log(`ℹ️ [Empresa ${empresaId} - ${nombreEmpresa}] Sin movimientos previos. Se omite.`);
+      console.log(`ℹ️ [Empresa ${empresaId} - ${nombreEmpresa}] monto_acumulado reseteado de $${montoAcumuladoAnterior.toLocaleString("es-CL")} → $0. Sin movimientos CC previos.`);
+      continue;
+    }
+
+    if (saldoActual === 0) {
+      console.log(`ℹ️ [Empresa ${empresaId} - ${nombreEmpresa}] Saldo actual ya es $0. Se omite creación de movimiento $0.`);
       continue;
     }
 
@@ -56,10 +65,6 @@ export const reinicializarCuentasCorrientes = async () => {
       // Saldo a favor (ej: +50000). Cargo de 50000 para llevar a 0.
       tipo_movimiento = "cargo";
       monto = saldoActual;
-    } else {
-      // Saldo actual es 0, se crea abono de $0 como marcador de reinicio
-      tipo_movimiento = "abono";
-      monto = 0;
     }
 
     const nuevoMovimiento = await CuentaCorriente.create({
@@ -75,7 +80,7 @@ export const reinicializarCuentasCorrientes = async () => {
 
     ajustadas++;
     console.log(
-      `✅ [Empresa ${empresaId} - ${nombreEmpresa}] Saldo anterior: $${saldoActual.toLocaleString(
+      `✅ [Empresa ${empresaId} - ${nombreEmpresa}] monto_acumulado: $${montoAcumuladoAnterior.toLocaleString("es-CL")} → $0 | Saldo CC anterior: $${saldoActual.toLocaleString(
         "es-CL"
       )} | Movimiento (${tipo_movimiento.toUpperCase()}) $${monto.toLocaleString(
         "es-CL"
