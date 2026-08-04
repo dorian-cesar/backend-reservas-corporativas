@@ -19,8 +19,8 @@ import { Reclamo } from "../models/reclamo.model";
  * Ejemplo de query params:
  *   ?origin=SCL&destination=PMC&travelDate_desde=2024-06-01&travelDate_hasta=2024-06-30&fare=15000
  */
-function buildTicketFilters(query: any): Record<string, any> {
-    const filters: Record<string, any> = {};
+function buildTicketFilters(query: any): Record<string | symbol, any> {
+    const filters: Record<string | symbol, any> = {};
     const ticketFields = [
         "id", "ticketNumber", "pnrNumber", "ticketStatus", "origin", "destination",
         "terminal_origen", "terminal_destino",
@@ -950,6 +950,34 @@ export const getTicketsByEmpresa = async (
             ],
             order: [['id', 'DESC']]
         };
+
+        const filterStatus = req.query.filterStatus as string;
+        if (filterStatus === 'Confirmado') {
+            filters.ticketStatus = 'Confirmed';
+            filters[Op.and] = [
+                Ticket.sequelize!.literal('NOT EXISTS (SELECT 1 FROM reclamos WHERE reclamos.ticket_id = Ticket.id)')
+            ];
+        } else if (filterStatus === 'Anulado') {
+            filters.ticketStatus = 'Anulado';
+        } else if (filterStatus === 'Reclamo Pendiente') {
+            const reclamoInclude = queryOptions.include.find((inc: any) => inc.model === Reclamo);
+            if (reclamoInclude) {
+                reclamoInclude.required = true;
+                reclamoInclude.where = { estado: 'Pendiente' };
+            }
+        } else if (filterStatus === 'Reclamo Aceptado') {
+            const reclamoInclude = queryOptions.include.find((inc: any) => inc.model === Reclamo);
+            if (reclamoInclude) {
+                reclamoInclude.required = true;
+                reclamoInclude.where = { estado: 'Aceptado' };
+            }
+        } else if (filterStatus === 'Reclamo Rechazado') {
+            const reclamoInclude = queryOptions.include.find((inc: any) => inc.model === Reclamo);
+            if (reclamoInclude) {
+                reclamoInclude.required = true;
+                reclamoInclude.where = { estado: 'Rechazado' };
+            }
+        }
 
         // Solo agregar limit y offset si no es para exportación
         if (!exportAll) {
