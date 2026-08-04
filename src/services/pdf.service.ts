@@ -1090,6 +1090,17 @@ export const generateEDPPDF = async (
     return Math.floor(availableHeight / rowHeight);
   };
 
+  const truncateText = (text: string, targetFont: any, size: number, maxWidth: number): string => {
+    if (!text) return "";
+    if (targetFont.widthOfTextAtSize(text, size) <= maxWidth) return text;
+    let truncated = text;
+    while (truncated.length > 0 && targetFont.widthOfTextAtSize(truncated + "...", size) > maxWidth) {
+      truncated = truncated.slice(0, -1);
+    }
+    return truncated ? truncated + "..." : "";
+  };
+
+
   const drawPageHeader = async (page: any, isFirstPage: boolean = false) => {
     let localY = height - margin;
 
@@ -1163,13 +1174,20 @@ export const generateEDPPDF = async (
     color: rgb(0, 0, 0),
   });
 
-  currentPage.drawText(`: ${edpData.empresa.nombre}`, {
+  const nombreEmpresaTruncated = truncateText(
+    `: ${edpData.empresa.nombre}`,
+    fontBold,
+    10,
+    width - margin * 2 - 160,
+  );
+  currentPage.drawText(nombreEmpresaTruncated, {
     x: col2X,
     y: yPosition,
     size: 10,
     font: fontBold,
     color: rgb(0, 0, 0),
   });
+
 
   yPosition -= 20;
 
@@ -1536,12 +1554,14 @@ export const generateEDPPDF = async (
     });
 
     // Contenido
-    currentPage.drawText(centro.nombre, {
+    const nombreCentroTruncated = truncateText(centro.nombre, font, 10, 190);
+    currentPage.drawText(nombreCentroTruncated, {
       x: colCentroX,
       y: yPosition,
       size: 10,
       font,
     });
+
 
     currentPage.drawText(centro.cantidad_tickets.toString(), {
       x: colCantidadX,
@@ -1808,13 +1828,20 @@ export const generateEDPPDF = async (
     });
 
     // Agregar información de la empresa en pie de página
-    page.drawText(`Empresa: ${edpData.empresa.nombre}`, {
+    const pieEmpresaTruncated = truncateText(
+      `Empresa: ${edpData.empresa.nombre}`,
+      font,
+      8,
+      380,
+    );
+    page.drawText(pieEmpresaTruncated, {
       x: margin,
       y: margin - 10,
       size: 8,
       font: font,
       color: rgb(0.5, 0.5, 0.5),
     });
+
   });
 
   // Guardar el PDF
