@@ -25,7 +25,10 @@ const formatFecha = (d: Date | string | moment.Moment): string => {
   return moment(d).tz(TIMEZONE).format("YYYY-MM-DD HH:mm:ss");
 };
 
-export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
+export const generarEstadosPagoEmpresas = async (
+  fechaActual?: Date,
+  targetEmpresaId?: number,
+) => {
   await connectDB();
   const hoyChile = fechaActual
     ? moment(fechaActual).tz(TIMEZONE)
@@ -41,7 +44,11 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
   const edpCreatedForEmail: EDPMailQueueItem[] = [];
 
   // Buscar solo empresas con facturación automática (excluir fact_manual = true)
-  const empresas = await Empresa.findAll({ where: { fact_manual: false } });
+  const whereCondition: any = { fact_manual: false };
+  if (targetEmpresaId) {
+    whereCondition.id = targetEmpresaId;
+  }
+  const empresas = await Empresa.findAll({ where: whereCondition });
   console.log(
     `[${new Date().toISOString()}] Empresas encontradas: ${empresas.length}`,
   );
@@ -196,10 +203,18 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
             },
             {
               model: Pasajero,
+              attributes: [
+                "id",
+                "nombre",
+                "rut",
+                "correo",
+                "id_centro_costo",
+              ],
               include: [
                 {
                   model: CentroCosto,
                   attributes: ["id", "nombre"],
+                  required: false,
                 },
               ],
               required: false,
@@ -225,14 +240,17 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
         const total_tickets_anulados = tickets.filter(
           (t) => t.ticketStatus === "Anulado",
         ).length;
-        const monto_bruto = tickets.reduce(
-          (sum, t) => sum + (Number(t.monto_boleto) || 0),
-          0,
-        );
-        const devoluciones = tickets.reduce(
-          (sum, t) => sum + (Number(t.monto_devolucion) || 0),
-          0,
-        );
+
+        // Base de cálculo: solo tickets CONFIRMADOS (sin incluir anulados)
+        const monto_confirmados = tickets
+          .filter((t) => t.ticketStatus === "Confirmed")
+          .reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
+        // Devoluciones: solo los montos devueltos de tickets anulados dentro del periodo
+        const devoluciones = tickets
+          .filter((t) => t.ticketStatus === "Anulado")
+          .reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
+        // Base neta sobre la que se aplica el descuento: G = confirmados - devoluciones_dentro
+        const monto_neto_base = monto_confirmados - devoluciones;
 
         // Buscar tickets del periodo anterior anulados fuera de periodo
         const ticketsAnuladosFueraPeriodo = await Ticket.findAll({
@@ -252,14 +270,12 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
           0,
         );
 
-        const monto_neto_consumo_real = monto_bruto - devoluciones;
-        let monto_neto_consumo = 0;
         let porcentajeDescuento = 0;
         let descuento = 0;
         let monto_facturado = 0;
 
-        if (monto_bruto >= 0) {
-          // Calcular descuento por tramos sobre el monto bruto si aplica (para todas las empresas)
+        if (monto_neto_base >= 0) {
+          // Descuento por tramos sobre monto_neto_base (G = confirmados - devoluciones_dentro)
           const tramos = await EmpresaTramo.findAll({
             where: { id_empresa: empresaId },
             order: [["monto_desde", "ASC"]],
@@ -271,19 +287,21 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
                 ? Number(tramo.monto_hasta)
                 : null;
             if (
-              monto_bruto >= desde &&
-              (hasta === null || monto_bruto <= hasta)
+              monto_neto_base >= desde &&
+              (hasta === null || monto_neto_base <= hasta)
             ) {
               porcentajeDescuento = Number(tramo.porcentaje_descuento);
             }
           }
-          descuento = monto_bruto * (porcentajeDescuento / 100);
-          monto_facturado = monto_bruto - devoluciones - descuento;
+          // H = G * porcentaje / 100
+          descuento = Math.round(monto_neto_base * (porcentajeDescuento / 100));
+          // I = G - H (antes de aplicar E y F)
+          monto_facturado = monto_neto_base - descuento;
           if (monto_facturado < 0) monto_facturado = 0;
         }
 
         console.log(
-          `[${new Date().toISOString()}] Periodo ${periodo}: total_tickets=${total_tickets}, total_tickets_anulados=${total_tickets_anulados}, monto_bruto=${monto_bruto}, devoluciones=${devoluciones}, monto_neto_consumo=${monto_neto_consumo}, porcentaje_descuento=${porcentajeDescuento}%, monto_facturado=${monto_facturado}, monto_neto_consumo_real=${monto_neto_consumo_real}`,
+          `[${new Date().toISOString()}] Periodo ${periodo}: total_tickets=${total_tickets}, total_tickets_anulados=${total_tickets_anulados}, monto_confirmados=${monto_confirmados}, devoluciones=${devoluciones}, monto_neto_base=${monto_neto_base}, porcentaje_descuento=${porcentajeDescuento}%, descuento=${descuento}, monto_facturado(I)=${monto_facturado}`,
         );
 
         // Detalle por centro de costo - USANDO CENTRO DE COSTO DEL PASAJERO
@@ -308,7 +326,9 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
         for (const ticket of tickets) {
           const pasajero = ticket.pasajero;
           const centroCostoNombre =
-            pasajero?.centroCosto?.nombre || "Sin asignar";
+            pasajero?.centroCosto?.nombre ||
+            (pasajero as any)?.CentroCosto?.nombre ||
+            "Sin asignar";
 
           if (!detallePorCC[centroCostoNombre]) {
             detallePorCC[centroCostoNombre] = {
@@ -323,10 +343,11 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
           if (ticket.ticketStatus === "Anulado") {
             detallePorCC[centroCostoNombre].total_anulados += 1;
           }
-          const boleto = Number(ticket.monto_boleto) || 0;
-          const devolucion = Number(ticket.monto_devolucion) || 0;
-          detallePorCC[centroCostoNombre].monto_facturado +=
-            boleto - devolucion;
+          // Solo acumular monto de tickets CONFIRMADOS en el desglose por CC
+          if (ticket.ticketStatus !== "Anulado") {
+            detallePorCC[centroCostoNombre].monto_facturado +=
+              Number(ticket.monto_boleto) || 0;
+          }
         }
 
         console.log(

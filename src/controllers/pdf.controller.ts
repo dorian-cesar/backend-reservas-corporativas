@@ -216,32 +216,13 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     }
     const empresaData = empresa.get({ plain: true }) as IEmpresa;
 
-    const centrosCostoDB = await CentroCosto.findAll({
-      where: { empresa_id: estadoData.empresa_id },
-      attributes: ["id", "nombre"],
-    });
-
-    const centrosMap = new Map<
-      number,
-      {
-        id: number;
-        nombre: string;
-        cantidad_tickets: number;
-        monto_facturado: number;
-        devoluciones: number; // Nueva propiedad
-      }
-    >();
-
-    centrosCostoDB.forEach((cc) => {
-      const plain = cc.get({ plain: true });
-      centrosMap.set(plain.id, {
-        id: plain.id,
-        nombre: plain.nombre,
-        cantidad_tickets: 0,
-        monto_facturado: 0,
-        devoluciones: 0,
-      });
-    });
+    // Mapa por NOMBRE para consolidar CCs con distintos IDs pero mismo nombre
+    // (Sodexo y otras empresas pueden tener múltiples registros con el mismo nombre CC)
+    const centrosMapByNombre = new Map<string, {
+      nombre: string;
+      cantidad_tickets: number;
+      monto_facturado: number;
+    }>();
 
     let ticketsConfirmados = 0;
     let ticketsAnulados = 0;
@@ -289,7 +270,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
             include: [
               {
                 model: CentroCosto,
-                attributes: ["id"],
+                attributes: ["id", "nombre"],  // nombre necesario para agrupar por nombre
                 required: false,
               },
             ],
@@ -328,43 +309,37 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
           montoTotalBruto += montoTicket;
         }
 
-        // Por centro de costo
-        let centroId = pasajero && pasajero.centroCosto ? pasajero.centroCosto.id : null;
-        if (centroId === null || !centrosMap.has(centroId)) {
-          centroId = -1;
-          if (!centrosMap.has(-1)) {
-            centrosMap.set(-1, {
-              id: -1,
-              nombre: "Sin asignar",
-              cantidad_tickets: 0,
-              monto_facturado: 0,
-              devoluciones: 0,
-            });
-          }
+        // Agrupar por NOMBRE del CC desde el snapshot
+        // (misma lógica que el cron: agrupa por nombre, no por ID)
+        const nombreCC =
+          pasajero?.centroCosto?.nombre ||
+          pasajero?.CentroCosto?.nombre ||
+          "Sin asignar";
+        if (!centrosMapByNombre.has(nombreCC)) {
+          centrosMapByNombre.set(nombreCC, {
+            nombre: nombreCC,
+            cantidad_tickets: 0,
+            monto_facturado: 0,
+          });
         }
-
-        const centro = centrosMap.get(centroId);
-        if (centro) {
-          if (esAnulado) {
-            centro.devoluciones += montoDevolucion;
-          } else {
-            centro.cantidad_tickets += 1;
-            centro.monto_facturado += montoTicket;
-          }
+        const centroByNombre = centrosMapByNombre.get(nombreCC)!;
+        // Solo tickets CONFIRMADOS suman al desglose (igual que cron y EDP manual)
+        if (!esAnulado) {
+          centroByNombre.cantidad_tickets += 1;
+          centroByNombre.monto_facturado += montoTicket;
         }
       });
     }
 
 
     // Calcular montos netos por centro de costo (solo centros con tickets confirmados > 0)
-
-    const centrosCostoArray = Array.from(centrosMap.values())
+    const centrosCostoArray = Array.from(centrosMapByNombre.values())
       .filter((cc) => cc.cantidad_tickets > 0)
       .map((cc) => ({
         ...cc,
         monto_neto: cc.monto_facturado,
       }))
-      .sort((a, b) => b.monto_neto - a.monto_neto); // Ordenar por monto neto
+      .sort((a, b) => b.monto_neto - a.monto_neto);
 
     // Monto bruto total de pasajes generados
     const montoBrutoAntesDeDescuento = centrosCostoArray.reduce(
@@ -403,7 +378,12 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
       : "Descuento Aplicado";
 
     const montoReclamos = Number(estadoData.reclamos_descuento || 0);
-    const montoFinalConDescuento = Number(estadoData.monto_facturado);
+
+    // J = I - E - F (calculado dinámicamente para garantizar coherencia con lo que muestra el PDF)
+    // I = montoBrutoAntesDeDescuento - montoDescuento
+    const montoI = Math.max(0, montoBrutoAntesDeDescuento - montoDescuento);
+    const devFueraBD = Number(estadoData.devoluciones_fuera_periodo || 0);
+    const montoFinalConDescuento = Math.max(0, montoI - devFueraBD - montoReclamos);
 
     // Saldo a Favor Restante (Acumulado para próx. período) proviene de los campos de la empresa
     const saldoFavorRestante =
@@ -445,8 +425,8 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         ),
         saldo_favor_restante: saldoFavorRestante,
       },
-      centros_costo: centrosCostoArray.map((cc) => ({
-        id: cc.id,
+      centros_costo: centrosCostoArray.map((cc, idx) => ({
+        id: idx + 1,
         nombre: cc.nombre,
         cantidad_tickets: cc.cantidad_tickets,
         monto_facturado: cc.monto_neto, // Usar monto NETO en el desglose

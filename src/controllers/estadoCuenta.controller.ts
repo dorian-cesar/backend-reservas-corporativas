@@ -178,15 +178,50 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       (t) => t.ticketStatus === "Anulado",
     ).length;
 
-    // Sumar montos
-    const monto_bruto = tickets.reduce(
-      (sum, t) => sum + (Number(t.monto_boleto) || 0),
-      0,
-    );
-    const devoluciones = tickets.reduce(
-      (sum, t) => sum + (Number(t.monto_devolucion) || 0),
-      0,
-    );
+    // Base de cálculo: solo tickets CONFIRMADOS
+    const monto_confirmados = tickets
+      .filter((t) => t.ticketStatus === "Confirmed")
+      .reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
+    // Devoluciones: solo los montos devueltos de tickets anulados dentro del periodo
+    const devoluciones = tickets
+      .filter((t) => t.ticketStatus === "Anulado")
+      .reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
+    // Base neta: G = confirmados - devoluciones_dentro
+    const monto_neto_base = monto_confirmados - devoluciones;
+
+    const monto_neto_consumo_real = monto_neto_base;
+    let monto_neto_consumo = 0;
+    let porcentajeDescuento = 0;
+    let descuentoTramos = 0;
+    let monto_facturado = 0;
+
+    if (monto_neto_consumo_real >= 0) {
+      monto_neto_consumo = monto_neto_consumo_real;
+      // Descuento por tramos sobre monto_neto_base (G = confirmados - devoluciones_dentro)
+      const tramos = await EmpresaTramo.findAll({
+        where: { id_empresa: empresa_id },
+        order: [["monto_desde", "ASC"]],
+      });
+      for (const tramo of tramos) {
+        const desde = Number(tramo.monto_desde);
+        const hasta =
+          tramo.monto_hasta !== null && tramo.monto_hasta !== undefined
+            ? Number(tramo.monto_hasta)
+            : null;
+        if (
+          monto_neto_consumo >= desde &&
+          (hasta === null || monto_neto_consumo <= hasta)
+        ) {
+          porcentajeDescuento = Number(tramo.porcentaje_descuento);
+        }
+      }
+      // H = G * porcentaje / 100
+      descuentoTramos = Math.round(monto_neto_consumo * (porcentajeDescuento / 100));
+      // I = G - H (antes de E y F)
+      monto_facturado = monto_neto_consumo - descuentoTramos;
+      if (monto_facturado < 0) monto_facturado = 0;
+    }
+
     // Buscar tickets del periodo anterior anulados fuera de periodo
     const ticketsAnuladosFueraPeriodo = await Ticket.findAll({
       where: {
@@ -205,39 +240,48 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       0,
     );
 
-    const monto_neto_consumo_real = monto_bruto - devoluciones;
-    let monto_neto_consumo = 0;
-    let porcentajeDescuento = 0;
-    let descuentoTramos = 0;
-    let monto_facturado = 0;
-
-    if (monto_neto_consumo_real >= 0) {
-      monto_neto_consumo = monto_neto_consumo_real;
-      // Calcular descuento por tramos sobre el monto neto del periodo (tickets del periodo - devoluciones del periodo)
-      const tramos = await EmpresaTramo.findAll({
-        where: { id_empresa: empresa_id },
-        order: [["monto_desde", "ASC"]],
-      });
-      for (const tramo of tramos) {
-        const desde = Number(tramo.monto_desde);
-        const hasta =
-          tramo.monto_hasta !== null && tramo.monto_hasta !== undefined
-            ? Number(tramo.monto_hasta)
-            : null;
-        if (
-          monto_neto_consumo >= desde &&
-          (hasta === null || monto_neto_consumo <= hasta)
-        ) {
-          porcentajeDescuento = Number(tramo.porcentaje_descuento);
-        }
+    // Generar detalle por centro de costo agrupado por nombre
+    const detallePorCC: Record<
+      string,
+      {
+        nombre: string;
+        total_tickets: number;
+        total_anulados: number;
+        monto_facturado: number;
       }
-      descuentoTramos = monto_neto_consumo * (porcentajeDescuento / 100);
-      monto_facturado = monto_neto_consumo - descuentoTramos;
-      if (monto_facturado < 0) monto_facturado = 0;
-    }
+    > = {};
 
-    // Generar detalle por centro de costo
-    const detallePorCC: any = {};
+    detallePorCC["Sin asignar"] = {
+      nombre: "Sin asignar",
+      total_tickets: 0,
+      total_anulados: 0,
+      monto_facturado: 0,
+    };
+
+    for (const ticket of tickets) {
+      const pasajero = ticket.pasajero;
+      const centroCostoNombre =
+        pasajero?.centroCosto?.nombre ||
+        (pasajero as any)?.CentroCosto?.nombre ||
+        "Sin asignar";
+
+      if (!detallePorCC[centroCostoNombre]) {
+        detallePorCC[centroCostoNombre] = {
+          nombre: centroCostoNombre,
+          total_tickets: 0,
+          total_anulados: 0,
+          monto_facturado: 0,
+        };
+      }
+
+      detallePorCC[centroCostoNombre].total_tickets += 1;
+      if (ticket.ticketStatus === "Anulado") {
+        detallePorCC[centroCostoNombre].total_anulados += 1;
+      } else {
+        detallePorCC[centroCostoNombre].monto_facturado +=
+          Number(ticket.monto_boleto) || 0;
+      }
+    }
 
     // === DESCUENTO POR DEVOLUCIONES FUERA DE PERIODO Y RECLAMOS ===
     const devolucionFueraPendiente = Number(empresa.devolucion_pendiente_edp) || 0;
@@ -349,7 +393,7 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
             total_tickets: tickets.length,
             tickets_confirmados: total_confirmados,
             tickets_anulados: total_anulados,
-            monto_bruto,
+            monto_bruto: monto_confirmados,
             devoluciones,
             monto_facturado: monto_facturado_con_reclamos,
             detalle_por_cc: detallePorCC,

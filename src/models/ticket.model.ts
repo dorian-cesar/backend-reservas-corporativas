@@ -128,19 +128,19 @@ export class Ticket extends Model<ITicket> {
   declare id_empresa?: number | null;
 
   @BelongsTo(() => User)
-  user?: User;
+  declare user?: User;
 
   @BelongsTo(() => Pasajero, {
     foreignKey: "id_pasajero",
     targetKey: "id",
   })
-  pasajero?: Pasajero;
+  declare pasajero?: Pasajero;
 
   @BelongsTo(() => Empresa, {
     foreignKey: "id_empresa",
     targetKey: "id",
   })
-  empresa?: Empresa;
+  declare empresa?: Empresa;
 
   @CreatedAt
   @Column({ type: DataType.DATE, allowNull: true })
