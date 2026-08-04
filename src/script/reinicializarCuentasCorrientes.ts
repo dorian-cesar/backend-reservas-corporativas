@@ -44,20 +44,7 @@ export const reinicializarCuentasCorrientes = async () => {
 
     const saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
 
-    // Solo creamos movimiento si existen movimientos previos
-    if (!ultimoMovimiento) {
-      console.log(`ℹ️ [Empresa ${empresaId} - ${nombreEmpresa}] monto_acumulado reseteado de $${montoAcumuladoAnterior.toLocaleString("es-CL")} → $0. Sin movimientos CC previos.`);
-      continue;
-    }
-
-    if (saldoActual === 0) {
-      console.log(`ℹ️ [Empresa ${empresaId} - ${nombreEmpresa}] Saldo actual ya es $0. Se omite creación de movimiento $0.`);
-      continue;
-    }
-
-    let tipo_movimiento: "abono" | "cargo" = "abono";
-    let monto = 0;
-
+    // Si no existian movimientos previos o si el saldo actual es 0, igual se crea el movimiento marcador de reinicio con monto 0 y saldo 0
     if (saldoActual < 0) {
       // Tiene deuda (ej: -150000). Abono positivo de 150000 para llevar a 0.
       tipo_movimiento = "abono";
@@ -66,6 +53,10 @@ export const reinicializarCuentasCorrientes = async () => {
       // Saldo a favor (ej: +50000). Cargo de 50000 para llevar a 0.
       tipo_movimiento = "cargo";
       monto = saldoActual;
+    } else {
+      // Saldo actual es 0, se crea abono de $0 como marcador oficial de reinicio
+      tipo_movimiento = "abono";
+      monto = 0;
     }
 
     const nuevoMovimiento = await CuentaCorriente.create({
@@ -79,7 +70,6 @@ export const reinicializarCuentasCorrientes = async () => {
       fecha_movimiento: fechaReinicio,
     });
 
-    procesadas++;
     ajustadas++;
     console.log(
       `✅ [Empresa ${empresaId} - ${nombreEmpresa}] monto_acumulado: $${montoAcumuladoAnterior.toLocaleString("es-CL")} → $0 | Saldo CC anterior: $${saldoActual.toLocaleString(
