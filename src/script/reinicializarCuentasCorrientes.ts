@@ -1,0 +1,105 @@
+import * as dotenv from "dotenv";
+dotenv.config();
+
+// Configuración predeterminada para la Base de Datos de Producción
+process.env.DB_HOST = "reserva-corporativa.c6xou04wqeof.us-east-1.rds.amazonaws.com";
+process.env.DB_PORT = "3306";
+process.env.DB_USER = "admin";
+process.env.DB_PASSWORD = "BIWEHB?NtOi6GPo.WaKD-Uvy[I9F";
+process.env.DB_NAME = "multiempresa_db";
+
+import { connectDB } from "../database";
+import { Empresa } from "../models/empresa.model";
+import { CuentaCorriente } from "../models/cuenta_corriente.model";
+
+export const reinicializarCuentasCorrientes = async () => {
+  console.log(`[${new Date().toISOString()}] === INICIO REINICIALIZACION DE CUENTAS CORRIENTES (PRODUCCION) ===`);
+  console.log(`🔌 Conectando a DB: ${process.env.DB_HOST}`);
+  await connectDB();
+
+  const empresas = await Empresa.findAll();
+  console.log(`📋 Total empresas encontradas: ${empresas.length}`);
+
+  let procesadas = 0;
+  let ajustadas = 0;
+
+  const fechaReinicio = new Date();
+  const referenciaReinicio = "REINICIO-SISTEMA-2026-08-04";
+  const descripcionReinicio = "Ajuste por reinicio de cuenta corriente por sistema";
+
+  for (const empresa of empresas) {
+    const empresaId = Number(empresa.id);
+    const nombreEmpresa = empresa.nombre || `#${empresaId}`;
+
+    // Obtener último movimiento
+    const ultimoMovimiento = await CuentaCorriente.findOne({
+      where: { empresa_id: empresaId },
+      order: [["fecha_movimiento", "DESC"], ["id", "DESC"]],
+    });
+
+    const saldoActual = ultimoMovimiento ? Number(ultimoMovimiento.saldo) : 0;
+
+    // Solo creamos movimiento si existen movimientos previos
+    if (!ultimoMovimiento) {
+      console.log(`ℹ️ [Empresa ${empresaId} - ${nombreEmpresa}] Sin movimientos previos. Se omite.`);
+      continue;
+    }
+
+    let tipo_movimiento: "abono" | "cargo" = "abono";
+    let monto = 0;
+
+    if (saldoActual < 0) {
+      // Tiene deuda (ej: -150000). Abono positivo de 150000 para llevar a 0.
+      tipo_movimiento = "abono";
+      monto = Math.abs(saldoActual);
+    } else if (saldoActual > 0) {
+      // Saldo a favor (ej: +50000). Cargo de 50000 para llevar a 0.
+      tipo_movimiento = "cargo";
+      monto = saldoActual;
+    } else {
+      // Saldo actual es 0, se crea abono de $0 como marcador de reinicio
+      tipo_movimiento = "abono";
+      monto = 0;
+    }
+
+    const nuevoMovimiento = await CuentaCorriente.create({
+      empresa_id: empresaId,
+      tipo_movimiento,
+      monto,
+      descripcion: descripcionReinicio,
+      saldo: 0,
+      referencia: referenciaReinicio,
+      pagado: true,
+      fecha_movimiento: fechaReinicio,
+    });
+
+    ajustadas++;
+    console.log(
+      `✅ [Empresa ${empresaId} - ${nombreEmpresa}] Saldo anterior: $${saldoActual.toLocaleString(
+        "es-CL"
+      )} | Movimiento (${tipo_movimiento.toUpperCase()}) $${monto.toLocaleString(
+        "es-CL"
+      )} | Nuevo Saldo: $0 | ID Movimiento: ${nuevoMovimiento.id}`
+    );
+
+    procesadas++;
+  }
+
+  console.log(`\n==================================================`);
+  console.log(`🏁 FIN PROCESO REINICIALIZACION PRODUCCION`);
+  console.log(`📊 Empresas procesadas: ${procesadas}`);
+  console.log(`📊 Cuentas ajustadas a $0: ${ajustadas}`);
+  console.log(`==================================================\n`);
+};
+
+if (require.main === module) {
+  reinicializarCuentasCorrientes()
+    .then(() => {
+      console.log("Proceso finalizado con éxito.");
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("Error al ejecutar reinicialización:", err);
+      process.exit(1);
+    });
+}
