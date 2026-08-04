@@ -10,3 +10,5 @@ uploads/passengers
 uploads/centros_costo
 uploads/empresas
 /uploads/
+consultar_snapshots.py
+ejecutar_ajuste_edps.py

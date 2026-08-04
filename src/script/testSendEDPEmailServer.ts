@@ -33,7 +33,8 @@ const TEST_EMAIL = "dwigodski@wit.la";
 
 // EDP específico a usar (opcional). Si es null, se busca automáticamente.
 // Puedes forzar uno de los EDPs de producción conocidos: 7772, 7767, 7765, 7758, 7757
-const FORCE_EDP_ID: number | null = 6443; // Empresa 9 — 1095 tickets (el más completo)
+const FORCE_EDP_ID: number | null = 7758; // Empresa 9 — 1095 tickets (el más completo)
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const main = async () => {
