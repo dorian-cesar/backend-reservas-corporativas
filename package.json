@@ -16,7 +16,6 @@
     "generar-cuentas-corrientes": "ts-node src/script/generarCuentasCorrientes.ts",
     "generar-estado-cuenta": "ts-node src/script/generarEDPManual.ts",
     "test:edp-email": "ts-node src/script/testSendEDPEmailServer.ts"
-
   },
   "author": "Tu Nombre",
   "license": "MIT",

@@ -11,7 +11,10 @@ import { Reclamo } from "../models/reclamo.model";
 import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
 import { Op } from "sequelize";
 import moment from "moment-timezone";
-import { processEDPMailQueue, EDPMailQueueItem } from "../services/edpMailBatch.service";
+import {
+  processEDPMailQueue,
+  EDPMailQueueItem,
+} from "../services/edpMailBatch.service";
 
 const TIMEZONE = "America/Santiago";
 
@@ -24,7 +27,9 @@ const formatFecha = (d: Date | string | moment.Moment): string => {
 
 export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
   await connectDB();
-  const hoyChile = fechaActual ? moment(fechaActual).tz(TIMEZONE) : moment().tz(TIMEZONE);
+  const hoyChile = fechaActual
+    ? moment(fechaActual).tz(TIMEZONE)
+    : moment().tz(TIMEZONE);
   const hoy = hoyChile.toDate();
   const periodoActual = hoyChile.format("YYYY-MM");
 
@@ -72,7 +77,10 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
     if (primerTicket && primerTicket.created_at) {
       fechaInicioChile = moment(primerTicket.created_at).tz(TIMEZONE);
     } else {
-      fechaInicioChile = moment(hoyChile).subtract(1, "month").date(1).startOf("day");
+      fechaInicioChile = moment(hoyChile)
+        .subtract(1, "month")
+        .date(1)
+        .startOf("day");
     }
 
     // Ajustar fechaInicioChile al día de facturación en hora local de Chile
@@ -91,14 +99,16 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
       fin: Date;
       esPeriodoActual: boolean;
     }[] = [];
-    
+
     let fechaIterChile = moment(fechaInicioChile);
     let periodosGenerados = 0;
 
     while (fechaIterChile.isSameOrBefore(fechaFinChile, "day")) {
       const inicioPeriodoChile = moment(fechaIterChile).startOf("day");
       const siguientePeriodoChile = moment(inicioPeriodoChile).add(1, "month");
-      const finPeriodoChile = moment(siguientePeriodoChile).subtract(1, "day").endOf("day");
+      const finPeriodoChile = moment(siguientePeriodoChile)
+        .subtract(1, "day")
+        .endOf("day");
 
       const periodoStr = inicioPeriodoChile.format("YYYY-MM");
       const esPeriodoCerrado = hoyChile.isAfter(finPeriodoChile);
@@ -346,9 +356,12 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
             );
           } else {
             // Período cerrado sin EDP: verificar si tiene tickets o devoluciones pendientes
-            const devolucionFueraPendiente = Number(empresa.devolucion_pendiente_edp) || 0;
-            const totalDevolucionesFueraDisponibles = devoluciones_fuera_periodo + devolucionFueraPendiente;
-            const reclamosDisponibles = Number(empresa.descuento_pendiente_edp) || 0;
+            const devolucionFueraPendiente =
+              Number(empresa.devolucion_pendiente_edp) || 0;
+            const totalDevolucionesFueraDisponibles =
+              devoluciones_fuera_periodo + devolucionFueraPendiente;
+            const reclamosDisponibles =
+              Number(empresa.descuento_pendiente_edp) || 0;
 
             const tieneMovimiento =
               tickets.length > 0 ||
@@ -357,7 +370,7 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
 
             if (!tieneMovimiento) {
               console.log(
-                `[${new Date().toISOString()}] Período ${periodo} cerrado para empresa ${empresaId} con 0 tickets y 0 devoluciones — EDP omitido`
+                `[${new Date().toISOString()}] Período ${periodo} cerrado para empresa ${empresaId} con 0 tickets y 0 devoluciones — EDP omitido`,
               );
               continue;
             }
@@ -368,12 +381,15 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
             let devoluciones_fuera_periodo_aplicadas = 0;
             let devoluciones_fuera_periodo_restante = 0;
             if (balance >= totalDevolucionesFueraDisponibles) {
-              devoluciones_fuera_periodo_aplicadas = totalDevolucionesFueraDisponibles;
+              devoluciones_fuera_periodo_aplicadas =
+                totalDevolucionesFueraDisponibles;
               balance -= devoluciones_fuera_periodo_aplicadas;
               devoluciones_fuera_periodo_restante = 0;
             } else {
               devoluciones_fuera_periodo_aplicadas = balance;
-              devoluciones_fuera_periodo_restante = totalDevolucionesFueraDisponibles - devoluciones_fuera_periodo_aplicadas;
+              devoluciones_fuera_periodo_restante =
+                totalDevolucionesFueraDisponibles -
+                devoluciones_fuera_periodo_aplicadas;
               balance = 0;
             }
 
@@ -392,7 +408,9 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
 
             const monto_facturado_final = balance;
             const suma_devoluciones_final =
-              devoluciones + reclamos_aplicados + devoluciones_fuera_periodo_aplicadas;
+              devoluciones +
+              reclamos_aplicados +
+              devoluciones_fuera_periodo_aplicadas;
 
             const estadoCuenta = await EstadoCuenta.create({
               empresa_id: empresaId,
@@ -422,7 +440,7 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
               await EdpTicketSnapshot.bulkCreate(snapshotRows);
             }
             console.log(
-              `[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}. Monto facturado final: ${monto_facturado_final} (devoluciones fuera: ${devoluciones_fuera_periodo_aplicadas}, reclamos: ${reclamos_aplicados})`
+              `[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}. Monto facturado final: ${monto_facturado_final} (devoluciones fuera: ${devoluciones_fuera_periodo_aplicadas}, reclamos: ${reclamos_aplicados})`,
             );
 
             // Acumular en cola de email si la empresa es de tipo Masiva
@@ -450,7 +468,7 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
                   ejecutivo_com_email: empresa.ejecutivo_com_email || "",
                   tipo_facturacion: empresa.tipo_facturacion,
                 },
-                tickets: tickets.map((t) => t.toJSON ? t.toJSON() : t),
+                tickets: tickets.map((t) => (t.toJSON ? t.toJSON() : t)),
                 detallePorCC,
               });
             }
@@ -461,9 +479,8 @@ export const generarEstadosPagoEmpresas = async (fechaActual?: Date) => {
             });
 
             console.log(
-              `[${new Date().toISOString()}] descuento_pendiente_edp actualizado a ${reclamos_restante} para empresa ${empresaId}`
+              `[${new Date().toISOString()}] descuento_pendiente_edp actualizado a ${reclamos_restante} para empresa ${empresaId}`,
             );
-
 
             // Cargo global en CuentaCorriente: solo cuando el período ya cerró y hay monto facturado positivo
             if (monto_facturado_final > 0) {
