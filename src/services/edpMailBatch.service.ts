@@ -15,6 +15,7 @@ export interface EDPMailQueueItem {
   totalTickets: number;
   totalTicketsAnulados: number;
   montoFacturado: number;
+  montoConfirmados?: number;
   porcentajeDescuento: number;
   montoDescuento: number;
   devolucionesDentroDelPeriodo: number;
@@ -106,7 +107,7 @@ export const processEDPMailQueue = async (
         const centrosCosto = Object.values(item.detallePorCC)
           .filter((cc) => cc.total_tickets - cc.total_anulados > 0)
           .map((cc, idx) => ({
-            id: idx,
+            id: idx + 1,
             nombre: cc.nombre,
             cantidad_tickets: cc.total_tickets - cc.total_anulados,
             monto_facturado: cc.monto_facturado,
@@ -114,9 +115,17 @@ export const processEDPMailQueue = async (
           .sort((a, b) => b.monto_facturado - a.monto_facturado);
 
         const ticketsConfirmados = item.totalTickets - item.totalTicketsAnulados;
-        const montoBruto = centrosCosto.reduce(
-          (sum, cc) => sum + cc.monto_facturado,
+        const montoBruto = item.montoConfirmados !== undefined
+          ? item.montoConfirmados
+          : centrosCosto.reduce((sum, cc) => sum + cc.monto_facturado, 0);
+
+        const montoDescuento = Math.round(
+          montoBruto * ((item.porcentajeDescuento || 0) / 100),
+        );
+        const montoI = Math.max(0, montoBruto - montoDescuento);
+        const montoFinal = Math.max(
           0,
+          montoI - (item.devolucionesFueraPeriodo || 0) - (item.reclamosDescuento || 0),
         );
 
         const edpPDFData: EDPPDFData = {
@@ -139,8 +148,8 @@ export const processEDPMailQueue = async (
             porcentaje_descuento: item.porcentajeDescuento,
             etiqueta_descuento:
               item.porcentajeDescuento > 0 ? "Descuento por Tramos" : "Descuento Aplicado",
-            monto_descuento: item.montoDescuento,
-            monto_final: item.montoFacturado,
+            monto_descuento: montoDescuento,
+            monto_final: montoFinal,
             monto_reclamos: item.reclamosDescuento,
             devoluciones_fuera_periodo: item.devolucionesFueraPeriodo,
             saldo_favor_restante: 0,

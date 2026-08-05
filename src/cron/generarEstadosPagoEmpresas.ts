@@ -327,6 +327,7 @@ export const generarEstadosPagoEmpresas = async (
           const pasajero = ticket.pasajero;
           const centroCostoNombre =
             pasajero?.centroCosto?.nombre ||
+            (pasajero as any)?.centro_costo?.nombre ||
             (pasajero as any)?.CentroCosto?.nombre ||
             "Sin asignar";
 
@@ -452,12 +453,26 @@ export const generarEstadosPagoEmpresas = async (
               fecha_fin: formatFecha(fin),
             });
 
-            // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots
+            // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con normalización de centro_costo
             if (tickets.length > 0) {
-              const snapshotRows = tickets.map((t) => ({
-                edp_id: estadoCuenta.id,
-                ticket_data: JSON.stringify(t.toJSON()),
-              }));
+              const snapshotRows = tickets.map((t) => {
+                const json = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+                if (json.pasajero) {
+                  const cc =
+                    json.pasajero.centroCosto ||
+                    json.pasajero.centro_costo ||
+                    json.pasajero.CentroCosto;
+                  if (cc) {
+                    json.pasajero.centroCosto = cc;
+                    json.pasajero.centro_costo = cc;
+                    json.pasajero.CentroCosto = cc;
+                  }
+                }
+                return {
+                  edp_id: estadoCuenta.id,
+                  ticket_data: JSON.stringify(json),
+                };
+              });
               await EdpTicketSnapshot.bulkCreate(snapshotRows);
             }
             console.log(
@@ -474,6 +489,7 @@ export const generarEstadosPagoEmpresas = async (
                 fechaGeneracion: fin,
                 totalTickets: total_tickets,
                 totalTicketsAnulados: total_tickets_anulados,
+                montoConfirmados: monto_confirmados,
                 montoFacturado: monto_facturado_final,
                 porcentajeDescuento: porcentajeDescuento,
                 montoDescuento: descuento,

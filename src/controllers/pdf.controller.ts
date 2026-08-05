@@ -314,6 +314,7 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
         const nombreCC =
           pasajero?.centroCosto?.nombre ||
           pasajero?.CentroCosto?.nombre ||
+          pasajero?.centro_costo?.nombre ||
           "Sin asignar";
         if (!centrosMapByNombre.has(nombreCC)) {
           centrosMapByNombre.set(nombreCC, {

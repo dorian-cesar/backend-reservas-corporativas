@@ -12,3 +12,4 @@ uploads/empresas
 /uploads/
 consultar_snapshots.py
 ejecutar_ajuste_edps.py
+/pdf_pruebas_edp

@@ -10,6 +10,9 @@ import { CentroCosto } from "../models/centro_costo.model";
 import { EmpresaTramo } from "../models/empresa_tramos.model";
 import { Reclamo } from "../models/reclamo.model";
 import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
+import moment from "moment-timezone";
+
+const TIMEZONE = "America/Santiago";
 
 export const ejecutarEDPManual = async (req: Request, res: Response) => {
   try {
@@ -135,6 +138,7 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
     const tickets = await Ticket.findAll({
       where: {
         id_empresa: empresa_id,
+        ticketStatus: { [Op.in]: ["Confirmed", "Anulado"] },
         confirmedAt: {
           [Op.between]: [inicioConsulta, finConsulta],
         },
@@ -262,6 +266,7 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       const pasajero = ticket.pasajero;
       const centroCostoNombre =
         pasajero?.centroCosto?.nombre ||
+        (pasajero as any)?.centro_costo?.nombre ||
         (pasajero as any)?.CentroCosto?.nombre ||
         "Sin asignar";
 
@@ -325,8 +330,8 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       periodo: `${fechaDesde.getFullYear()}-${String(fechaDesde.getMonth() + 1).padStart(2, "0")}`,
       fecha_inicio: inicioPeriodoStr,
       fecha_fin: finPeriodoStr,
-      fecha_generacion: new Date(),
-      fecha_facturacion: new Date(),
+      fecha_generacion: moment().tz(TIMEZONE).toDate(),
+      fecha_facturacion: moment().tz(TIMEZONE).toDate(),
       total_tickets: tickets.length,
       total_tickets_anulados: total_anulados,
       monto_facturado: monto_facturado_con_reclamos,
@@ -338,12 +343,26 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       pagado: false,
     });
 
-    // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots
+    // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con normalización de centro_costo
     if (tickets.length > 0) {
-      const snapshotRows = tickets.map((t) => ({
-        edp_id: estadoCuenta.id,
-        ticket_data: JSON.stringify(t.toJSON()),
-      }));
+      const snapshotRows = tickets.map((t) => {
+        const json = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+        if (json.pasajero) {
+          const cc =
+            json.pasajero.centroCosto ||
+            json.pasajero.centro_costo ||
+            json.pasajero.CentroCosto;
+          if (cc) {
+            json.pasajero.centroCosto = cc;
+            json.pasajero.centro_costo = cc;
+            json.pasajero.CentroCosto = cc;
+          }
+        }
+        return {
+          edp_id: estadoCuenta.id,
+          ticket_data: JSON.stringify(json),
+        };
+      });
       await EdpTicketSnapshot.bulkCreate(snapshotRows);
     }
 
