@@ -261,11 +261,12 @@ export const generateEDPExcelBuffer = async (
 
   const legendRows = [
     {
-      concepto: "Tickets Confirmados (Vigentes)",
-      conteo: `${countConfirmados} tickets`,
-      monto: formatCLP(montoConfirmados),
+      concepto: "TOTALES GENERALES (Bruto Emitido)",
+      conteo: `${tickets.length} tickets generados`,
+      monto: formatCLP(totalMontoOriginal),
       descripcion:
-        "Suma del valor neto facturado de pasajes confirmados vigentes en el período.",
+        "Monto Original Bruto (Monto Neto Confirmados + Devoluciones Anulaciones + Devoluciones Reclamos).",
+      isHighlighted: false,
     },
     {
       concepto: "Tickets Anulados (Devoluciones)",
@@ -273,6 +274,7 @@ export const generateEDPExcelBuffer = async (
       monto: formatCLP(montoAnuladosDevolucion || totalDevolucion),
       descripcion:
         "Monto total devuelto por pasajes anulados dentro del período de reservas.",
+      isHighlighted: false,
     },
     {
       concepto: "Tickets Reclamados (Devoluciones)",
@@ -280,13 +282,15 @@ export const generateEDPExcelBuffer = async (
       monto: formatCLP(montoReclamadosDescuento),
       descripcion:
         "Monto total de devoluciones aplicados por reclamos aceptados.",
+      isHighlighted: false,
     },
     {
-      concepto: "TOTALES GENERALES (Bruto Emitido)",
-      conteo: `${tickets.length} tickets generados`,
-      monto: formatCLP(totalMontoOriginal),
+      concepto: "Tickets Confirmados (Vigentes)",
+      conteo: `${countConfirmados} tickets`,
+      monto: formatCLP(montoConfirmados),
       descripcion:
-        "Monto Original Bruto (Monto Neto Confirmados + Devoluciones Anulaciones + Devoluciones Reclamos).",
+        "Suma del valor neto facturado de pasajes confirmados vigentes en el período.",
+      isHighlighted: true,
     },
   ];
 
@@ -312,8 +316,8 @@ export const generateEDPExcelBuffer = async (
     const cellMonto = row.getCell(5);
     const cellDesc = row.getCell(7);
 
-    const isTotalLine = index === legendRows.length - 1;
-    const bgColor = isTotalLine
+    const isHighlighted = item.isHighlighted;
+    const bgColor = isHighlighted
       ? "FFFFF3E0"
       : index % 2 === 0
         ? "FFFFFFFF"
@@ -334,7 +338,7 @@ export const generateEDPExcelBuffer = async (
     cellConcepto.font = {
       bold: true,
       size: 10,
-      color: { argb: isTotalLine ? "FFFF6600" : "FF333333" },
+      color: { argb: isHighlighted ? "FFFF6600" : "FF333333" },
     };
     cellConteo.font = { bold: true, size: 10, color: { argb: "FF444444" } };
     cellConteo.alignment = { horizontal: "center", vertical: "middle" };
@@ -342,7 +346,7 @@ export const generateEDPExcelBuffer = async (
     cellMonto.font = {
       bold: true,
       size: 10,
-      color: { argb: isTotalLine ? "FFFF6600" : "FF1A1A2E" },
+      color: { argb: isHighlighted ? "FFFF6600" : "FF1A1A2E" },
     };
     cellMonto.alignment = { horizontal: "right", vertical: "middle" };
 
