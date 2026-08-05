@@ -17,6 +17,7 @@ import {
   generateEDPPDF,
   EDPPDFData,
 } from "../services/pdf.service";
+import { generateEDPExcelBuffer } from "../services/excel.service";
 
 export const getTicketsWithPassengerInfo = async (
   req: Request,
@@ -458,3 +459,96 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const generarExcelEstadoCuenta = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    console.log("Generando Excel maquetado para estado de cuenta ID:", id);
+
+    const estadoCuenta = await EstadoCuenta.findByPk(id);
+    if (!estadoCuenta) {
+      return res
+        .status(404)
+        .json({ message: "Estado de cuenta no encontrado" });
+    }
+    const estadoData = estadoCuenta.toJSON();
+
+    const empresa = await Empresa.findByPk(estadoData.empresa_id);
+    if (!empresa) {
+      return res.status(404).json({ message: "Empresa no encontrada" });
+    }
+    const empresaData = empresa.get({ plain: true }) as IEmpresa;
+
+    let tickets: any[] = [];
+    const snapshots = await EdpTicketSnapshot.findAll({
+      where: { edp_id: id },
+      order: [["id", "ASC"]],
+    });
+
+    if (snapshots.length > 0) {
+      tickets = snapshots
+        .map((s) => {
+          try {
+            return JSON.parse(s.ticket_data);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+    } else if (estadoData.fecha_inicio && estadoData.fecha_fin) {
+      const ticketsInstances = await Ticket.findAll({
+        where: {
+          id_empresa: estadoData.empresa_id,
+          confirmedAt: {
+            [Op.between]: [
+              parseDateString(estadoData.fecha_inicio),
+              parseDateString(estadoData.fecha_fin),
+            ],
+          },
+        },
+        include: [
+          { model: User, required: false },
+          {
+            model: Pasajero,
+            required: false,
+            include: [{ model: CentroCosto, required: false }],
+          },
+          { model: Reclamo, required: false },
+        ],
+      });
+      tickets = ticketsInstances.map((t) => t.get({ plain: true }));
+    }
+
+    const periodoReservas =
+      estadoData.fecha_inicio && estadoData.fecha_fin
+        ? `${estadoData.fecha_inicio.substring(0, 10)} - ${estadoData.fecha_fin.substring(0, 10)}`
+        : estadoData.periodo;
+
+    const excelBuffer = await generateEDPExcelBuffer(
+      tickets,
+      empresaData.nombre,
+      empresaData.rut ?? "",
+      empresaData.cuenta_corriente ?? "",
+      estadoData.periodo,
+      periodoReservas,
+    );
+
+    const fileName = `tickets_edp_${estadoData.periodo}_${empresaData.cuenta_corriente || empresaData.id}.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Length", excelBuffer.length);
+
+    return res.send(excelBuffer);
+  } catch (error) {
+    console.error("Error al generar Excel de estado de cuenta:", error);
+    return res.status(500).json({
+      message: "Error al generar Excel",
+      error: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+};
+

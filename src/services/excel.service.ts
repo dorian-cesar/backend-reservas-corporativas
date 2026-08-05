@@ -21,6 +21,8 @@ export interface EDPExcelTicket {
     rut?: string;
     nombre?: string;
     centroCosto?: { nombre?: string };
+    centro_costo?: { nombre?: string };
+    CentroCosto?: { nombre?: string };
     id_centro_costo?: number;
   };
   empresa?: { cuenta_corriente?: string };
@@ -148,7 +150,13 @@ export const generateEDPExcelBuffer = async (
     totalMontoNeto += montoNeto;
 
     const centroCostoNombre =
-      ticket.pasajero?.centroCosto?.nombre || "";
+      ticket.pasajero?.centroCosto?.nombre ||
+      ticket.pasajero?.centro_costo?.nombre ||
+      ticket.pasajero?.CentroCosto?.nombre ||
+      "Sin asignar";
+
+    const rutComprador = ticket.user?.rut || (ticket as any).usuario?.rut || "";
+    const nombreComprador = ticket.user?.nombre || (ticket as any).usuario?.nombre || "";
 
     const row = sheet.addRow({
       ticketNumber: ticket.ticketNumber || ticket.pnrNumber || "",
@@ -164,8 +172,8 @@ export const generateEDPExcelBuffer = async (
       montoNeto: formatCLP(montoNeto),
       centroCosto: centroCostoNombre,
       ctaCte: ticket.empresa?.cuenta_corriente || cuentaCorriente,
-      rutComprador: ticket.user?.rut || "",
-      nombreComprador: ticket.user?.nombre || "",
+      rutComprador,
+      nombreComprador,
     });
 
     const isEven = idx % 2 === 0;
