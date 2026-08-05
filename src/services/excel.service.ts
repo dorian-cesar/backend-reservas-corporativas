@@ -43,7 +43,8 @@ const formatCLP = (monto: number): string =>
 
 /**
  * Genera un buffer de Excel con el detalle de tickets de un EDP.
- * Replica exactamente las columnas del exportador XLSX del panel frontend.
+ * Replica exactamente las columnas del exportador XLSX del panel frontend
+ * e incluye el resumen explícito de Totales (Confirmados, Anulados, Reclamados).
  */
 export const generateEDPExcelBuffer = async (
   tickets: EDPExcelTicket[],
@@ -126,28 +127,50 @@ export const generateEDPExcelBuffer = async (
   });
   headerRow.height = 22;
 
-  // ─── Filas de datos ────────────────────────────────────────────
+  // ─── Filas de datos y acumulación de totales ───────────────────
   let totalMontoOriginal = 0;
   let totalDevolucion = 0;
   let totalMontoNeto = 0;
 
+  let countConfirmados = 0;
+  let countAnulados = 0;
+  let countReclamados = 0;
+
+  let montoConfirmados = 0;
+  let montoAnuladosDevolucion = 0;
+  let montoReclamadosDescuento = 0;
+
   tickets.forEach((ticket, idx) => {
     const esAnulado = ticket.ticketStatus === "Anulado";
     const tieneReclamoAceptado =
-      ticket.reclamos &&
-      ticket.reclamos.some((r) => r.estado === "Aceptado");
+      ticket.reclamos && ticket.reclamos.some((r) => r.estado === "Aceptado");
 
-    const estadoLabel = tieneReclamoAceptado && !esAnulado
-      ? "Reclamado"
-      : ticket.ticketStatus;
+    const estadoLabel =
+      tieneReclamoAceptado && !esAnulado ? "Reclamado" : ticket.ticketStatus;
 
     const montoOriginal = Number(ticket.monto_boleto || 0);
-    const devolucion = Number(ticket.monto_devolucion || 0);
+    const devolucion =
+      esAnulado || tieneReclamoAceptado
+        ? Number(ticket.monto_devolucion || ticket.monto_boleto || 0)
+        : Number(ticket.monto_devolucion || 0);
     const montoNeto = montoOriginal - devolucion;
 
     totalMontoOriginal += montoOriginal;
     totalDevolucion += devolucion;
     totalMontoNeto += montoNeto;
+
+    if (esAnulado) {
+      countAnulados++;
+      montoAnuladosDevolucion += devolucion;
+    } else if (tieneReclamoAceptado) {
+      countReclamados++;
+      montoReclamadosDescuento += devolucion;
+      countConfirmados++;
+      montoConfirmados += montoNeto;
+    } else {
+      countConfirmados++;
+      montoConfirmados += montoNeto;
+    }
 
     const centroCostoNombre =
       ticket.pasajero?.centroCosto?.nombre ||
@@ -156,7 +179,8 @@ export const generateEDPExcelBuffer = async (
       "Sin asignar";
 
     const rutComprador = ticket.user?.rut || (ticket as any).usuario?.rut || "";
-    const nombreComprador = ticket.user?.nombre || (ticket as any).usuario?.nombre || "";
+    const nombreComprador =
+      ticket.user?.nombre || (ticket as any).usuario?.nombre || "";
 
     const row = sheet.addRow({
       ticketNumber: ticket.ticketNumber || ticket.pnrNumber || "",
@@ -164,7 +188,8 @@ export const generateEDPExcelBuffer = async (
       estado: estadoLabel,
       origin: ticket.origin || ticket.terminal_origen || "",
       destination: ticket.destination || ticket.terminal_destino || "",
-      fechaViaje: `${formatDate(ticket.travelDate)} ${ticket.departureTime || ""}`.trim(),
+      fechaViaje:
+        `${formatDate(ticket.travelDate)} ${ticket.departureTime || ""}`.trim(),
       rutPasajero: ticket.pasajero?.rut || "",
       nombrePasajero: ticket.pasajero?.nombre || "",
       montoOriginal: formatCLP(montoOriginal),
@@ -194,7 +219,7 @@ export const generateEDPExcelBuffer = async (
     row.height = 18;
   });
 
-  // ─── Fila de Totales ───────────────────────────────────────────
+  // ─── Fila de Totales de Tabla ───────────────────────────────────
   const totalRow = sheet.addRow({
     ticketNumber: `TOTALES (${tickets.length} tickets)`,
     montoOriginal: formatCLP(totalMontoOriginal),
@@ -211,9 +236,121 @@ export const generateEDPExcelBuffer = async (
     };
     cell.border = {
       top: { style: "thin", color: { argb: "FFFF6600" } },
+      bottom: { style: "double", color: { argb: "FFFF6600" } },
     };
   });
-  totalRow.height = 20;
+  totalRow.height = 22;
+
+  // ─── Fila Vacía ───────────────────────────────────────────────
+  sheet.addRow([]);
+
+  // ─── Resumen Explicativo de Montos y Conteo de Estados ──────────
+  const summaryTitleRow = sheet.addRow([
+    "RESUMEN OPERACIONAL DE ESTADOS Y MONTOS DE PLANILLA",
+  ]);
+  sheet.mergeCells(`A${summaryTitleRow.number}:O${summaryTitleRow.number}`);
+  const summaryTitleCell = summaryTitleRow.getCell(1);
+  summaryTitleCell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+  summaryTitleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF1A1A2E" },
+  };
+  summaryTitleCell.alignment = { horizontal: "center", vertical: "middle" };
+  summaryTitleRow.height = 24;
+
+  const legendRows = [
+    {
+      concepto: "Tickets Confirmados (Vigentes)",
+      conteo: `${countConfirmados} tickets`,
+      monto: formatCLP(montoConfirmados),
+      descripcion:
+        "Suma del valor neto facturado de pasajes confirmados vigentes en el período.",
+    },
+    {
+      concepto: "Tickets Anulados (Devoluciones)",
+      conteo: `${countAnulados} tickets`,
+      monto: formatCLP(montoAnuladosDevolucion || totalDevolucion),
+      descripcion:
+        "Monto total devuelto por pasajes anulados dentro del período de reservas.",
+    },
+    {
+      concepto: "Tickets Reclamados (Devoluciones)",
+      conteo: `${countReclamados} tickets`,
+      monto: formatCLP(montoReclamadosDescuento),
+      descripcion:
+        "Monto total de devoluciones aplicados por reclamos aceptados.",
+    },
+    {
+      concepto: "TOTALES GENERALES (Bruto Emitido)",
+      conteo: `${tickets.length} tickets generados`,
+      monto: formatCLP(totalMontoOriginal),
+      descripcion:
+        "Monto Original Bruto (Monto Neto Confirmados + Devoluciones Anulaciones + Devoluciones Reclamos).",
+    },
+  ];
+
+  legendRows.forEach((item, index) => {
+    const row = sheet.addRow([
+      item.concepto,
+      "",
+      item.conteo,
+      "",
+      item.monto,
+      "",
+      item.descripcion,
+    ]);
+
+    const rNum = row.number;
+    sheet.mergeCells(`A${rNum}:B${rNum}`);
+    sheet.mergeCells(`C${rNum}:D${rNum}`);
+    sheet.mergeCells(`E${rNum}:F${rNum}`);
+    sheet.mergeCells(`G${rNum}:O${rNum}`);
+
+    const cellConcepto = row.getCell(1);
+    const cellConteo = row.getCell(3);
+    const cellMonto = row.getCell(5);
+    const cellDesc = row.getCell(7);
+
+    const isTotalLine = index === legendRows.length - 1;
+    const bgColor = isTotalLine
+      ? "FFFFF3E0"
+      : index % 2 === 0
+        ? "FFFFFFFF"
+        : "FFF8F9FA";
+
+    [cellConcepto, cellConteo, cellMonto, cellDesc].forEach((c) => {
+      c.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: bgColor },
+      };
+      c.border = {
+        bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
+        top: { style: "thin", color: { argb: "FFE0E0E0" } },
+      };
+    });
+
+    cellConcepto.font = {
+      bold: true,
+      size: 10,
+      color: { argb: isTotalLine ? "FFFF6600" : "FF333333" },
+    };
+    cellConteo.font = { bold: true, size: 10, color: { argb: "FF444444" } };
+    cellConteo.alignment = { horizontal: "center", vertical: "middle" };
+
+    cellMonto.font = {
+      bold: true,
+      size: 10,
+      color: { argb: isTotalLine ? "FFFF6600" : "FF1A1A2E" },
+    };
+    cellMonto.alignment = { horizontal: "right", vertical: "middle" };
+
+    cellDesc.font = { size: 9, italic: true, color: { argb: "FF666666" } };
+    cellDesc.alignment = { vertical: "middle" };
+
+    row.height = 20;
+  });
 
   // ─── Congelar la fila de encabezados ──────────────────────────
   sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 4 }];
