@@ -66,10 +66,25 @@ function createMockResponse() {
 }
 
 export async function cleanEDPsForEmpresa(empresaId: number, periodoTarget: string) {
+  const targetEmpresa = await Empresa.findByPk(empresaId);
+  const diaFacturacion = targetEmpresa?.dia_facturacion || 1;
+  const [yearStr, monthStr] = periodoTarget.split("-");
+  const year = parseInt(yearStr);
+  const monthIdx = parseInt(monthStr) - 1;
+
+  const inicioMoment = moment.tz([year, monthIdx, Math.min(diaFacturacion, 28)], TIMEZONE).startOf("day");
+
   const edps = await EstadoCuenta.findAll({
     where: {
       empresa_id: empresaId,
-      periodo: periodoTarget
+      [Op.or]: [
+        { periodo: periodoTarget },
+        {
+          fecha_inicio: {
+            [Op.between]: [inicioMoment.clone().subtract(2, "days").toDate(), inicioMoment.clone().add(2, "days").toDate()]
+          }
+        }
+      ]
     }
   });
   const ids = edps.map(e => e.id);
@@ -202,7 +217,7 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
     resumen: {
       tickets_generados: edpAuto.total_tickets || 0,
       tickets_anulados: edpAuto.total_tickets_anulados || 0,
-      suma_devoluciones: Number(edpAuto.suma_devoluciones || 0),
+      suma_devoluciones: Math.max(0, Number(edpAuto.suma_devoluciones || 0) - devFuera - recDesc),
       monto_bruto_facturado: montoBruto,
       porcentaje_descuento: pctDesc,
       etiqueta_descuento: pctDesc > 0 ? "Descuento por Tramos" : "Descuento Aplicado",
@@ -275,9 +290,25 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   console.log("=======================================================\n");
 }
 
+const TEST_CASES = [
+  { empresaId: 11, periodo: "2026-07" },
+  { empresaId: 22, periodo: "2026-07" },
+  { empresaId: 24, periodo: "2026-07" },
+  { empresaId: 13, periodo: "2026-07" },
+  { empresaId: 38, periodo: "2026-01" },
+];
+
 if (require.main === module) {
-  runCleanAuthenticTest(TARGET_EMPRESA_ID, TARGET_PERIODO).then(() => process.exit(0)).catch(err => {
-    console.error("❌ Error en test:", err);
+  (async () => {
+    for (const testCase of TEST_CASES) {
+      await runCleanAuthenticTest(testCase.empresaId, testCase.periodo);
+    }
+    console.log("\n=======================================================");
+    console.log(" 🚀 TODAS LAS PRUEBAS DE LAS 5 EMPRESAS FUERON COMPLETADAS CON ÉXITO");
+    console.log("=======================================================\n");
+    process.exit(0);
+  })().catch(err => {
+    console.error("❌ Error en ejecuciones de pruebas:", err);
     process.exit(1);
   });
 }
