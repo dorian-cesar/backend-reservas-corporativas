@@ -5,6 +5,7 @@ import { Empresa } from '../models/empresa.model';
 import { Ticket } from '../models/ticket.model';
 import { User } from '../models/user.model';
 import { CentroCosto } from '../models/centro_costo.model';
+import { obtenerResumenSaldoEmpresa } from '../services/empresaSaldo.service';
 
 export const getDashboardStats = async (req: Request, res: Response) => {
     try {
@@ -16,6 +17,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         let totalReservasConfirmadas = 0;
         let totalUsuariosActivos = 0;
         let montoBoletos = 0;
+        let resumenSaldo: any = null;
 
         if (rol === "admin" || rol === "empresa" || rol === "subusuario") {
             // Solo datos de su propia empresa
@@ -63,8 +65,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
                 }
             });
 
-            // Monto acumulado de la empresa
-            montoBoletos = empresa.monto_acumulado || 0;
+            resumenSaldo = await obtenerResumenSaldoEmpresa(empresa_id);
+            montoBoletos = resumenSaldo.monto_acumulado;
             totalEmpresas = 1;
 
         } else if (rol === "superuser" || rol === "contralor") {
@@ -113,7 +115,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
             totalCentrosCosto,
             totalReservasConfirmadas,
             totalUsuariosActivos,
-            montoBoletos
+            montoBoletos,
+            resumenSaldo
         });
 
     } catch (err) {

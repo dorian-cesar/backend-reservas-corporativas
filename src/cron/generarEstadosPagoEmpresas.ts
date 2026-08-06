@@ -510,9 +510,22 @@ export const generarEstadosPagoEmpresas = async (
               });
             }
 
+            const ticketsActivosNuevos = await Ticket.findAll({
+              where: {
+                id_empresa: empresaId,
+                ticketStatus: "Confirmed",
+                confirmedAt: { [Op.gt]: fin },
+              },
+            });
+            const nuevoMontoAcumuladoActivo = ticketsActivosNuevos.reduce(
+              (sum, t) => sum + (Number(t.monto_boleto) || 0),
+              0
+            );
+
             await empresa.update({
               devolucion_pendiente_edp: devoluciones_fuera_periodo_restante,
               descuento_pendiente_edp: reclamos_restante,
+              monto_acumulado: nuevoMontoAcumuladoActivo,
             });
 
             console.log(

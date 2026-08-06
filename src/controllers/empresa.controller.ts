@@ -9,6 +9,7 @@ import { Op } from "sequelize";
 import { UserEmpresa } from "../models/user_empresa.model";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { sequelize } from "../database";
+import { obtenerResumenSaldoEmpresa } from "../services/empresaSaldo.service";
 
 /**
  * Listar todas las empresas.
@@ -81,31 +82,19 @@ export const listarEmpresas = async (req: Request, res: Response) => {
         include: [{ model: EmpresaTramo, as: "tramos" }],
       });
 
-      // Obtener saldos actuales para cada empresa
+      // Obtener saldos y resumen de cupo para cada empresa
       const empresasConSaldo = await Promise.all(
         empresas.map(async (empresa) => {
           const empresaData = empresa.toJSON();
-
-          // Obtener último saldo de cuenta corriente
-          const ultimoMovimiento = await CuentaCorriente.findOne({
-            where: { empresa_id: empresa.id },
-            order: [
-              ["fecha_movimiento", "DESC"],
-              ["id", "DESC"],
-            ],
-          });
-
-          const saldoActual = ultimoMovimiento
-            ? Number(ultimoMovimiento.saldo)
-            : 0;
-          const saldoRestante = empresa.monto_maximo
-            ? empresa.monto_maximo + saldoActual
-            : null;
+          const resumen = await obtenerResumenSaldoEmpresa(empresa.id);
 
           return {
             ...empresaData,
-            saldo_actual: saldoActual,
-            saldo_restante: saldoRestante,
+            monto_acumulado: resumen.monto_acumulado,
+            deuda_cc_impaga: resumen.deuda_cc_impaga,
+            deuda_total: resumen.deuda_total,
+            saldo_actual: resumen.deuda_total,
+            saldo_restante: resumen.saldo_disponible_libre,
           };
         }),
       );
@@ -127,27 +116,15 @@ export const listarEmpresas = async (req: Request, res: Response) => {
     const empresasConSaldo = await Promise.all(
       rows.map(async (empresa) => {
         const empresaData = empresa.toJSON();
-
-        // Obtener último saldo de cuenta corriente
-        const ultimoMovimiento = await CuentaCorriente.findOne({
-          where: { empresa_id: empresa.id },
-          order: [
-            ["fecha_movimiento", "DESC"],
-            ["id", "DESC"],
-          ],
-        });
-
-        const saldoActual = ultimoMovimiento
-          ? Number(ultimoMovimiento.saldo)
-          : 0;
-        const saldoRestante = empresa.monto_maximo
-          ? empresa.monto_maximo + saldoActual
-          : null;
+        const resumen = await obtenerResumenSaldoEmpresa(empresa.id);
 
         return {
           ...empresaData,
-          saldo_actual: saldoActual,
-          saldo_restante: saldoRestante,
+          monto_acumulado: resumen.monto_acumulado,
+          deuda_cc_impaga: resumen.deuda_cc_impaga,
+          deuda_total: resumen.deuda_total,
+          saldo_actual: resumen.deuda_total,
+          saldo_restante: resumen.saldo_disponible_libre,
         };
       }),
     );
@@ -193,7 +170,17 @@ export const obtenerEmpresa = async (req: Request, res: Response) => {
     });
     if (!empresa) return res.status(404).json({ message: "No encontrada" });
 
-    res.json(empresa);
+    const empresaData = empresa.toJSON();
+    const resumen = await obtenerResumenSaldoEmpresa(empresa.id);
+
+    res.json({
+      ...empresaData,
+      monto_acumulado: resumen.monto_acumulado,
+      deuda_cc_impaga: resumen.deuda_cc_impaga,
+      deuda_total: resumen.deuda_total,
+      saldo_actual: resumen.deuda_total,
+      saldo_restante: resumen.saldo_disponible_libre,
+    });
   } catch (error) {
     res
       .status(500)

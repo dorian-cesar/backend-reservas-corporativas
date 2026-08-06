@@ -366,9 +366,22 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       await EdpTicketSnapshot.bulkCreate(snapshotRows);
     }
 
+    const ticketsActivosNuevos = await Ticket.findAll({
+      where: {
+        id_empresa: empresa_id,
+        ticketStatus: "Confirmed",
+        confirmedAt: { [Op.gt]: fechaHasta },
+      },
+    });
+    const nuevoMontoAcumuladoActivo = ticketsActivosNuevos.reduce(
+      (sum, t) => sum + (Number(t.monto_boleto) || 0),
+      0
+    );
+
     await empresa.update({
       devolucion_pendiente_edp: devoluciones_fuera_periodo_restante,
       descuento_pendiente_edp: reclamos_restante,
+      monto_acumulado: nuevoMontoAcumuladoActivo,
     });
 
 

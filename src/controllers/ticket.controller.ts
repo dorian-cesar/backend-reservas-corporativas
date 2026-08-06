@@ -12,6 +12,8 @@ import { sendTicketCancellationEmail, sendTicketConfirmationEmail } from "../ser
 import { generateTicketPDFTemplate1, generateTicketPDFTemplate2, TicketPDFData } from "../services/pdf.service";
 import { Empresa } from "../models/empresa.model";
 import { Reclamo } from "../models/reclamo.model";
+import { verificarDisponibilidadCupo } from "../services/empresaSaldo.service";
+import moment from "moment-timezone";
 
 /**
  * Construye un objeto de filtros Sequelize a partir de los parámetros de consulta recibidos.
@@ -226,34 +228,11 @@ export const create = async (
 
         const empresaData = empresa.toJSON();
 
-        // Validar si la empresa está en morosidad
-        if (empresaData.morosidad) {
-            return res.status(400).json({
-                message: "La empresa se encuentra en estado de Morosidad. No es posible realizar reservas ni compras.",
-                morosidad: true
-            });
+        // Validar morosidad y cupo disponible (incluyendo deudas impagas en CC)
+        const validacionDisponibilidad = await verificarDisponibilidadCupo(empresaTicketId, monto_boleto);
+        if (!validacionDisponibilidad.disponible) {
+            return res.status(400).json(validacionDisponibilidad);
         }
-
-        // Validar límite de monto máximo
-        if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
-            const montoActual = empresaData.monto_acumulado || 0;
-            const montoMaximo = empresaData.monto_maximo;
-            const montoNuevo = montoActual + monto_boleto;
-
-            if (montoNuevo > montoMaximo) {
-                return res.status(400).json({
-                    message: `La empresa ha excedido su límite de gasto. Límite: $${montoMaximo}, Actual: $${montoActual}, Nuevo ticket: $${monto_boleto}`,
-                    detalles: {
-                        monto_maximo: montoMaximo,
-                        monto_acumulado: montoActual,
-                        monto_ticket: monto_boleto,
-                        monto_nuevo_total: montoNuevo,
-                        disponible: montoMaximo - montoActual
-                    }
-                });
-            }
-        }
-
 
         if (!userData.empresa_id) {
             return res.status(400).json({
@@ -274,36 +253,7 @@ export const create = async (
             }
 
             const pasajeroJSON = pasajero.toJSON();
-            // if (pasajeroJSON.id_empresa !== userData.empresa_id) {
-            //     return res.status(400).json({
-            //         message: "El pasajero no pertenece a la misma empresa que el usuario",
-            //         detalles: {
-            //             empresa_pasajero: pasajeroJSON.id_empresa,
-            //             empresa_usuario: userData.empresa_id
-            //         }
-            //     });
-            // }
             pasajeroData = pasajeroJSON;
-        }
-
-        // Validar límite de monto máximo
-        if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
-            const montoActual = empresaData.monto_acumulado || 0;
-            const montoMaximo = empresaData.monto_maximo;
-            const montoNuevo = montoActual + monto_boleto;
-
-            if (montoNuevo > montoMaximo) {
-                return res.status(400).json({
-                    message: `La empresa ha excedido su límite de gasto. Límite: $${montoMaximo}, Actual: $${montoActual}, Nuevo ticket: $${monto_boleto}`,
-                    detalles: {
-                        monto_maximo: montoMaximo,
-                        monto_acumulado: montoActual,
-                        monto_ticket: monto_boleto,
-                        monto_nuevo_total: montoNuevo,
-                        disponible: montoMaximo - montoActual
-                    }
-                });
-            }
         }
 
         // Crear el ticket
@@ -583,22 +533,30 @@ export const update = async (
                     const empresa = await Empresa.findByPk(userData.empresa_id);
                     if (empresa) {
                         const empresaData = empresa.toJSON();
-                        const montoActual = empresaData.monto_acumulado || 0;
+                        const TIMEZONE = "America/Santiago";
+                        const hoyChile = moment().tz(TIMEZONE);
+                        const diaFacturacion = empresaData.dia_facturacion || 1;
+                        let inicioPeriodoActivoChile = moment(hoyChile).date(Math.min(diaFacturacion, hoyChile.daysInMonth())).startOf("day");
+                        if (hoyChile.date() < diaFacturacion) {
+                            inicioPeriodoActivoChile.subtract(1, "month");
+                        }
 
-                        // Usar el monto_devolucion del update o del ticket existente
-                        const montoDevolucion = data.monto_devolucion !== undefined
-                            ? data.monto_devolucion
-                            : ticketData.monto_devolucion || ticketData.monto_boleto;
+                        const fechaConfirmacionChile = moment(ticketData.confirmedAt).tz(TIMEZONE);
 
-                        // Asegurarnos de que el monto de devolución sea positivo
-                        const montoARestar = Math.abs(montoDevolucion);
+                        // Solo descontar del monto_acumulado si el ticket fue confirmado dentro del período activo en curso
+                        if (fechaConfirmacionChile.isSameOrAfter(inicioPeriodoActivoChile)) {
+                            const montoActual = Number(empresaData.monto_acumulado) || 0;
+                            const montoDevolucion = data.monto_devolucion !== undefined
+                                ? data.monto_devolucion
+                                : ticketData.monto_devolucion || ticketData.monto_boleto;
 
-                        // Restar el monto (pero no dejar negativo)
-                        const nuevoMonto = Math.max(0, montoActual - montoARestar);
+                            const montoARestar = Math.abs(Number(montoDevolucion));
+                            const nuevoMonto = Math.max(0, montoActual - montoARestar);
 
-                        await empresa.update({
-                            monto_acumulado: nuevoMonto
-                        });
+                            await empresa.update({
+                                monto_acumulado: nuevoMonto
+                            });
+                        }
                     }
                 } catch (error) {
                     console.error('Error al ajustar monto acumulado por anulación:', error);
@@ -1108,61 +1066,9 @@ export const checkDisponibilidad = async (
 
         const empresaData = empresa.toJSON();
 
-        // Validar si la empresa está en morosidad
-        if (empresaData.morosidad) {
-            return res.status(200).json({
-                disponible: false,
-                message: "La empresa se encuentra en estado de Morosidad. No es posible realizar reservas ni compras.",
-                morosidad: true
-            });
-        }
-
-        // Verificar límite de monto máximo
-        if (empresaData.monto_maximo !== null && empresaData.monto_maximo !== undefined) {
-            const montoActual = empresaData.monto_acumulado || 0;
-            const montoMaximo = empresaData.monto_maximo;
-            const montoNuevo = montoActual + monto_boleto;
-
-            if (montoNuevo > montoMaximo) {
-                return res.status(200).json({
-                    disponible: false,
-                    message: `La empresa ha excedido su límite de gasto. Límite: $${montoMaximo}, Actual: $${montoActual}, Nuevo ticket: $${monto_boleto}`,
-                    detalles: {
-                        monto_maximo: montoMaximo,
-                        monto_acumulado: montoActual,
-                        monto_ticket: monto_boleto,
-                        monto_nuevo_total: montoNuevo,
-                        disponible: montoMaximo - montoActual,
-                        excedido: (montoNuevo > montoMaximo) ? montoNuevo - montoMaximo : 0
-                    }
-                });
-            }
-
-            // Si hay disponibilidad
-            return res.status(200).json({
-                disponible: true,
-                message: "Disponibilidad verificada correctamente",
-                detalles: {
-                    monto_maximo: montoMaximo,
-                    monto_acumulado: montoActual,
-                    monto_ticket: monto_boleto,
-                    monto_nuevo_total: montoNuevo,
-                    disponible: montoMaximo - montoActual,
-                    porcentaje_disponible: Math.round(((montoMaximo - montoNuevo) / montoMaximo) * 100)
-                }
-            });
-        }
-
-        // Si no hay límite configurado
-        return res.status(200).json({
-            disponible: true,
-            message: "Empresa sin límite de gasto configurado",
-            detalles: {
-                monto_acumulado: empresaData.monto_acumulado || 0,
-                monto_ticket: monto_boleto,
-                monto_nuevo_total: (empresaData.monto_acumulado || 0) + monto_boleto
-            }
-        });
+        // Verificar disponibilidad de morosidad y cupo (incluyendo deudas impagas en CC)
+        const resultadoDisponibilidad = await verificarDisponibilidadCupo(userData.empresa_id, monto_boleto);
+        return res.status(200).json(resultadoDisponibilidad);
 
     } catch (err) {
         console.error('Error en checkDisponibilidad:', err);
