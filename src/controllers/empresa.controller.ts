@@ -74,6 +74,44 @@ export const listarEmpresas = async (req: Request, res: Response) => {
       };
     }
 
+    // Obtener deudas impagas de Cuenta Corriente agregadas por empresa en 1 sola consulta SQL instantánea
+    const deudasImpagas = await CuentaCorriente.findAll({
+      attributes: [
+        "empresa_id",
+        [sequelize.fn("SUM", sequelize.col("monto")), "deuda_cc_impaga"],
+      ],
+      where: {
+        tipo_movimiento: "cargo",
+        pagado: false,
+      },
+      group: ["empresa_id"],
+      raw: true,
+    });
+
+    const mapaDeudasCC: Record<number, number> = {};
+    (deudasImpagas as any[]).forEach((d) => {
+      mapaDeudasCC[d.empresa_id] = Number(d.deuda_cc_impaga || 0);
+    });
+
+    const calcularResumenEmpresa = (empresa: Empresa) => {
+      const empresaData = empresa.toJSON();
+      const montoAcumulado = Number(empresa.monto_acumulado || 0);
+      const deudaCC = mapaDeudasCC[empresa.id] || 0;
+      const deudaTotal = montoAcumulado + deudaCC;
+      const saldoLibre = empresa.monto_maximo
+        ? empresa.monto_maximo - deudaTotal
+        : null;
+
+      return {
+        ...empresaData,
+        monto_acumulado: montoAcumulado,
+        deuda_cc_impaga: deudaCC,
+        deuda_total: deudaTotal,
+        saldo_actual: deudaTotal,
+        saldo_restante: saldoLibre,
+      };
+    };
+
     if (!page || !limit) {
       // Obtener empresas con datos básicos
       const empresas = await Empresa.findAll({
@@ -82,23 +120,7 @@ export const listarEmpresas = async (req: Request, res: Response) => {
         include: [{ model: EmpresaTramo, as: "tramos" }],
       });
 
-      // Obtener saldos y resumen de cupo para cada empresa
-      const empresasConSaldo = await Promise.all(
-        empresas.map(async (empresa) => {
-          const empresaData = empresa.toJSON();
-          const resumen = await obtenerResumenSaldoEmpresa(empresa.id);
-
-          return {
-            ...empresaData,
-            monto_acumulado: resumen.monto_acumulado,
-            deuda_cc_impaga: resumen.deuda_cc_impaga,
-            deuda_total: resumen.deuda_total,
-            saldo_actual: resumen.deuda_total,
-            saldo_restante: resumen.saldo_disponible_libre,
-          };
-        }),
-      );
-
+      const empresasConSaldo = empresas.map(calcularResumenEmpresa);
       return res.json(empresasConSaldo);
     }
 
@@ -112,22 +134,7 @@ export const listarEmpresas = async (req: Request, res: Response) => {
       include: [{ model: EmpresaTramo, as: "tramos" }],
     });
 
-    // Obtener saldos para las empresas paginadas
-    const empresasConSaldo = await Promise.all(
-      rows.map(async (empresa) => {
-        const empresaData = empresa.toJSON();
-        const resumen = await obtenerResumenSaldoEmpresa(empresa.id);
-
-        return {
-          ...empresaData,
-          monto_acumulado: resumen.monto_acumulado,
-          deuda_cc_impaga: resumen.deuda_cc_impaga,
-          deuda_total: resumen.deuda_total,
-          saldo_actual: resumen.deuda_total,
-          saldo_restante: resumen.saldo_disponible_libre,
-        };
-      }),
-    );
+    const empresasConSaldo = rows.map(calcularResumenEmpresa);
 
     return res.json({
       data: empresasConSaldo,

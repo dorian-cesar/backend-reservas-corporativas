@@ -1,23 +1,22 @@
 // src/script/inicializarDeudasSistema.ts
 
-import { connectDB } from "../database";
+// Configuración de base de datos para Producción (debe ir ANTES de las importaciones)
+process.env.DB_HOST = "reserva-corporativa.c6xou04wqeof.us-east-1.rds.amazonaws.com";
+process.env.DB_PORT = "3306";
+process.env.DB_USER = "admin";
+process.env.DB_PASSWORD = "BIWEHB?NtOi6GPo.WaKD-Uvy[I9F";
+process.env.DB_NAME = "multiempresa_db";
+
+import { connectDB, sequelize } from "../database";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { Empresa } from "../models/empresa.model";
 import { obtenerResumenSaldoEmpresa } from "../services/empresaSaldo.service";
-import { sequelize } from "../database";
 import moment from "moment-timezone";
 
 export const inicializarDeudasSistema = async () => {
-  // Asegurar conexión a la base de datos de desarrollo
-  process.env.DB_HOST = "ls-594a29bdbbcac0570afa88fba199455107a1c5a6.cs9gyyc0moxd.us-east-1.rds.amazonaws.com";
-  process.env.DB_PORT = "3306";
-  process.env.DB_USER = "dbmasteruser";
-  process.env.DB_PASSWORD = "aCY05KW.yh:jA%s{RO733w(AI|;Ui#6c";
-  process.env.DB_NAME = "multiempresa_db";
-
   await connectDB();
 
-  console.log("=== INICIO DE REINICIALIZACIÓN DE DEUDAS EN CUENTA CORRIENTE (DEV RDS) ===");
+  console.log("=== INICIO DE REINICIALIZACIÓN DE DEUDAS EN CUENTA CORRIENTE (PRODUCCIÓN) ===");
 
   const fechaHoyStr = moment().tz("America/Santiago").format("YYYY-MM-DD HH:mm");
 
