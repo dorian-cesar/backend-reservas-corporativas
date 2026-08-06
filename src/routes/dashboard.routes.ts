@@ -6,6 +6,6 @@ import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.get('/stats', authenticateJWT, authorizeRoles("admin", "superuser", "auditoria", "contralor"), getDashboardStats);
+router.get('/stats', authenticateJWT, authorizeRoles("admin", "superuser", "auditoria", "contralor", "empresa", "subusuario"), getDashboardStats);
 
 export default router;
