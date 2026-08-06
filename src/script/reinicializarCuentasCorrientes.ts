@@ -1,13 +1,3 @@
-import * as dotenv from "dotenv";
-dotenv.config();
-
-// Configuración predeterminada para la Base de Datos de Producción
-process.env.DB_HOST = "reserva-corporativa.c6xou04wqeof.us-east-1.rds.amazonaws.com";
-process.env.DB_PORT = "3306";
-process.env.DB_USER = "admin";
-process.env.DB_PASSWORD = "BIWEHB?NtOi6GPo.WaKD-Uvy[I9F";
-process.env.DB_NAME = "multiempresa_db";
-
 import { connectDB } from "../database";
 import { Empresa } from "../models/empresa.model";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";

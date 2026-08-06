@@ -1,12 +1,5 @@
 // src/script/inicializarDeudasSistema.ts
 
-// Configuración de base de datos para Producción (debe ir ANTES de las importaciones)
-process.env.DB_HOST = "reserva-corporativa.c6xou04wqeof.us-east-1.rds.amazonaws.com";
-process.env.DB_PORT = "3306";
-process.env.DB_USER = "admin";
-process.env.DB_PASSWORD = "BIWEHB?NtOi6GPo.WaKD-Uvy[I9F";
-process.env.DB_NAME = "multiempresa_db";
-
 import { connectDB, sequelize } from "../database";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { Empresa } from "../models/empresa.model";
