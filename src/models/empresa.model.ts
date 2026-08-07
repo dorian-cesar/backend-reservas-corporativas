@@ -33,6 +33,7 @@ export interface IEmpresa {
   ejecutivo_com_telefono?: string;
   descuento_pendiente_edp?: number;
   devolucion_pendiente_edp?: number;
+  ente_facturador?: string;
 }
 
 
@@ -143,6 +144,14 @@ export class Empresa extends Model<IEmpresa> {
     field: "ejecutivo_com_telefono",
   })
   declare ejecutivo_com_telefono: string;
+
+  @Column({
+    type: DataType.STRING(150),
+    allowNull: true,
+    defaultValue: null,
+    field: "ente_facturador",
+  })
+  declare ente_facturador?: string;
 
   @HasMany(() => CentroCosto)
   declare centrosCosto: CentroCosto[];

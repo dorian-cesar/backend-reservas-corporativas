@@ -21,6 +21,7 @@ export interface IEmpresaCreate {
     fact_manual?: boolean;
     morosidad?: boolean;
     tipo_facturacion?: "Masiva" | "Especial";
+    ente_facturador?: string;
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;
     contacto_fact_telefono?: string;
@@ -45,6 +46,7 @@ export interface IEmpresaUpdate {
     fact_manual?: boolean;
     morosidad?: boolean;
     tipo_facturacion?: "Masiva" | "Especial";
+    ente_facturador?: string;
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;
     contacto_fact_telefono?: string;
