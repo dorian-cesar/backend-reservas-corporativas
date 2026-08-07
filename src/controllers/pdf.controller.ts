@@ -385,7 +385,9 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     // I = montoBrutoAntesDeDescuento - montoDescuento
     const montoI = Math.max(0, montoBrutoAntesDeDescuento - montoDescuento);
     const devFueraBD = Number(estadoData.devoluciones_fuera_periodo || 0);
-    const montoFinalConDescuento = Math.max(0, montoI - devFueraBD - montoReclamos);
+    const montoFinalConDescuento = estadoData.monto_facturado !== undefined && estadoData.monto_facturado !== null
+      ? Number(estadoData.monto_facturado)
+      : Math.max(0, montoI - devFueraBD - montoReclamos);
 
     // Saldo a Favor Restante (Acumulado para próx. período) proviene de los campos de la empresa
     const saldoFavorRestante =

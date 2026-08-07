@@ -1373,7 +1373,7 @@ export const generateEDPPDF = async (
   // E. Devoluciones por anulación de periodo anterior
   const devFuera = edpData.resumen.devoluciones_fuera_periodo || 0;
   currentPage.drawText(
-    `E. Devoluciones por anulación de periodo anterior: ${devFuera > 0 ? "-$" : "$"}${formatNumber(devFuera)}`,
+    `E. Devoluciones por anulación de periodo anterior: $${formatNumber(devFuera)}`,
     {
       x: margin,
       y: yPosition,
@@ -1387,7 +1387,7 @@ export const generateEDPPDF = async (
   // F. Descuentos por Reclamos
   const mReclamos = edpData.resumen.monto_reclamos || 0;
   currentPage.drawText(
-    `F. Descuentos por Reclamos: ${mReclamos > 0 ? "-$" : "$"}${formatNumber(mReclamos)}`,
+    `F. Descuentos por Reclamos: $${formatNumber(mReclamos)}`,
     {
       x: margin,
       y: yPosition,

@@ -79,10 +79,13 @@ export const processEDPMailQueue = async (
         const { empresa, estadoCuentaId, tickets } = item;
 
         // 1. Filtrar destinatarios válidos
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const recipients = [
           empresa.contacto_fact_email,
           empresa.ejecutivo_com_email,
-        ].filter((e) => e && e.trim().length > 0);
+        ]
+          .map((e) => (e ? e.trim() : ""))
+          .filter((e) => e.length > 0 && emailRegex.test(e));
 
         if (recipients.length === 0) {
           console.log(
@@ -123,10 +126,12 @@ export const processEDPMailQueue = async (
           montoBruto * ((item.porcentajeDescuento || 0) / 100),
         );
         const montoI = Math.max(0, montoBruto - montoDescuento);
-        const montoFinal = Math.max(
-          0,
-          montoI - (item.devolucionesFueraPeriodo || 0) - (item.reclamosDescuento || 0),
-        );
+        const montoFinal = item.montoFacturado !== undefined
+          ? item.montoFacturado
+          : Math.max(
+              0,
+              montoI - (item.devolucionesFueraPeriodo || 0) - (item.reclamosDescuento || 0),
+            );
 
         const edpPDFData: EDPPDFData = {
           edp: {
@@ -174,6 +179,11 @@ export const processEDPMailQueue = async (
           empresa.cuenta_corriente ?? "",
           item.periodo,
           periodoReservas,
+          item.devolucionesFueraPeriodo,
+          montoFinal,
+          item.porcentajeDescuento,
+          montoDescuento,
+          item.reclamosDescuento,
         );
         const excelFilename = `tickets_edp_${item.periodo}_${empresa.cuenta_corriente || empresa.id}.xlsx`;
 

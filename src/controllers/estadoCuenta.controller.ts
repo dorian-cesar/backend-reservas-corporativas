@@ -190,8 +190,8 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
     const devoluciones = tickets
       .filter((t) => t.ticketStatus === "Anulado")
       .reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
-    // Base neta: G = confirmados - devoluciones_dentro
-    const monto_neto_base = monto_confirmados - devoluciones;
+    // Base neta: G = confirmados
+    const monto_neto_base = monto_confirmados;
 
     const monto_neto_consumo_real = monto_neto_base;
     let monto_neto_consumo = 0;
@@ -343,7 +343,7 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       pagado: false,
     });
 
-    // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con normalización de centro_costo
+    // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con reintentos y verificación
     if (tickets.length > 0) {
       const snapshotRows = tickets.map((t) => {
         const json = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
@@ -363,7 +363,58 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
           ticket_data: JSON.stringify(json),
         };
       });
-      await EdpTicketSnapshot.bulkCreate(snapshotRows);
+
+      // Guardar en lotes de 500 con hasta 3 reintentos por lote
+      const BATCH_SIZE = 500;
+      const MAX_RETRIES = 3;
+      let todoCorrectoEnLotes = true;
+
+      for (let i = 0; i < snapshotRows.length; i += BATCH_SIZE) {
+        const chunk = snapshotRows.slice(i, i + BATCH_SIZE);
+        let intento = 0;
+        let exitoLote = false;
+
+        while (intento < MAX_RETRIES && !exitoLote) {
+          try {
+            intento++;
+            await EdpTicketSnapshot.bulkCreate(chunk);
+            exitoLote = true;
+          } catch (errBulk: any) {
+            console.warn(
+              `⚠️ [EDP Snapshot Manual] Intento ${intento}/${MAX_RETRIES} falló guardando lote de edp_id ${estadoCuenta.id}: ${errBulk.message}`
+            );
+            if (intento < MAX_RETRIES) {
+              await new Promise((res) => setTimeout(res, 1000 * intento));
+            }
+          }
+        }
+
+        if (!exitoLote) {
+          todoCorrectoEnLotes = false;
+          break;
+        }
+      }
+
+      // Verificación estricta posterior en la base de datos (COUNT)
+      try {
+        const countBD = await EdpTicketSnapshot.count({
+          where: { edp_id: estadoCuenta.id },
+        });
+
+        if (countBD === tickets.length && todoCorrectoEnLotes) {
+          console.log(
+            `✅ [EDP Snapshot Manual] Confirmado: ${countBD}/${tickets.length} snapshots guardados perfectamente en BD para EDP ID ${estadoCuenta.id}.`
+          );
+        } else {
+          console.error(
+            `❌ [EDP Snapshot Manual] ERROR DE INTEGRIDAD: Se esperaban ${tickets.length} snapshots para EDP ID ${estadoCuenta.id}, pero hay ${countBD} en BD.`
+          );
+        }
+      } catch (errCount: any) {
+        console.error(
+          `❌ [EDP Snapshot Manual] Error verificando COUNT de snapshots para EDP ID ${estadoCuenta.id}: ${errCount.message}`
+        );
+      }
     }
 
     const ticketsActivosNuevos = await Ticket.findAll({

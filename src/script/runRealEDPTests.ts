@@ -13,16 +13,18 @@ import fs from "fs";
 import path from "path";
 import moment from "moment-timezone";
 
+import { sendEDPEmail } from "../services/mail.service";
+import { generateEDPExcelBuffer } from "../services/excel.service";
+
 // ============================================================================
 // CONFIGURACIÓN GLOBAL DE PRUEBAS DE EDP
 // Cambia estas dos variables para probar cualquier Empresa y cualquier Período
 // ============================================================================
-export const TARGET_EMPRESA_ID = 5;       // ID de la empresa a probar (ej: 5, 11, 22, 24, 13, 38)
-export const TARGET_PERIODO = "2026-06";   // Período formato 'YYYY-MM' (ej: '2026-06', '2026-07', '2026-01')
+export const TARGET_EMPRESA_ID = 22;       // Empresa ID 22: SANTA ELVIRA S.A. (Con 585 tickets en 2026-07)
+export const TARGET_PERIODO = "2026-07";   // Período '2026-07'
 // ============================================================================
 
-const ROOT_DIR = "c:\\Users\\Usuario\\Desktop\\wit-dev\\backend-reservas-corporativas";
-const OUTPUT_DIR = path.join(ROOT_DIR, "pdf_pruebas_edp");
+const OUTPUT_DIR = path.join(process.cwd(), "pdf_pruebas_edp");
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
@@ -89,6 +91,13 @@ export async function cleanEDPsForEmpresa(empresaId: number, periodoTarget: stri
   });
   const ids = edps.map(e => e.id);
   if (ids.length > 0) {
+    // Restablecer descuento_pendiente_edp al saldo inicial de prueba (115.700)
+    if (targetEmpresa) {
+      await targetEmpresa.update({
+        descuento_pendiente_edp: 115700,
+      });
+    }
+
     await CuentaCorriente.destroy({
       where: {
         [Op.or]: [
@@ -222,7 +231,7 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
       porcentaje_descuento: pctDesc,
       etiqueta_descuento: pctDesc > 0 ? "Descuento por Tramos" : "Descuento Aplicado",
       monto_descuento: montoDesc,
-      monto_final: montoFinalCalc,
+      monto_final: Number(edpAuto.monto_facturado || 0),
       monto_reclamos: recDesc,
       devoluciones_fuera_periodo: devFuera,
       saldo_favor_restante: 0,
@@ -238,6 +247,54 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   const pdf3Path = path.join(OUTPUT_DIR, pdf3FileName);
   fs.writeFileSync(pdf3Path, pdf3Bytes);
   console.log(`📄 PDF 3 (Auto Cron Email Backend) guardado en: ${pdf3Path}`);
+
+  // Enviar correo de prueba a dwigodski@wit.la emulando el despacho masivo del cron
+  console.log("\n📧 Enviando correo de prueba a dwigodski@wit.la con el EDP generado por el cron...");
+  
+  // Obtener tickets desde snapshots para incluir los pasajes en la planilla Excel
+  const snapshotsForTest = await EdpTicketSnapshot.findAll({
+    where: { edp_id: edpAuto.id },
+    order: [["id", "ASC"]],
+  });
+  const ticketsForTest = snapshotsForTest.map((snap) => {
+    try {
+      return JSON.parse(snap.ticket_data);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+
+  const excelBuffer = await generateEDPExcelBuffer(
+    ticketsForTest,
+    targetEmpresa.nombre,
+    targetEmpresa.rut ?? "",
+    targetEmpresa.cuenta_corriente ?? "",
+    periodo,
+    periodoReservasStr,
+    devFuera,
+    Number(edpAuto.monto_facturado || 0),
+    pctDesc,
+    montoDesc,
+    recDesc
+  );
+
+  await sendEDPEmail({
+    recipients: ["dwigodski@wit.la"],
+    empresaNombre: targetEmpresa.nombre,
+    rutEmpresa: targetEmpresa.rut ?? "No disponible",
+    cuentaCorriente: targetEmpresa.cuenta_corriente ?? "",
+    periodo: periodo,
+    fechaGeneracion: fechaGeneracionStr,
+    periodoReservas: periodoReservasStr,
+    totalTickets: edpAuto.total_tickets || 0,
+    totalAnulados: edpAuto.total_tickets_anulados || 0,
+    montoFacturado: Number(edpAuto.monto_facturado || 0),
+    pdfBuffer: Buffer.from(pdf3Bytes),
+    pdfFilename: pdf3FileName,
+    excelBuffer: excelBuffer,
+    excelFilename: `tickets_edp_${periodo}_${targetEmpresa.id}.xlsx`,
+  });
+  console.log("✅ Email enviado exitosamente a dwigodski@wit.la");
 
 
   // --- PASO 2: EJECUTAR CONTROLADOR MANUAL (ejecutarEDPManual) ---
@@ -300,15 +357,13 @@ const TEST_CASES = [
 
 if (require.main === module) {
   (async () => {
-    for (const testCase of TEST_CASES) {
-      await runCleanAuthenticTest(testCase.empresaId, testCase.periodo);
-    }
+    await runCleanAuthenticTest(TARGET_EMPRESA_ID, TARGET_PERIODO);
     console.log("\n=======================================================");
-    console.log(" 🚀 TODAS LAS PRUEBAS DE LAS 5 EMPRESAS FUERON COMPLETADAS CON ÉXITO");
+    console.log(" 🚀 PRUEBA DE EDP Y ENVÍO DE EMAIL COMPLETADA CON ÉXITO");
     console.log("=======================================================\n");
     process.exit(0);
   })().catch(err => {
-    console.error("❌ Error en ejecuciones de pruebas:", err);
+    console.error("❌ Error en ejecución de prueba:", err);
     process.exit(1);
   });
 }

@@ -53,6 +53,11 @@ export const generateEDPExcelBuffer = async (
   cuentaCorriente: string,
   periodo: string,
   periodoReservas: string,
+  devolucionesFueraPeriodo?: number,
+  montoFinal?: number,
+  porcentajeDescuento?: number,
+  montoDescuento?: number,
+  reclamosDescuento?: number,
 ): Promise<Buffer> => {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "WIT Innovación Tecnológica";
@@ -166,10 +171,10 @@ export const generateEDPExcelBuffer = async (
       countReclamados++;
       montoReclamadosDescuento += devolucion;
       countConfirmados++;
-      montoConfirmados += montoNeto;
+      montoConfirmados += montoOriginal;
     } else {
       countConfirmados++;
-      montoConfirmados += montoNeto;
+      montoConfirmados += montoOriginal;
     }
 
     const centroCostoNombre =
@@ -259,37 +264,90 @@ export const generateEDPExcelBuffer = async (
   summaryTitleCell.alignment = { horizontal: "center", vertical: "middle" };
   summaryTitleRow.height = 24;
 
+  const pctTramos = Number(porcentajeDescuento || 0);
+  const mDescuentoTramos = montoDescuento !== undefined && montoDescuento !== null
+    ? Number(montoDescuento)
+    : Math.round(montoConfirmados * (pctTramos / 100));
+  
+  const montoTotalEDP = Math.max(0, montoConfirmados - mDescuentoTramos);
+  const devFueraVal = Number(devolucionesFueraPeriodo || 0);
+  const reclamosVal = reclamosDescuento !== undefined && reclamosDescuento !== null
+    ? Number(reclamosDescuento)
+    : Number(montoReclamadosDescuento || 0);
+
+  const edpFinalVal = montoFinal !== undefined && montoFinal !== null
+    ? Number(montoFinal)
+    : Math.max(0, montoTotalEDP - devFueraVal - reclamosVal);
+
   const legendRows = [
     {
-      concepto: "TOTALES GENERALES (Bruto Emitido)",
-      conteo: `${tickets.length} tickets generados`,
+      concepto: "A. Total Tickets Generados",
+      conteo: `${tickets.length} tickets`,
       monto: formatCLP(totalMontoOriginal),
-      descripcion:
-        "Monto Original Bruto (Monto Neto Confirmados + Devoluciones Anulaciones + Devoluciones Reclamos).",
+      descripcion: "Total de pasajes emitidos en el período de reservas.",
       isHighlighted: false,
     },
     {
-      concepto: "Tickets Anulados (Devoluciones)",
+      concepto: "B. Total Tickets Anulados",
       conteo: `${countAnulados} tickets`,
       monto: formatCLP(montoAnuladosDevolucion || totalDevolucion),
-      descripcion:
-        "Monto total devuelto por pasajes anulados dentro del período de reservas.",
+      descripcion: "Devoluciones por anulación de pasajes dentro del período.",
       isHighlighted: false,
     },
     {
-      concepto: "Tickets Reclamados (Devoluciones)",
-      conteo: `${countReclamados} tickets`,
-      monto: formatCLP(montoReclamadosDescuento),
-      descripcion:
-        "Monto total de devoluciones aplicados por reclamos aceptados.",
-      isHighlighted: false,
-    },
-    {
-      concepto: "Tickets Confirmados (Vigentes)",
+      concepto: "C. Tickets Confirmados (A - B)",
       conteo: `${countConfirmados} tickets`,
       monto: formatCLP(montoConfirmados),
-      descripcion:
-        "Suma del valor neto facturado de pasajes confirmados vigentes en el período.",
+      descripcion: "Cantidad de pasajes vigentes del período.",
+      isHighlighted: false,
+    },
+    {
+      concepto: "D. Devoluciones por anulación dentro del período",
+      conteo: `${countAnulados} anulados`,
+      monto: formatCLP(montoAnuladosDevolucion || totalDevolucion),
+      descripcion: "Monto acumulado por devoluciones de pasajes anulados en el mes.",
+      isHighlighted: false,
+    },
+    {
+      concepto: "E. Devoluciones por anulación de período anterior",
+      conteo: "-",
+      monto: formatCLP(devFueraVal),
+      descripcion: "Devoluciones acumuladas por pasajes de meses anteriores anulados en este período.",
+      isHighlighted: false,
+    },
+    {
+      concepto: "F. Descuentos por Reclamos",
+      conteo: `${countReclamados} reclamos`,
+      monto: formatCLP(reclamosVal),
+      descripcion: "Descuentos aplicados por reclamos comerciales aceptados.",
+      isHighlighted: false,
+    },
+    {
+      concepto: "G. Monto Tickets Confirmados",
+      conteo: `${countConfirmados} confirmados`,
+      monto: formatCLP(montoConfirmados),
+      descripcion: "Monto bruto total correspondiente a los pasajes confirmados vigentes.",
+      isHighlighted: false,
+    },
+    {
+      concepto: `H. Monto Descuento por Tramos (${pctTramos}%)`,
+      conteo: "-",
+      monto: formatCLP(mDescuentoTramos),
+      descripcion: "Descuento por tramo de facturación acumulada.",
+      isHighlighted: false,
+    },
+    {
+      concepto: "I. Monto Total EDP (G - H)",
+      conteo: "-",
+      monto: formatCLP(montoTotalEDP),
+      descripcion: "Subtotal bruto del Estado de Pago antes de devoluciones anteriores y reclamos.",
+      isHighlighted: false,
+    },
+    {
+      concepto: "J. MONTO EDP FINAL (Total a Facturar)",
+      conteo: `${countConfirmados} confirmados`,
+      monto: formatCLP(edpFinalVal),
+      descripcion: "MONTO FINAL A FACTURAR (I - E - F) coincidente con el Estado de Pago PDF oficial.",
       isHighlighted: true,
     },
   ];

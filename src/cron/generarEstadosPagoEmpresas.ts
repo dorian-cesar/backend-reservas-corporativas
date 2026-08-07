@@ -249,8 +249,8 @@ export const generarEstadosPagoEmpresas = async (
         const devoluciones = tickets
           .filter((t) => t.ticketStatus === "Anulado")
           .reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
-        // Base neta sobre la que se aplica el descuento: G = confirmados - devoluciones_dentro
-        const monto_neto_base = monto_confirmados - devoluciones;
+        // Base neta sobre la que se aplica el descuento por tramos: G = confirmados
+        const monto_neto_base = monto_confirmados;
 
         // Buscar tickets del periodo anterior anulados fuera de periodo
         const ticketsAnuladosFueraPeriodo = await Ticket.findAll({
@@ -437,7 +437,7 @@ export const generarEstadosPagoEmpresas = async (
             const estadoCuenta = await EstadoCuenta.create({
               empresa_id: empresaId,
               periodo,
-              fecha_generacion: fin,
+              fecha_generacion: hoy,
               total_tickets,
               total_tickets_anulados,
               monto_facturado: monto_facturado_final,
@@ -453,7 +453,8 @@ export const generarEstadosPagoEmpresas = async (
               fecha_fin: formatFecha(fin),
             });
 
-            // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con normalización de centro_costo
+            // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con reintentos y verificación
+            let snapshotsGuardadosCorrectamente = false;
             if (tickets.length > 0) {
               const snapshotRows = tickets.map((t) => {
                 const json = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
@@ -473,20 +474,75 @@ export const generarEstadosPagoEmpresas = async (
                   ticket_data: JSON.stringify(json),
                 };
               });
-              await EdpTicketSnapshot.bulkCreate(snapshotRows);
+
+              // Guardar en lotes de 500 con hasta 3 reintentos por lote
+              const BATCH_SIZE = 500;
+              const MAX_RETRIES = 3;
+              let todoCorrectoEnLotes = true;
+
+              for (let i = 0; i < snapshotRows.length; i += BATCH_SIZE) {
+                const chunk = snapshotRows.slice(i, i + BATCH_SIZE);
+                let intento = 0;
+                let exitoLote = false;
+
+                while (intento < MAX_RETRIES && !exitoLote) {
+                  try {
+                    intento++;
+                    await EdpTicketSnapshot.bulkCreate(chunk);
+                    exitoLote = true;
+                  } catch (errBulk: any) {
+                    console.warn(
+                      `⚠️ [EDP Snapshot Cron] Intento ${intento}/${MAX_RETRIES} falló guardando lote de edp_id ${estadoCuenta.id}: ${errBulk.message}`
+                    );
+                    if (intento < MAX_RETRIES) {
+                      await new Promise((res) => setTimeout(res, 1000 * intento));
+                    }
+                  }
+                }
+
+                if (!exitoLote) {
+                  todoCorrectoEnLotes = false;
+                  break;
+                }
+              }
+
+              // Verificación estricta posterior en la base de datos (COUNT)
+              try {
+                const countBD = await EdpTicketSnapshot.count({
+                  where: { edp_id: estadoCuenta.id },
+                });
+
+                if (countBD === tickets.length && todoCorrectoEnLotes) {
+                  snapshotsGuardadosCorrectamente = true;
+                  console.log(
+                    `✅ [EDP Snapshot Cron] Confirmado: ${countBD}/${tickets.length} snapshots guardados perfectamente en BD para EDP ID ${estadoCuenta.id}.`
+                  );
+                } else {
+                  console.error(
+                    `❌ [EDP Snapshot Cron] ERROR DE INTEGRIDAD: Se esperaban ${tickets.length} snapshots para EDP ID ${estadoCuenta.id}, pero hay ${countBD} en BD. Se omitirá el envío de correo para este EDP.`
+                  );
+                }
+              } catch (errCount: any) {
+                console.error(
+                  `❌ [EDP Snapshot Cron] Error verificando COUNT de snapshots para EDP ID ${estadoCuenta.id}: ${errCount.message}`
+                );
+              }
+            } else {
+              snapshotsGuardadosCorrectamente = true;
             }
+
             console.log(
               `[${new Date().toISOString()}] EstadoCuenta creado para empresa ${empresaId}, periodo ${periodo}. Monto facturado final: ${monto_facturado_final} (devoluciones fuera: ${devoluciones_fuera_periodo_aplicadas}, reclamos: ${reclamos_aplicados})`,
             );
 
-            // Acumular en cola de email si la empresa es de tipo Masiva
-            if (empresa.tipo_facturacion === "Masiva") {
+            // Acumular en cola de email solo si la empresa es de tipo Masiva y los snapshots se confirmaron correctamente
+            if (empresa.tipo_facturacion === "Masiva" && snapshotsGuardadosCorrectamente) {
               edpCreatedForEmail.push({
                 estadoCuentaId: estadoCuenta.id,
                 periodo,
                 fechaInicio: inicio,
                 fechaFin: fin,
-                fechaGeneracion: fin,
+                fechaGeneracion: hoy,
                 totalTickets: total_tickets,
                 totalTicketsAnulados: total_tickets_anulados,
                 montoConfirmados: monto_confirmados,
