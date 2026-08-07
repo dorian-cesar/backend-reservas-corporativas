@@ -42,14 +42,17 @@ flowchart TD
 ## 3. Reglas de Negocio y Lógica Matemática de Saldos
 
 ### 3.1. Base de Cálculo y Consumo Bruto
-1. **Tickets Confirmados**: Suma de `monto_boleto` de tickets con `ticketStatus = "Confirmed"`.
-2. **Devoluciones del Período**: Suma de `monto_devolucion` de tickets anulados dentro del período.
+1. **Tickets Confirmados ($G$)**: Suma de `monto_boleto` de tickets vigentes con `ticketStatus = "Confirmed"`.
+2. **Devoluciones del Período ($D$)**: Suma de `monto_devolucion` de tickets anulados dentro del período.
 3. **Monto Neto Base ($G$)**:
-   $$\text{Monto Neto Base } (G) = \text{Monto Confirmados} - \text{Devoluciones del Período}$$
+   $$\text{Monto Neto Base } (G) = \text{Monto Confirmados}$$
 4. **Descuento por Tramos ($H$)**: Porcentaje determinado según los tramos comerciales asignados a la empresa (`empresa_tramos`).
    $$\text{Descuento por Tramos } (H) = \text{Math.round}\left(G \times \frac{\text{PorcentajeDescuento}}{100}\right)$$
-5. **Monto Facturado Previo ($I$)**:
-   $$\text{Monto Facturado Previo } (I) = \max(0, G - H)$$
+5. **Monto Total EDP ($I$)**:
+   $$\text{Monto Total EDP } (I) = \max(0, G - H)$$
+6. **Monto EDP Final a Facturar ($J$)**:
+   $$\text{Monto EDP Final } (J) = \max(0, I - E - F)$$
+   *(donde $E$ representa Devoluciones de Períodos Anteriores y $F$ Descuentos por Reclamos).*
 
 ### 3.2. Devoluciones Fuera de Período y Reclamos Aceptados
 Ocurren cuando un ticket de un mes anterior se anula en el mes en curso o cuando la empresa acumula créditos pendientes.
