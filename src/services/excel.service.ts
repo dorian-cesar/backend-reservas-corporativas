@@ -154,10 +154,9 @@ export const generateEDPExcelBuffer = async (
       tieneReclamoAceptado && !esAnulado ? "Reclamado" : ticket.ticketStatus;
 
     const montoOriginal = Number(ticket.monto_boleto || 0);
-    const devolucion =
-      esAnulado || tieneReclamoAceptado
-        ? Number(ticket.monto_devolucion || ticket.monto_boleto || 0)
-        : Number(ticket.monto_devolucion || 0);
+    const devolucion = esAnulado
+      ? Number(ticket.monto_devolucion || ticket.monto_boleto || 0)
+      : Number(ticket.monto_devolucion || 0);
     const montoNeto = montoOriginal - devolucion;
 
     totalMontoOriginal += montoOriginal;

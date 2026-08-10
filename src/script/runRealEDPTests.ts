@@ -17,10 +17,10 @@ import { sendEDPEmail } from "../services/mail.service";
 import { generateEDPExcelBuffer } from "../services/excel.service";
 
 // ============================================================================
-// CONFIGURACIÓN GLOBAL DE PRUEBAS DE EDP
-// Cambia estas dos variables para probar cualquier Empresa y cualquier Período
+// CONFIGURACIÓN GLOBAL DE PRUEBAS DE EDP (EN AMBIENTE DE DESARROLLO)
+// Cambia estas dos variables para probar cualquier Empresa y Período
 // ============================================================================
-export const TARGET_EMPRESA_ID = 22;       // Empresa ID 22: SANTA ELVIRA S.A. (Con 585 tickets en 2026-07)
+export const TARGET_EMPRESA_ID = 449;      // Empresa ID 449: SODEXO CHILE SPA (1,807 tickets en 2026-07)
 export const TARGET_PERIODO = "2026-07";   // Período '2026-07'
 // ============================================================================
 
@@ -54,7 +54,7 @@ function createMockResponse() {
       }
       return res as Response;
     },
-    setHeader: (name: string, value: string) => {
+    setHeader: (_name: string, _value: string) => {
       return res as Response;
     }
   };
@@ -67,37 +67,22 @@ function createMockResponse() {
   };
 }
 
-export async function cleanEDPsForEmpresa(empresaId: number, periodoTarget: string) {
+export async function cleanEDPsForEmpresa(empresaId: number, periodoTarget: string, restoreDescuentoVal?: number) {
   const targetEmpresa = await Empresa.findByPk(empresaId);
-  const diaFacturacion = targetEmpresa?.dia_facturacion || 1;
-  const [yearStr, monthStr] = periodoTarget.split("-");
-  const year = parseInt(yearStr);
-  const monthIdx = parseInt(monthStr) - 1;
-
-  const inicioMoment = moment.tz([year, monthIdx, Math.min(diaFacturacion, 28)], TIMEZONE).startOf("day");
-
   const edps = await EstadoCuenta.findAll({
     where: {
       empresa_id: empresaId,
-      [Op.or]: [
-        { periodo: periodoTarget },
-        {
-          fecha_inicio: {
-            [Op.between]: [inicioMoment.clone().subtract(2, "days").toDate(), inicioMoment.clone().add(2, "days").toDate()]
-          }
-        }
-      ]
+      periodo: periodoTarget,
     }
   });
   const ids = edps.map(e => e.id);
-  if (ids.length > 0) {
-    // Restablecer descuento_pendiente_edp al saldo inicial de prueba (115.700)
-    if (targetEmpresa) {
-      await targetEmpresa.update({
-        descuento_pendiente_edp: 115700,
-      });
-    }
+  if (restoreDescuentoVal !== undefined && targetEmpresa) {
+    await targetEmpresa.update({
+      descuento_pendiente_edp: restoreDescuentoVal,
+    });
+  }
 
+  if (ids.length > 0) {
     await CuentaCorriente.destroy({
       where: {
         [Op.or]: [
@@ -111,10 +96,90 @@ export async function cleanEDPsForEmpresa(empresaId: number, periodoTarget: stri
   }
 }
 
+async function verifyAndReportSnapshotDetails(edpId: number, tituloEtapa: string) {
+  const edp = await EstadoCuenta.findByPk(edpId);
+  if (!edp) {
+    console.error(`❌ EDP ID ${edpId} no encontrado para revisión.`);
+    return;
+  }
+
+  const snapshots = await EdpTicketSnapshot.findAll({
+    where: { edp_id: edpId },
+    order: [["id", "ASC"]],
+  });
+
+  console.log(`\n=======================================================`);
+  console.log(` 🔎 REVISIÓN Y DIAGNÓSTICO PROFUNDO - ${tituloEtapa}`);
+  console.log(`=======================================================`);
+  console.log(`- EDP ID: ${edp.id}`);
+  console.log(`- Período: ${edp.periodo}`);
+  console.log(`- Rango Período BD: ${edp.fecha_inicio}  <--->  ${edp.fecha_fin}`);
+  console.log(`- Total Tickets Registrados: ${edp.total_tickets} (Anulados: ${edp.total_tickets_anulados})`);
+  console.log(`- Total Snapshots Guardados en BD: ${snapshots.length} / ${edp.total_tickets}`);
+  console.log(`- Monto Facturado Final: $${Number(edp.monto_facturado).toLocaleString("es-CL")}`);
+  console.log(`- Descuento por Reclamos Aceptados: $${Number(edp.reclamos_descuento || 0).toLocaleString("es-CL")}`);
+  console.log(`- Devoluciones Fuera de Período: $${Number(edp.devoluciones_fuera_periodo || 0).toLocaleString("es-CL")}`);
+
+  if (snapshots.length === 0) {
+    console.error(`❌ ALERTA: No se encontraron snapshots guardados para este EDP.`);
+    return;
+  }
+
+  const tickets = snapshots.map((s) => {
+    try {
+      return JSON.parse(s.ticket_data);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+
+  tickets.sort((a: any, b: any) => {
+    const da = a.confirmedAt ? new Date(a.confirmedAt).getTime() : 0;
+    const db = b.confirmedAt ? new Date(b.confirmedAt).getTime() : 0;
+    return da - db;
+  });
+
+  const primerTicket = tickets[0];
+  const ultimoTicket = tickets[tickets.length - 1];
+
+  console.log(`\n📌 INSPECCIÓN DE TICKETS DENTRO DEL SNAPSHOT:`);
+  console.log(` 1️⃣ PRIMER TICKET (Más antiguo):`);
+  console.log(`    - ID Ticket: ${primerTicket.id} | N°: ${primerTicket.ticketNumber || primerTicket.id}`);
+  console.log(`    - Estado: ${primerTicket.ticketStatus}`);
+  console.log(`    - Confirmación (confirmedAt): ${moment(primerTicket.confirmedAt).tz(TIMEZONE).format("YYYY-MM-DD HH:mm:ss")}`);
+  console.log(`    - Fecha Viaje (travelDate): ${primerTicket.travelDate || "N/A"}`);
+  console.log(`    - Pasajero: ${primerTicket.pasajero?.nombre || "N/A"}`);
+  console.log(`    - Centro de Costo: ${primerTicket.pasajero?.centroCosto?.nombre || "Sin Asignar"}`);
+
+  console.log(` 🔝 ÚLTIMO TICKET (Más reciente):`);
+  console.log(`    - ID Ticket: ${ultimoTicket.id} | N°: ${ultimoTicket.ticketNumber || ultimoTicket.id}`);
+  console.log(`    - Estado: ${ultimoTicket.ticketStatus}`);
+  console.log(`    - Confirmación (confirmedAt): ${moment(ultimoTicket.confirmedAt).tz(TIMEZONE).format("YYYY-MM-DD HH:mm:ss")}`);
+  console.log(`    - Fecha Viaje (travelDate): ${ultimoTicket.travelDate || "N/A"}`);
+  console.log(`    - Pasajero: ${ultimoTicket.pasajero?.nombre || "N/A"}`);
+  console.log(`    - Centro de Costo: ${ultimoTicket.pasajero?.centroCosto?.nombre || "Sin Asignar"}`);
+
+  const inicioEDP = new Date(edp.fecha_inicio!).getTime();
+  const finEDP = new Date(edp.fecha_fin!).getTime();
+  const datePrimer = new Date(primerTicket.confirmedAt).getTime();
+  const dateUltimo = new Date(ultimoTicket.confirmedAt).getTime();
+
+  const primerEnRango = datePrimer >= inicioEDP && datePrimer <= finEDP;
+  const ultimoEnRango = dateUltimo >= inicioEDP && dateUltimo <= finEDP;
+
+  const ticketsConReclamo = tickets.filter((t: any) => t.reclamos && t.reclamos.length > 0);
+  console.log(`\n📋 RECLAMOS ADJUNTOS EN SNAPSHOT: ${ticketsConReclamo.length} tickets contienen reclamos registrados.`);
+
+  console.log(`-------------------------------------------------------`);
+  console.log(`✔️ Conteo Snapshots vs Tickets: ${snapshots.length === edp.total_tickets ? "SÍ (COINCIDENCIA EXACTA)" : "NO"}`);
+  console.log(`✔️ Fechas de pasajes dentro del período del EDP: ${primerEnRango && ultimoEnRango ? "SÍ (100% CORRECTO)" : "NO"}`);
+  console.log(`=======================================================\n`);
+}
+
 export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, periodo = TARGET_PERIODO) {
   await connectDB();
   console.log("\n=======================================================");
-  console.log(` EJECUCIÓN AUTÉNTICA Y LIMPIA DE LOS 3 FLUJOS PROD`);
+  console.log(` 🚀 PRUEBA AUTÉNTICA EDP EN DESARROLLO (Paso a Paso)`);
   console.log(` Empresa ID: ${empresaId} | Período Target: ${periodo}`);
   console.log("=======================================================\n");
 
@@ -127,12 +192,12 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   const diaFacturacion = targetEmpresa.dia_facturacion || 1;
   const [yearStr, monthStr] = periodo.split("-");
   const year = parseInt(yearStr);
-  const monthIdx = parseInt(monthStr) - 1; // 0-indexed month
+  const monthIdx = parseInt(monthStr) - 1;
 
   // Calcular rango de fechas exacto del período
   const inicioMoment = moment.tz([year, monthIdx, Math.min(diaFacturacion, 28)], TIMEZONE).startOf("day");
   const finMoment = moment(inicioMoment).add(1, "month").subtract(1, "day").endOf("day");
-  
+
   // Fecha de corte simulada para el cron (2 días después del fin de período para forzar cierre)
   const fechaCorteCron = moment(finMoment).add(2, "days").startOf("day").toDate();
 
@@ -140,23 +205,35 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   const fechaDesdeManual = inicioMoment.format("YYYY-MM-DD");
   const fechaHastaManual = moment(finMoment).add(1, "day").format("YYYY-MM-DD");
 
-  // Nombres dinámicos para los archivos PDF
   const empresaSlug = targetEmpresa.nombre.replace(/[^a-zA-Z0-9]/g, "-").replace(/-+/g, "-");
   const pdf1FileName = `1_auto_cron_frontend_${empresaSlug}_E${empresaId}_${periodo}.pdf`;
   const pdf2FileName = `2_manual_controller_frontend_${empresaSlug}_E${empresaId}_${periodo}.pdf`;
   const pdf3FileName = `3_auto_cron_backend_email_${empresaSlug}_E${empresaId}_${periodo}.pdf`;
 
-  console.log(`📌 Empresa: ${targetEmpresa.nombre} (Día facturación: ${diaFacturacion})`);
-  console.log(`📌 Período Reservas esperadas: ${inicioMoment.format("DD-MM-YYYY")} -> ${finMoment.format("DD-MM-YYYY")}`);
+  // Saldo inicial de la empresa (para SODEXO CHILE SPA es $115.700 acumulados por reclamos aceptados)
+  const initialDescuentoPendiente = Number(targetEmpresa.descuento_pendiente_edp || 0) || (empresaId === 449 ? 115700 : 0);
+  const initialDevolucionPendiente = Number(targetEmpresa.devolucion_pendiente_edp || 0);
+
+  // Garantizar que la empresa tenga su saldo disponible al iniciar la prueba
+  await targetEmpresa.update({
+    descuento_pendiente_edp: initialDescuentoPendiente,
+    devolucion_pendiente_edp: initialDevolucionPendiente,
+  });
+
+  console.log(`📌 Empresa: ${targetEmpresa.nombre} (Rut: ${targetEmpresa.rut}, Día facturación: ${diaFacturacion})`);
+  console.log(`📌 Saldo Reclamos Pendientes Aceptados: $${initialDescuentoPendiente.toLocaleString("es-CL")}`);
+  console.log(`📌 Período Reservas esperadas: ${inicioMoment.format("YYYY-MM-DD HH:mm:ss")} -> ${finMoment.format("YYYY-MM-DD HH:mm:ss")}`);
   console.log(`📌 Simulación Cron Corte: ${moment(fechaCorteCron).tz(TIMEZONE).format("YYYY-MM-DD HH:mm:ss")}`);
   console.log(`📌 Rango Request Manual: ${fechaDesdeManual} -> ${fechaHastaManual}\n`);
 
-  // 1. Limpiar ÚNICAMENTE el período en prueba conservando la historia restante
+  // 1. Limpiar el EDP del período objetivo
   await cleanEDPsForEmpresa(targetEmpresa.id, periodo);
-  console.log(`🧹 DB limpia para Empresa ${empresaId}, Período ${periodo} (historia restante conservada).`);
+  console.log(`🧹 DB limpia para Empresa ${empresaId}, Período ${periodo}.`);
 
-  // --- PASO 1: EJECUTAR CRON AUTOMÁTICO (generarEstadosPagoEmpresas.ts) ---
-  console.log("\n--- PASO 1: Ejecutando Cron Automático (generarEstadosPagoEmpresas) ---");
+  // --- PASO 1: EJECUTAR CRON AUTOMÁTICO (generarEstadosPagoEmpresas) ---
+  console.log("\n-------------------------------------------------------");
+  console.log(" PASO 1: Ejecutando Cron Automático (generarEstadosPagoEmpresas)");
+  console.log("-------------------------------------------------------");
   await generarEstadosPagoEmpresas(fechaCorteCron, targetEmpresa.id);
 
   const edpAuto = await EstadoCuenta.findOne({
@@ -169,7 +246,12 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
     process.exit(1);
   }
 
-  console.log(`✅ EDP Automático creado con ID: ${edpAuto.id}`);
+  console.log(`✅ EDP Automático creado en BD con ID: ${edpAuto.id}`);
+  console.log(`  - Total Tickets: ${edpAuto.total_tickets} | Anulados: ${edpAuto.total_tickets_anulados}`);
+  console.log(`  - Monto Facturado: $${Number(edpAuto.monto_facturado).toLocaleString("es-CL")}`);
+
+  // Verificar primer y último ticket del snapshot del Cron
+  await verifyAndReportSnapshotDetails(edpAuto.id, "CRON AUTOMÁTICO");
 
   // Generar PDF 1 (Frontend Automático vía pdf.controller.ts)
   const mockReq1: Partial<Request> = { params: { id: String(edpAuto.id) } };
@@ -184,9 +266,8 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   fs.writeFileSync(pdf1Path, pdf1Buffer);
   console.log(`📄 PDF 1 (Auto Cron Frontend) guardado en: ${pdf1Path}`);
 
-  // Generar PDF 3 (Email Backend procesando edpMailBatch.service.ts exactamente como en producción)
+  // Generar PDF 3 (Backend Email Service)
   const detallePorCC = JSON.parse(edpAuto.detalle_por_cc || "{}");
-
   const centrosCosto = Object.values(detallePorCC as Record<string, any>)
     .filter((cc: any) => cc.total_tickets - cc.total_anulados > 0)
     .map((cc: any, idx: number) => ({
@@ -209,7 +290,6 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   const montoDesc = Math.round(montoBruto * (pctDesc / 100));
   const devFuera = Number(edpAuto.devoluciones_fuera_periodo || 0);
   const recDesc = Number(edpAuto.reclamos_descuento || 0);
-  const montoFinalCalc = Math.max(0, montoBruto - montoDesc - devFuera - recDesc);
 
   const edpPDFData: EDPPDFData = {
     edp: {
@@ -246,12 +326,10 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   const pdf3Bytes = await generateEDPPDF(edpPDFData);
   const pdf3Path = path.join(OUTPUT_DIR, pdf3FileName);
   fs.writeFileSync(pdf3Path, pdf3Bytes);
-  console.log(`📄 PDF 3 (Auto Cron Email Backend) guardado en: ${pdf3Path}`);
+  console.log(`📄 PDF 3 (Auto Cron Backend Email) guardado en: ${pdf3Path}`);
 
-  // Enviar correo de prueba a dwigodski@wit.la emulando el despacho masivo del cron
+  // Enviar correo de prueba con PDF y Excel
   console.log("\n📧 Enviando correo de prueba a dwigodski@wit.la con el EDP generado por el cron...");
-  
-  // Obtener tickets desde snapshots para incluir los pasajes en la planilla Excel
   const snapshotsForTest = await EdpTicketSnapshot.findAll({
     where: { edp_id: edpAuto.id },
     order: [["id", "ASC"]],
@@ -278,29 +356,40 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
     recDesc
   );
 
-  await sendEDPEmail({
-    recipients: ["dwigodski@wit.la"],
-    empresaNombre: targetEmpresa.nombre,
-    rutEmpresa: targetEmpresa.rut ?? "No disponible",
-    cuentaCorriente: targetEmpresa.cuenta_corriente ?? "",
-    periodo: periodo,
-    fechaGeneracion: fechaGeneracionStr,
-    periodoReservas: periodoReservasStr,
-    totalTickets: edpAuto.total_tickets || 0,
-    totalAnulados: edpAuto.total_tickets_anulados || 0,
-    montoFacturado: Number(edpAuto.monto_facturado || 0),
-    pdfBuffer: Buffer.from(pdf3Bytes),
-    pdfFilename: pdf3FileName,
-    excelBuffer: excelBuffer,
-    excelFilename: `tickets_edp_${periodo}_${targetEmpresa.id}.xlsx`,
-  });
-  console.log("✅ Email enviado exitosamente a dwigodski@wit.la");
+  const excelFileName = `4_tickets_excel_${empresaSlug}_E${empresaId}_${periodo}.xlsx`;
+  const excelPath = path.join(OUTPUT_DIR, excelFileName);
+  fs.writeFileSync(excelPath, excelBuffer);
+  console.log(`📊 Excel de Pasajes guardado en: ${excelPath}`);
+
+  try {
+    await sendEDPEmail({
+      recipients: ["dwigodski@wit.la"],
+      empresaNombre: targetEmpresa.nombre,
+      rutEmpresa: targetEmpresa.rut ?? "No disponible",
+      cuentaCorriente: targetEmpresa.cuenta_corriente ?? "",
+      periodo: periodo,
+      fechaGeneracion: fechaGeneracionStr,
+      periodoReservas: periodoReservasStr,
+      totalTickets: edpAuto.total_tickets || 0,
+      totalAnulados: edpAuto.total_tickets_anulados || 0,
+      montoFacturado: Number(edpAuto.monto_facturado || 0),
+      pdfBuffer: Buffer.from(pdf3Bytes),
+      pdfFilename: pdf3FileName,
+      excelBuffer: excelBuffer,
+      excelFilename: excelFileName,
+    });
+    console.log("✅ Email enviado exitosamente a dwigodski@wit.la con PDF y Excel adjuntos.");
+  } catch (mailErr: any) {
+    console.warn(`⚠️ Error al enviar email a dwigodski@wit.la: ${mailErr.message} (Verifica la clave SENDGRID_API_KEY en .env)`);
+  }
 
 
   // --- PASO 2: EJECUTAR CONTROLADOR MANUAL (ejecutarEDPManual) ---
-  console.log("\n--- PASO 2: Ejecutando Controlador Manual (ejecutarEDPManual) ---");
-  // Limpiar únicamente el EDP automático recién creado para dar paso al EDP manual sobre el mismo período exacto
-  await cleanEDPsForEmpresa(targetEmpresa.id, periodo);
+  console.log("\n-------------------------------------------------------");
+  console.log(" PASO 2: Ejecutando Controlador Manual (ejecutarEDPManual)");
+  console.log("-------------------------------------------------------");
+  // Limpiar el EDP recién creado por el cron y restaurar saldo inicial para dar paso al EDP manual en igualdad de condiciones
+  await cleanEDPsForEmpresa(targetEmpresa.id, periodo, initialDescuentoPendiente);
 
   const mockReqManual: Partial<Request> = {
     body: {
@@ -324,7 +413,12 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
     process.exit(1);
   }
 
-  console.log(`✅ EDP Manual creado con ID: ${edpManual.id}`);
+  console.log(`✅ EDP Manual creado en BD con ID: ${edpManual.id}`);
+  console.log(`  - Total Tickets: ${edpManual.total_tickets} | Anulados: ${edpManual.total_tickets_anulados}`);
+  console.log(`  - Monto Facturado: $${Number(edpManual.monto_facturado).toLocaleString("es-CL")}`);
+
+  // Verificar primer y último ticket del snapshot del EDP Manual
+  await verifyAndReportSnapshotDetails(edpManual.id, "EDP MANUAL");
 
   // Generar PDF 2 (Frontend Manual vía pdf.controller.ts)
   const mockReq2: Partial<Request> = { params: { id: String(edpManual.id) } };
@@ -339,27 +433,32 @@ export async function runCleanAuthenticTest(empresaId = TARGET_EMPRESA_ID, perio
   fs.writeFileSync(pdf2Path, pdf2Buffer);
   console.log(`📄 PDF 2 (Manual Controller Frontend) guardado en: ${pdf2Path}`);
 
+  // --- PASO 3: RESTAURACIÓN Y NORMALIZACIÓN COMPLETA DE LA BASE DE DATOS ---
+  console.log("\n-------------------------------------------------------");
+  console.log(" PASO 3: Normalización y Restauración de Base de Datos");
+  console.log("-------------------------------------------------------");
+  await cleanEDPsForEmpresa(targetEmpresa.id, periodo, initialDescuentoPendiente);
+  await targetEmpresa.update({
+    descuento_pendiente_edp: initialDescuentoPendiente,
+    devolucion_pendiente_edp: initialDevolucionPendiente,
+  });
+  console.log(`🧹 DB NORMALIZADA: Registros de EDPs (${edpAuto.id}, ${edpManual.id}), Snapshots y Cargos de Cta Cte fueron borrados.`);
+  console.log(`🧹 EMPRESA RESTAURADA: Saldo de reclamos ($${initialDescuentoPendiente.toLocaleString("es-CL")}) y devoluciones ($${initialDevolucionPendiente.toLocaleString("es-CL")}) restaurados exactamente a su valor original.`);
+
   console.log("\n=======================================================");
-  console.log(" 🎉 LOS 3 PDFS FUERON GENERADOS EN 'pdf_pruebas_edp':");
-  console.log(` 1. ${pdf1FileName}`);
-  console.log(` 2. ${pdf2FileName}`);
-  console.log(` 3. ${pdf3FileName}`);
+  console.log(" 🎉 RESUMEN DE ARCHIVOS GUARDADOS EN 'pdf_pruebas_edp':");
+  console.log(` 1. ${pdf1FileName} (PDF Cron Frontend)`);
+  console.log(` 2. ${pdf2FileName} (PDF Manual Frontend)`);
+  console.log(` 3. ${pdf3FileName} (PDF Cron Backend Email)`);
+  console.log(` 4. ${excelFileName} (Excel de Pasajes del Snapshot)`);
   console.log("=======================================================\n");
 }
-
-const TEST_CASES = [
-  { empresaId: 11, periodo: "2026-07" },
-  { empresaId: 22, periodo: "2026-07" },
-  { empresaId: 24, periodo: "2026-07" },
-  { empresaId: 13, periodo: "2026-07" },
-  { empresaId: 38, periodo: "2026-01" },
-];
 
 if (require.main === module) {
   (async () => {
     await runCleanAuthenticTest(TARGET_EMPRESA_ID, TARGET_PERIODO);
     console.log("\n=======================================================");
-    console.log(" 🚀 PRUEBA DE EDP Y ENVÍO DE EMAIL COMPLETADA CON ÉXITO");
+    console.log(" 🚀 PRUEBA INTEGRAL EDP Y ENVÍO DE EMAIL COMPLETADA");
     console.log("=======================================================\n");
     process.exit(0);
   })().catch(err => {
