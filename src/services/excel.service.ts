@@ -264,19 +264,22 @@ export const generateEDPExcelBuffer = async (
   summaryTitleRow.height = 24;
 
   const pctTramos = Number(porcentajeDescuento || 0);
-  const mDescuentoTramos = montoDescuento !== undefined && montoDescuento !== null
-    ? Number(montoDescuento)
-    : Math.round(montoConfirmados * (pctTramos / 100));
-  
+  const mDescuentoTramos =
+    montoDescuento !== undefined && montoDescuento !== null
+      ? Number(montoDescuento)
+      : Math.round(montoConfirmados * (pctTramos / 100));
+
   const montoTotalEDP = Math.max(0, montoConfirmados - mDescuentoTramos);
   const devFueraVal = Number(devolucionesFueraPeriodo || 0);
-  const reclamosVal = reclamosDescuento !== undefined && reclamosDescuento !== null
-    ? Number(reclamosDescuento)
-    : Number(montoReclamadosDescuento || 0);
+  const reclamosVal =
+    reclamosDescuento !== undefined && reclamosDescuento !== null
+      ? Number(reclamosDescuento)
+      : Number(montoReclamadosDescuento || 0);
 
-  const edpFinalVal = montoFinal !== undefined && montoFinal !== null
-    ? Number(montoFinal)
-    : Math.max(0, montoTotalEDP - devFueraVal - reclamosVal);
+  const edpFinalVal =
+    montoFinal !== undefined && montoFinal !== null
+      ? Number(montoFinal)
+      : Math.max(0, montoTotalEDP - devFueraVal - reclamosVal);
 
   const legendRows = [
     {
@@ -304,14 +307,16 @@ export const generateEDPExcelBuffer = async (
       concepto: "D. Devoluciones por anulación dentro del período",
       conteo: `${countAnulados} anulados`,
       monto: formatCLP(montoAnuladosDevolucion || totalDevolucion),
-      descripcion: "Monto acumulado por devoluciones de pasajes anulados en el mes.",
+      descripcion:
+        "Monto acumulado por devoluciones de pasajes anulados en el mes.",
       isHighlighted: false,
     },
     {
       concepto: "E. Devoluciones por anulación de período anterior",
       conteo: "-",
       monto: formatCLP(devFueraVal),
-      descripcion: "Devoluciones acumuladas por pasajes de meses anteriores anulados en este período.",
+      descripcion:
+        "Devoluciones acumuladas por pasajes de meses anteriores anulados en este período.",
       isHighlighted: false,
     },
     {
@@ -325,7 +330,8 @@ export const generateEDPExcelBuffer = async (
       concepto: "G. Monto Tickets Confirmados",
       conteo: `${countConfirmados} confirmados`,
       monto: formatCLP(montoConfirmados),
-      descripcion: "Monto bruto total correspondiente a los pasajes confirmados vigentes.",
+      descripcion:
+        "Monto bruto total correspondiente a los pasajes confirmados vigentes.",
       isHighlighted: false,
     },
     {
@@ -339,14 +345,16 @@ export const generateEDPExcelBuffer = async (
       concepto: "I. Monto Total EDP (G - H)",
       conteo: "-",
       monto: formatCLP(montoTotalEDP),
-      descripcion: "Subtotal bruto del Estado de Pago antes de devoluciones anteriores y reclamos.",
+      descripcion:
+        "Subtotal bruto del Estado de Pago antes de devoluciones anteriores y reclamos.",
       isHighlighted: false,
     },
     {
       concepto: "J. MONTO EDP FINAL (Total a Facturar)",
       conteo: `${countConfirmados} confirmados`,
       monto: formatCLP(edpFinalVal),
-      descripcion: "MONTO FINAL A FACTURAR (I - E - F) coincidente con el Estado de Pago PDF oficial.",
+      descripcion:
+        "MONTO FINAL A FACTURAR (I - E - F) con descuentos y devoluciones aplicados.",
       isHighlighted: true,
     },
   ];
