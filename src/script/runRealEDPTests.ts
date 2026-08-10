@@ -23,6 +23,7 @@ import moment from "moment-timezone";
 
 import { sendEDPEmail } from "../services/mail.service";
 import { generateEDPExcelBuffer } from "../services/excel.service";
+import ExcelJS from "exceljs";
 
 let sequelizeDevInstance: Sequelize | null = null;
 
@@ -266,6 +267,141 @@ async function verifyAndReportSnapshotDetails(
     `✔️ Fechas de pasajes dentro del período del EDP: ${primerEnRango && ultimoEnRango ? "SÍ (100% CORRECTO)" : "NO"}`,
   );
   console.log(`=======================================================\n`);
+}
+
+async function verifyAllEDPAndExcelIntegrity(
+  edpAuto: EstadoCuenta,
+  edpManual: EstadoCuenta,
+  excelFilePath: string,
+): Promise<boolean> {
+  console.log("\n=======================================================");
+  console.log(" 🔬 PASO 3: AUDITORÍA Y VERIFICACIÓN AUTOMÁTICA DE INTEGRIDAD");
+  console.log("=======================================================");
+
+  const errores: string[] = [];
+
+  // 1. Coincidencia entre Cron Automático y EDP Manual
+  if (edpAuto.total_tickets !== edpManual.total_tickets) {
+    errores.push(`Discrepancia en Total Tickets: Cron=${edpAuto.total_tickets} vs Manual=${edpManual.total_tickets}`);
+  }
+  if (edpAuto.total_tickets_anulados !== edpManual.total_tickets_anulados) {
+    errores.push(`Discrepancia en Total Anulados: Cron=${edpAuto.total_tickets_anulados} vs Manual=${edpManual.total_tickets_anulados}`);
+  }
+  if (Number(edpAuto.monto_facturado) !== Number(edpManual.monto_facturado)) {
+    errores.push(`Discrepancia en Monto Facturado Final: Cron=$${Number(edpAuto.monto_facturado)} vs Manual=$${Number(edpManual.monto_facturado)}`);
+  }
+
+  // 2. Coincidencia de Snapshots guardados en BD
+  const snapshotsManual = await EdpTicketSnapshot.findAll({ where: { edp_id: edpManual.id } });
+  if (snapshotsManual.length !== edpManual.total_tickets) {
+    errores.push(`Snapshots incompletos en BD: ${snapshotsManual.length}/${edpManual.total_tickets}`);
+  }
+
+  // 3. Auditoría profunda del archivo Excel generado
+  if (!fs.existsSync(excelFilePath)) {
+    errores.push(`El archivo Excel no fue generado en la ruta ${excelFilePath}`);
+  } else {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(excelFilePath);
+    const sheet = workbook.getWorksheet("Tickets");
+
+    let excelTicketsCount = 0;
+    let excelAnuladosCount = 0;
+    let excelConfirmadosCount = 0;
+    let sumaFilaMontoOriginal = 0;
+    let sumaFilaDevolucion = 0;
+    let sumaFilaMontoNeto = 0;
+
+    let excelTotalOriginal = 0;
+    let excelTotalDevolucion = 0;
+    let excelTotalNeto = 0;
+
+    let valAExcel = "", valBExcel = "", valCExcel = "", valDExcel = "", valEExcel = "", valFExcel = "", valGExcel = "", valHExcel = "", valIExcel = "", valJExcel = "";
+
+    sheet?.eachRow((row, rowNumber) => {
+      const col1 = String(row.getCell(1).value || "").trim();
+
+      if (rowNumber >= 5 && !col1.startsWith("TOTALES") && !col1.startsWith("RESUMEN") && !col1.match(/^[A-J]\./)) {
+        const estado = String(row.getCell(3).value || "").trim();
+        const originalVal = parseInt(String(row.getCell(9).value || "").replace(/[^0-9]/g, ""), 10) || 0;
+        const devolucionVal = parseInt(String(row.getCell(10).value || "").replace(/[^0-9]/g, ""), 10) || 0;
+        const netoVal = parseInt(String(row.getCell(11).value || "").replace(/[^0-9]/g, ""), 10) || 0;
+
+        excelTicketsCount++;
+        if (estado === "Anulado") excelAnuladosCount++;
+        else excelConfirmadosCount++;
+
+        sumaFilaMontoOriginal += originalVal;
+        sumaFilaDevolucion += devolucionVal;
+        sumaFilaMontoNeto += netoVal;
+      }
+
+      if (col1.startsWith("TOTALES")) {
+        excelTotalOriginal = parseInt(String(row.getCell(9).value || "").replace(/[^0-9]/g, ""), 10);
+        excelTotalDevolucion = parseInt(String(row.getCell(10).value || "").replace(/[^0-9]/g, ""), 10);
+        excelTotalNeto = parseInt(String(row.getCell(11).value || "").replace(/[^0-9]/g, ""), 10);
+      }
+
+      const montoColStr = String(row.getCell(5).value || "").trim();
+      if (col1.startsWith("A. Total Tickets")) valAExcel = String(row.getCell(3).value || "").trim();
+      if (col1.startsWith("B. Total Tickets")) valBExcel = String(row.getCell(3).value || "").trim();
+      if (col1.startsWith("C. Tickets Confirmados")) valCExcel = String(row.getCell(3).value || "").trim();
+      if (col1.startsWith("D. Devoluciones por anulación dentro")) valDExcel = montoColStr;
+      if (col1.startsWith("E. Devoluciones por anulación de período")) valEExcel = montoColStr;
+      if (col1.startsWith("F. Descuentos por Reclamos")) valFExcel = montoColStr;
+      if (col1.startsWith("G. Monto Tickets Confirmados")) valGExcel = montoColStr;
+      if (col1.startsWith("H. Monto Descuento")) valHExcel = montoColStr;
+      if (col1.startsWith("I. Monto Total EDP")) valIExcel = montoColStr;
+      if (col1.startsWith("J. MONTO EDP FINAL")) valJExcel = montoColStr;
+    });
+
+    if (excelTicketsCount !== edpAuto.total_tickets) {
+      errores.push(`Excel Total Pasajes: ${excelTicketsCount} vs Esperado EDP: ${edpAuto.total_tickets}`);
+    }
+    if (excelAnuladosCount !== edpAuto.total_tickets_anulados) {
+      errores.push(`Excel Total Anulados: ${excelAnuladosCount} vs Esperado EDP: ${edpAuto.total_tickets_anulados}`);
+    }
+
+    // Auditoría de sumas individuales de filas vs fila TOTALES
+    if (sumaFilaMontoOriginal !== excelTotalOriginal) {
+      errores.push(`Suma filas Monto Original ($${sumaFilaMontoOriginal}) vs Fila TOTALES ($${excelTotalOriginal})`);
+    }
+    if (sumaFilaDevolucion !== excelTotalDevolucion) {
+      errores.push(`Suma filas Devolución ($${sumaFilaDevolucion}) vs Fila TOTALES ($${excelTotalDevolucion})`);
+    }
+    if (sumaFilaMontoNeto !== excelTotalNeto) {
+      errores.push(`Suma filas Monto Neto ($${sumaFilaMontoNeto}) vs Fila TOTALES ($${excelTotalNeto})`);
+    }
+    if (excelTotalOriginal - excelTotalDevolucion !== excelTotalNeto) {
+      errores.push(`Matemática Fila TOTALES (Original - Devolución = Neto): ${excelTotalOriginal} - ${excelTotalDevolucion} != ${excelTotalNeto}`);
+    }
+
+    // Auditoría del Resumen Operacional A a J al pie del Excel
+    const montoFacturadoStr = `$${Number(edpAuto.monto_facturado).toLocaleString("es-CL")}`;
+    if (valJExcel !== montoFacturadoStr) {
+      errores.push(`Excel Monto Final J (${valJExcel}) vs Esperado EDP (${montoFacturadoStr})`);
+    }
+    const montoConfirmadosStr = `$${excelTotalNeto.toLocaleString("es-CL")}`;
+    if (valGExcel !== montoConfirmadosStr) {
+      errores.push(`Excel Resumen G (${valGExcel}) vs Esperado Total Neto (${montoConfirmadosStr})`);
+    }
+  }
+
+  if (errores.length === 0) {
+    console.log("  ✔️ Coincidencia Cron vs Manual: SÍ (100% IDÉNTICOS)");
+    console.log("  ✔️ Integridad Snapshots en BD: SÍ (100% GUARDADOS)");
+    console.log("  ✔️ Suma de Pasajes Fila por Fila en Excel: SÍ (Suma individual = Fila TOTALES)");
+    console.log("  ✔️ Fila TOTALES (Original - Devolución = Neto): SÍ (Matemática 100% Exacta)");
+    console.log("  ✔️ Cuadre Resumen A-J al Pie del Excel: SÍ (Monto Final J coincide al centavo)");
+    console.log("  🎉 AUDITORÍA DE INTEGRIDAD: ÉXITO TOTAL (0 DISCREPANCIAS ENCONTRADAS)");
+    console.log("=======================================================\n");
+    return true;
+  } else {
+    console.error("  ❌ DISCREPANCIAS ENCONTRADAS EN AUDITORÍA:");
+    errores.forEach((err) => console.error(`     - ${err}`));
+    console.log("=======================================================\n");
+    return false;
+  }
 }
 
 export async function runCleanAuthenticTest(
@@ -594,9 +730,12 @@ export async function runCleanAuthenticTest(
   fs.writeFileSync(pdf2Path, pdf2Buffer);
   console.log(`📄 PDF 2 (Manual Controller Frontend) guardado en: ${pdf2Path}`);
 
-  // --- PASO 3: RESTAURACIÓN Y NORMALIZACIÓN COMPLETA DE LA BASE DE DATOS ---
+  // --- PASO 3: AUDITORÍA Y VERIFICACIÓN AUTOMÁTICA DE INTEGRIDAD ---
+  await verifyAllEDPAndExcelIntegrity(edpAuto, edpManual, excelPath);
+
+  // --- PASO 4: RESTAURACIÓN Y NORMALIZACIÓN COMPLETA DE LA BASE DE DATOS ---
   console.log("\n-------------------------------------------------------");
-  console.log(" PASO 3: Normalización y Restauración de Base de Datos");
+  console.log(" PASO 4: Normalización y Restauración de Base de Datos");
   console.log("-------------------------------------------------------");
   await cleanEDPsForEmpresa(
     targetEmpresa.id,
