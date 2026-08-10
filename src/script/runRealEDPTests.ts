@@ -24,6 +24,7 @@ import moment from "moment-timezone";
 import { sendEDPEmail } from "../services/mail.service";
 import { generateEDPExcelBuffer } from "../services/excel.service";
 import ExcelJS from "exceljs";
+const { PDFParse } = require("pdf-parse");
 
 let sequelizeDevInstance: Sequelize | null = null;
 
@@ -273,6 +274,9 @@ async function verifyAllEDPAndExcelIntegrity(
   edpAuto: EstadoCuenta,
   edpManual: EstadoCuenta,
   excelFilePath: string,
+  pdf1FilePath: string,
+  pdf2FilePath: string,
+  pdf3FilePath: string,
 ): Promise<boolean> {
   console.log("\n=======================================================");
   console.log(" 🔬 PASO 3: AUDITORÍA Y VERIFICACIÓN AUTOMÁTICA DE INTEGRIDAD");
@@ -387,12 +391,49 @@ async function verifyAllEDPAndExcelIntegrity(
     }
   }
 
+  // 4. Auditoría profunda del contenido textual y números en los 3 PDFs generados
+  const pdfFiles = [
+    { name: "PDF 1 (Cron Frontend)", path: pdf1FilePath },
+    { name: "PDF 2 (Manual Frontend)", path: pdf2FilePath },
+    { name: "PDF 3 (Cron Backend Email)", path: pdf3FilePath },
+  ];
+
+  const montoFacturadoStr = `$${Number(edpAuto.monto_facturado).toLocaleString("es-CL")}`;
+  const totalTicketsStr = Number(edpAuto.total_tickets).toLocaleString("es-CL");
+
+  for (const pdfItem of pdfFiles) {
+    if (!fs.existsSync(pdfItem.path)) {
+      errores.push(`${pdfItem.name} no fue generado en ${pdfItem.path}`);
+      continue;
+    }
+    try {
+      const pdfBuffer = fs.readFileSync(pdfItem.path);
+      const pdfInstance = new PDFParse(new Uint8Array(pdfBuffer));
+      await pdfInstance.load();
+      const pdfRes = await pdfInstance.getText();
+      const pdfText = String(pdfRes.text || "").replace(/\s+/g, " ");
+
+      // Verificar que el PDF contenga el Monto Final Facturado exacto
+      if (!pdfText.includes(montoFacturadoStr) && !pdfText.includes(String(edpAuto.monto_facturado))) {
+        errores.push(`${pdfItem.name} no contiene el Monto Facturado Final ($${montoFacturadoStr})`);
+      }
+
+      // Verificar que el PDF contenga el Total de Pasajes
+      if (!pdfText.includes(String(edpAuto.total_tickets)) && !pdfText.includes(totalTicketsStr)) {
+        errores.push(`${pdfItem.name} no contiene la cantidad total de pasajes (${edpAuto.total_tickets})`);
+      }
+    } catch (err: any) {
+      errores.push(`Error al leer ${pdfItem.name}: ${err.message}`);
+    }
+  }
+
   if (errores.length === 0) {
     console.log("  ✔️ Coincidencia Cron vs Manual: SÍ (100% IDÉNTICOS)");
     console.log("  ✔️ Integridad Snapshots en BD: SÍ (100% GUARDADOS)");
     console.log("  ✔️ Suma de Pasajes Fila por Fila en Excel: SÍ (Suma individual = Fila TOTALES)");
     console.log("  ✔️ Fila TOTALES (Original - Devolución = Neto): SÍ (Matemática 100% Exacta)");
     console.log("  ✔️ Cuadre Resumen A-J al Pie del Excel: SÍ (Monto Final J coincide al centavo)");
+    console.log("  ✔️ Verificación Textual y Números en PDFs (1, 2 y 3): SÍ (100% Coincidentes)");
     console.log("  🎉 AUDITORÍA DE INTEGRIDAD: ÉXITO TOTAL (0 DISCREPANCIAS ENCONTRADAS)");
     console.log("=======================================================\n");
     return true;
@@ -731,7 +772,14 @@ export async function runCleanAuthenticTest(
   console.log(`📄 PDF 2 (Manual Controller Frontend) guardado en: ${pdf2Path}`);
 
   // --- PASO 3: AUDITORÍA Y VERIFICACIÓN AUTOMÁTICA DE INTEGRIDAD ---
-  await verifyAllEDPAndExcelIntegrity(edpAuto, edpManual, excelPath);
+  await verifyAllEDPAndExcelIntegrity(
+    edpAuto,
+    edpManual,
+    excelPath,
+    pdf1Path,
+    pdf2Path,
+    pdf3Path,
+  );
 
   // --- PASO 4: RESTAURACIÓN Y NORMALIZACIÓN COMPLETA DE LA BASE DE DATOS ---
   console.log("\n-------------------------------------------------------");
