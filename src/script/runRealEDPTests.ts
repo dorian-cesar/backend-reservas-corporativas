@@ -62,10 +62,20 @@ export async function connectToDevDB() {
 
 // ============================================================================
 // CONFIGURACIÓN GLOBAL DE PRUEBAS DE EDP (EN AMBIENTE DE DESARROLLO)
-// Cambia estas dos variables para probar cualquier Empresa y Período
+// Agrega o quita entradas del array para probar distintas empresas y períodos.
+// Cada entrada: { empresaId, periodo }
 // ============================================================================
-export const TARGET_EMPRESA_ID = 22; // Empresa ID 449: SODEXO CHILE SPA (1,807 tickets en 2026-07)
-export const TARGET_PERIODO = "2026-03"; // Período '2026-07'
+export const TEST_TARGETS: Array<{ empresaId: number; periodo: string }> = [
+  { empresaId: 55,  periodo: "2026-07" }, // ARAMARK SERVICIOS MINEROS Y REMOTOS LTDA — 1.019 tickets
+  { empresaId: 11,  periodo: "2026-06" }, // KOMATSU CHILE S.A.                        — 713 tickets
+  { empresaId: 389, periodo: "2026-05" }, // MARIA LORETO HERRERA SPANO SERVICIOS E.I  — 639 tickets
+  { empresaId: 472, periodo: "2026-03" }, // TIP TOP SERVICE SPA                        — 487 tickets
+  { empresaId: 462, periodo: "2026-03" }, // TECNASIC                                   — 426 tickets
+];
+
+// Compatibilidad: variables individuales apuntando al primer target del array
+export const TARGET_EMPRESA_ID = TEST_TARGETS[0].empresaId;
+export const TARGET_PERIODO    = TEST_TARGETS[0].periodo;
 // ============================================================================
 
 const OUTPUT_DIR = path.join(process.cwd(), "pdf_pruebas_edp");
@@ -408,9 +418,22 @@ async function verifyAllEDPAndExcelIntegrity(
     }
     try {
       const pdfBuffer = fs.readFileSync(pdfItem.path);
+
+      // Silenciar el warning cosmético de PDF.js sobre fuentes estándar
+      const originalWarn = console.warn;
+      console.warn = (...args: any[]) => {
+        const msg = String(args[0] ?? "");
+        if (!msg.includes("standardFontDataUrl") && !msg.includes("UnknownErrorException")) {
+          originalWarn(...args);
+        }
+      };
+
       const pdfInstance = new PDFParse(new Uint8Array(pdfBuffer));
       await pdfInstance.load();
       const pdfRes = await pdfInstance.getText();
+
+      console.warn = originalWarn; // Restaurar
+
       const pdfText = String(pdfRes.text || "").replace(/\s+/g, " ");
 
       // Verificar que el PDF contenga el Monto Final Facturado exacto
@@ -813,13 +836,56 @@ export async function runCleanAuthenticTest(
 
 if (require.main === module) {
   (async () => {
-    await runCleanAuthenticTest(TARGET_EMPRESA_ID, TARGET_PERIODO);
     console.log("\n=======================================================");
-    console.log(" 🚀 PRUEBA INTEGRAL EDP Y ENVÍO DE EMAIL COMPLETADA");
+    console.log(` 🚀 SUITE DE PRUEBAS EDP — ${TEST_TARGETS.length} empresa(s) en cola`);
     console.log("=======================================================\n");
-    process.exit(0);
+
+    const results: Array<{
+      empresaId: number;
+      periodo: string;
+      ok: boolean;
+      error?: string;
+    }> = [];
+
+    for (const target of TEST_TARGETS) {
+      console.log("\n######################################################");
+      console.log(`# ▶ Iniciando prueba: Empresa ${target.empresaId} | Período ${target.periodo}`);
+      console.log("######################################################");
+      try {
+        await runCleanAuthenticTest(target.empresaId, target.periodo);
+        results.push({ empresaId: target.empresaId, periodo: target.periodo, ok: true });
+      } catch (err: any) {
+        console.error(`❌ Error en Empresa ${target.empresaId} / ${target.periodo}: ${err.message}`);
+        results.push({
+          empresaId: target.empresaId,
+          periodo: target.periodo,
+          ok: false,
+          error: err.message,
+        });
+      }
+    }
+
+    // ─── RESUMEN FINAL ───────────────────────────────────────────
+    console.log("\n=======================================================");
+    console.log(" 📊 RESUMEN FINAL DE SUITE DE PRUEBAS EDP");
+    console.log("=======================================================\n");
+
+    let passed = 0;
+    let failed = 0;
+    for (const r of results) {
+      const icon  = r.ok ? "✅" : "❌";
+      const label = r.ok ? "PASÓ" : "FALLÓ";
+      console.log(`  ${icon} Empresa ${r.empresaId} | ${r.periodo} → ${label}${r.error ? `: ${r.error}` : ""}`);
+      if (r.ok) passed++; else failed++;
+    }
+
+    console.log("");
+    console.log(`  Total: ${results.length} | ✅ ${passed} OK | ❌ ${failed} con error`);
+    console.log("=======================================================\n");
+
+    process.exit(failed > 0 ? 1 : 0);
   })().catch((err) => {
-    console.error("❌ Error en ejecución de prueba:", err);
+    console.error("❌ Error fatal en la suite de pruebas:", err);
     process.exit(1);
   });
 }
