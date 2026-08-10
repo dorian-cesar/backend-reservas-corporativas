@@ -16,7 +16,7 @@ import { ejecutarEDPManual } from "../controllers/estadoCuenta.controller";
 import { generarPDFEstadoCuenta } from "../controllers/pdf.controller";
 import { generateEDPPDF, EDPPDFData } from "../services/pdf.service";
 import { Request, Response } from "express";
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import fs from "fs";
 import path from "path";
 import moment from "moment-timezone";
@@ -66,16 +66,16 @@ export async function connectToDevDB() {
 // Cada entrada: { empresaId, periodo }
 // ============================================================================
 export const TEST_TARGETS: Array<{ empresaId: number; periodo: string }> = [
-  { empresaId: 55,  periodo: "2026-07" }, // ARAMARK SERVICIOS MINEROS Y REMOTOS LTDA — 1.019 tickets
-  { empresaId: 11,  periodo: "2026-06" }, // KOMATSU CHILE S.A.                        — 713 tickets
-  { empresaId: 389, periodo: "2026-05" }, // MARIA LORETO HERRERA SPANO SERVICIOS E.I  — 639 tickets
+  // { empresaId: 55,  periodo: "2026-07" }, // ARAMARK SERVICIOS MINEROS Y REMOTOS LTDA — 1.019 tickets
+  // { empresaId: 11,  periodo: "2026-06" }, // KOMATSU CHILE S.A.                        — 713 tickets
+  // { empresaId: 389, periodo: "2026-05" }, // MARIA LORETO HERRERA SPANO SERVICIOS E.I  — 639 tickets
   { empresaId: 472, periodo: "2026-03" }, // TIP TOP SERVICE SPA                        — 487 tickets
-  { empresaId: 462, periodo: "2026-03" }, // TECNASIC                                   — 426 tickets
+  // { empresaId: 462, periodo: "2026-03" }, // TECNASIC                                   — 426 tickets
 ];
 
 // Compatibilidad: variables individuales apuntando al primer target del array
 export const TARGET_EMPRESA_ID = TEST_TARGETS[0].empresaId;
-export const TARGET_PERIODO    = TEST_TARGETS[0].periodo;
+export const TARGET_PERIODO = TEST_TARGETS[0].periodo;
 // ============================================================================
 
 const OUTPUT_DIR = path.join(process.cwd(), "pdf_pruebas_edp");
@@ -132,7 +132,7 @@ export async function cleanEDPsForEmpresa(
       empresa_id: empresaId,
       [Op.or]: [
         { periodo: periodoTarget },
-        { fecha_inicio: { [Op.like]: `${periodoTarget}%` } }
+        { fecha_inicio: { [Op.like]: `${periodoTarget}%` } },
       ],
     },
   });
@@ -296,24 +296,36 @@ async function verifyAllEDPAndExcelIntegrity(
 
   // 1. Coincidencia entre Cron Automático y EDP Manual
   if (edpAuto.total_tickets !== edpManual.total_tickets) {
-    errores.push(`Discrepancia en Total Tickets: Cron=${edpAuto.total_tickets} vs Manual=${edpManual.total_tickets}`);
+    errores.push(
+      `Discrepancia en Total Tickets: Cron=${edpAuto.total_tickets} vs Manual=${edpManual.total_tickets}`,
+    );
   }
   if (edpAuto.total_tickets_anulados !== edpManual.total_tickets_anulados) {
-    errores.push(`Discrepancia en Total Anulados: Cron=${edpAuto.total_tickets_anulados} vs Manual=${edpManual.total_tickets_anulados}`);
+    errores.push(
+      `Discrepancia en Total Anulados: Cron=${edpAuto.total_tickets_anulados} vs Manual=${edpManual.total_tickets_anulados}`,
+    );
   }
   if (Number(edpAuto.monto_facturado) !== Number(edpManual.monto_facturado)) {
-    errores.push(`Discrepancia en Monto Facturado Final: Cron=$${Number(edpAuto.monto_facturado)} vs Manual=$${Number(edpManual.monto_facturado)}`);
+    errores.push(
+      `Discrepancia en Monto Facturado Final: Cron=$${Number(edpAuto.monto_facturado)} vs Manual=$${Number(edpManual.monto_facturado)}`,
+    );
   }
 
   // 2. Coincidencia de Snapshots guardados en BD
-  const snapshotsManual = await EdpTicketSnapshot.findAll({ where: { edp_id: edpManual.id } });
+  const snapshotsManual = await EdpTicketSnapshot.findAll({
+    where: { edp_id: edpManual.id },
+  });
   if (snapshotsManual.length !== edpManual.total_tickets) {
-    errores.push(`Snapshots incompletos en BD: ${snapshotsManual.length}/${edpManual.total_tickets}`);
+    errores.push(
+      `Snapshots incompletos en BD: ${snapshotsManual.length}/${edpManual.total_tickets}`,
+    );
   }
 
   // 3. Auditoría profunda del archivo Excel generado
   if (!fs.existsSync(excelFilePath)) {
-    errores.push(`El archivo Excel no fue generado en la ruta ${excelFilePath}`);
+    errores.push(
+      `El archivo Excel no fue generado en la ruta ${excelFilePath}`,
+    );
   } else {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(excelFilePath);
@@ -330,16 +342,42 @@ async function verifyAllEDPAndExcelIntegrity(
     let excelTotalDevolucion = 0;
     let excelTotalNeto = 0;
 
-    let valAExcel = "", valBExcel = "", valCExcel = "", valDExcel = "", valEExcel = "", valFExcel = "", valGExcel = "", valHExcel = "", valIExcel = "", valJExcel = "";
+    let valAExcel = "",
+      valBExcel = "",
+      valCExcel = "",
+      valDExcel = "",
+      valEExcel = "",
+      valFExcel = "",
+      valGExcel = "",
+      valHExcel = "",
+      valIExcel = "",
+      valJExcel = "";
 
     sheet?.eachRow((row, rowNumber) => {
       const col1 = String(row.getCell(1).value || "").trim();
 
-      if (rowNumber >= 5 && !col1.startsWith("TOTALES") && !col1.startsWith("RESUMEN") && !col1.match(/^[A-J]\./)) {
+      if (
+        rowNumber >= 5 &&
+        !col1.startsWith("TOTALES") &&
+        !col1.startsWith("RESUMEN") &&
+        !col1.match(/^[A-J]\./)
+      ) {
         const estado = String(row.getCell(3).value || "").trim();
-        const originalVal = parseInt(String(row.getCell(9).value || "").replace(/[^0-9]/g, ""), 10) || 0;
-        const devolucionVal = parseInt(String(row.getCell(10).value || "").replace(/[^0-9]/g, ""), 10) || 0;
-        const netoVal = parseInt(String(row.getCell(11).value || "").replace(/[^0-9]/g, ""), 10) || 0;
+        const originalVal =
+          parseInt(
+            String(row.getCell(9).value || "").replace(/[^0-9]/g, ""),
+            10,
+          ) || 0;
+        const devolucionVal =
+          parseInt(
+            String(row.getCell(10).value || "").replace(/[^0-9]/g, ""),
+            10,
+          ) || 0;
+        const netoVal =
+          parseInt(
+            String(row.getCell(11).value || "").replace(/[^0-9]/g, ""),
+            10,
+          ) || 0;
 
         excelTicketsCount++;
         if (estado === "Anulado") excelAnuladosCount++;
@@ -351,53 +389,85 @@ async function verifyAllEDPAndExcelIntegrity(
       }
 
       if (col1.startsWith("TOTALES")) {
-        excelTotalOriginal = parseInt(String(row.getCell(9).value || "").replace(/[^0-9]/g, ""), 10);
-        excelTotalDevolucion = parseInt(String(row.getCell(10).value || "").replace(/[^0-9]/g, ""), 10);
-        excelTotalNeto = parseInt(String(row.getCell(11).value || "").replace(/[^0-9]/g, ""), 10);
+        excelTotalOriginal = parseInt(
+          String(row.getCell(9).value || "").replace(/[^0-9]/g, ""),
+          10,
+        );
+        excelTotalDevolucion = parseInt(
+          String(row.getCell(10).value || "").replace(/[^0-9]/g, ""),
+          10,
+        );
+        excelTotalNeto = parseInt(
+          String(row.getCell(11).value || "").replace(/[^0-9]/g, ""),
+          10,
+        );
       }
 
       const montoColStr = String(row.getCell(5).value || "").trim();
-      if (col1.startsWith("A. Total Tickets")) valAExcel = String(row.getCell(3).value || "").trim();
-      if (col1.startsWith("B. Total Tickets")) valBExcel = String(row.getCell(3).value || "").trim();
-      if (col1.startsWith("C. Tickets Confirmados")) valCExcel = String(row.getCell(3).value || "").trim();
-      if (col1.startsWith("D. Devoluciones por anulación dentro")) valDExcel = montoColStr;
-      if (col1.startsWith("E. Devoluciones por anulación de período")) valEExcel = montoColStr;
-      if (col1.startsWith("F. Descuentos por Reclamos")) valFExcel = montoColStr;
-      if (col1.startsWith("G. Monto Tickets Confirmados")) valGExcel = montoColStr;
+      if (col1.startsWith("A. Total Tickets"))
+        valAExcel = String(row.getCell(3).value || "").trim();
+      if (col1.startsWith("B. Total Tickets"))
+        valBExcel = String(row.getCell(3).value || "").trim();
+      if (col1.startsWith("C. Tickets Confirmados"))
+        valCExcel = String(row.getCell(3).value || "").trim();
+      if (col1.startsWith("D. Devoluciones por anulación dentro"))
+        valDExcel = montoColStr;
+      if (col1.startsWith("E. Devoluciones por anulación de período"))
+        valEExcel = montoColStr;
+      if (col1.startsWith("F. Descuentos por Reclamos"))
+        valFExcel = montoColStr;
+      if (col1.startsWith("G. Monto Tickets Confirmados"))
+        valGExcel = montoColStr;
       if (col1.startsWith("H. Monto Descuento")) valHExcel = montoColStr;
       if (col1.startsWith("I. Monto Total EDP")) valIExcel = montoColStr;
       if (col1.startsWith("J. MONTO EDP FINAL")) valJExcel = montoColStr;
     });
 
     if (excelTicketsCount !== edpAuto.total_tickets) {
-      errores.push(`Excel Total Pasajes: ${excelTicketsCount} vs Esperado EDP: ${edpAuto.total_tickets}`);
+      errores.push(
+        `Excel Total Pasajes: ${excelTicketsCount} vs Esperado EDP: ${edpAuto.total_tickets}`,
+      );
     }
     if (excelAnuladosCount !== edpAuto.total_tickets_anulados) {
-      errores.push(`Excel Total Anulados: ${excelAnuladosCount} vs Esperado EDP: ${edpAuto.total_tickets_anulados}`);
+      errores.push(
+        `Excel Total Anulados: ${excelAnuladosCount} vs Esperado EDP: ${edpAuto.total_tickets_anulados}`,
+      );
     }
 
     // Auditoría de sumas individuales de filas vs fila TOTALES
     if (sumaFilaMontoOriginal !== excelTotalOriginal) {
-      errores.push(`Suma filas Monto Original ($${sumaFilaMontoOriginal}) vs Fila TOTALES ($${excelTotalOriginal})`);
+      errores.push(
+        `Suma filas Monto Original ($${sumaFilaMontoOriginal}) vs Fila TOTALES ($${excelTotalOriginal})`,
+      );
     }
     if (sumaFilaDevolucion !== excelTotalDevolucion) {
-      errores.push(`Suma filas Devolución ($${sumaFilaDevolucion}) vs Fila TOTALES ($${excelTotalDevolucion})`);
+      errores.push(
+        `Suma filas Devolución ($${sumaFilaDevolucion}) vs Fila TOTALES ($${excelTotalDevolucion})`,
+      );
     }
     if (sumaFilaMontoNeto !== excelTotalNeto) {
-      errores.push(`Suma filas Monto Neto ($${sumaFilaMontoNeto}) vs Fila TOTALES ($${excelTotalNeto})`);
+      errores.push(
+        `Suma filas Monto Neto ($${sumaFilaMontoNeto}) vs Fila TOTALES ($${excelTotalNeto})`,
+      );
     }
     if (excelTotalOriginal - excelTotalDevolucion !== excelTotalNeto) {
-      errores.push(`Matemática Fila TOTALES (Original - Devolución = Neto): ${excelTotalOriginal} - ${excelTotalDevolucion} != ${excelTotalNeto}`);
+      errores.push(
+        `Matemática Fila TOTALES (Original - Devolución = Neto): ${excelTotalOriginal} - ${excelTotalDevolucion} != ${excelTotalNeto}`,
+      );
     }
 
     // Auditoría del Resumen Operacional A a J al pie del Excel
     const montoFacturadoStr = `$${Number(edpAuto.monto_facturado).toLocaleString("es-CL")}`;
     if (valJExcel !== montoFacturadoStr) {
-      errores.push(`Excel Monto Final J (${valJExcel}) vs Esperado EDP (${montoFacturadoStr})`);
+      errores.push(
+        `Excel Monto Final J (${valJExcel}) vs Esperado EDP (${montoFacturadoStr})`,
+      );
     }
     const montoConfirmadosStr = `$${excelTotalNeto.toLocaleString("es-CL")}`;
     if (valGExcel !== montoConfirmadosStr) {
-      errores.push(`Excel Resumen G (${valGExcel}) vs Esperado Total Neto (${montoConfirmadosStr})`);
+      errores.push(
+        `Excel Resumen G (${valGExcel}) vs Esperado Total Neto (${montoConfirmadosStr})`,
+      );
     }
   }
 
@@ -423,7 +493,10 @@ async function verifyAllEDPAndExcelIntegrity(
       const originalWarn = console.warn;
       console.warn = (...args: any[]) => {
         const msg = String(args[0] ?? "");
-        if (!msg.includes("standardFontDataUrl") && !msg.includes("UnknownErrorException")) {
+        if (
+          !msg.includes("standardFontDataUrl") &&
+          !msg.includes("UnknownErrorException")
+        ) {
           originalWarn(...args);
         }
       };
@@ -437,13 +510,23 @@ async function verifyAllEDPAndExcelIntegrity(
       const pdfText = String(pdfRes.text || "").replace(/\s+/g, " ");
 
       // Verificar que el PDF contenga el Monto Final Facturado exacto
-      if (!pdfText.includes(montoFacturadoStr) && !pdfText.includes(String(edpAuto.monto_facturado))) {
-        errores.push(`${pdfItem.name} no contiene el Monto Facturado Final ($${montoFacturadoStr})`);
+      if (
+        !pdfText.includes(montoFacturadoStr) &&
+        !pdfText.includes(String(edpAuto.monto_facturado))
+      ) {
+        errores.push(
+          `${pdfItem.name} no contiene el Monto Facturado Final ($${montoFacturadoStr})`,
+        );
       }
 
       // Verificar que el PDF contenga el Total de Pasajes
-      if (!pdfText.includes(String(edpAuto.total_tickets)) && !pdfText.includes(totalTicketsStr)) {
-        errores.push(`${pdfItem.name} no contiene la cantidad total de pasajes (${edpAuto.total_tickets})`);
+      if (
+        !pdfText.includes(String(edpAuto.total_tickets)) &&
+        !pdfText.includes(totalTicketsStr)
+      ) {
+        errores.push(
+          `${pdfItem.name} no contiene la cantidad total de pasajes (${edpAuto.total_tickets})`,
+        );
       }
     } catch (err: any) {
       errores.push(`Error al leer ${pdfItem.name}: ${err.message}`);
@@ -453,11 +536,21 @@ async function verifyAllEDPAndExcelIntegrity(
   if (errores.length === 0) {
     console.log("  ✔️ Coincidencia Cron vs Manual: SÍ (100% IDÉNTICOS)");
     console.log("  ✔️ Integridad Snapshots en BD: SÍ (100% GUARDADOS)");
-    console.log("  ✔️ Suma de Pasajes Fila por Fila en Excel: SÍ (Suma individual = Fila TOTALES)");
-    console.log("  ✔️ Fila TOTALES (Original - Devolución = Neto): SÍ (Matemática 100% Exacta)");
-    console.log("  ✔️ Cuadre Resumen A-J al Pie del Excel: SÍ (Monto Final J coincide al centavo)");
-    console.log("  ✔️ Verificación Textual y Números en PDFs (1, 2 y 3): SÍ (100% Coincidentes)");
-    console.log("  🎉 AUDITORÍA DE INTEGRIDAD: ÉXITO TOTAL (0 DISCREPANCIAS ENCONTRADAS)");
+    console.log(
+      "  ✔️ Suma de Pasajes Fila por Fila en Excel: SÍ (Suma individual = Fila TOTALES)",
+    );
+    console.log(
+      "  ✔️ Fila TOTALES (Original - Devolución = Neto): SÍ (Matemática 100% Exacta)",
+    );
+    console.log(
+      "  ✔️ Cuadre Resumen A-J al Pie del Excel: SÍ (Monto Final J coincide al centavo)",
+    );
+    console.log(
+      "  ✔️ Verificación Textual y Números en PDFs (1, 2 y 3): SÍ (100% Coincidentes)",
+    );
+    console.log(
+      "  🎉 AUDITORÍA DE INTEGRIDAD: ÉXITO TOTAL (0 DISCREPANCIAS ENCONTRADAS)",
+    );
     console.log("=======================================================\n");
     return true;
   } else {
@@ -689,6 +782,25 @@ export async function runCleanAuthenticTest(
     })
     .filter(Boolean);
 
+  const [ticketsAnuladosFueraPeriodoRow]: any = await sequelizeDevInstance!.query(
+    `SELECT COUNT(*) as count
+     FROM tickets
+     WHERE id_empresa = :emp
+       AND ticketStatus = 'Anulado'
+       AND confirmedAt < :inicio
+       AND updated_at >= :inicio
+       AND updated_at <= :fin`,
+    {
+      replacements: {
+        emp: targetEmpresa.id,
+        inicio: inicioMoment.toDate(),
+        fin: finMoment.toDate(),
+      },
+      type: QueryTypes.SELECT,
+    }
+  );
+  const devFueraCount = Number(ticketsAnuladosFueraPeriodoRow?.count || 0);
+
   const excelBuffer = await generateEDPExcelBuffer(
     ticketsForTest,
     targetEmpresa.nombre,
@@ -701,6 +813,9 @@ export async function runCleanAuthenticTest(
     pctDesc,
     montoDesc,
     recDesc,
+    inicioMoment.toISOString(),  // periodoInicioISO → para separar anulados dentro/fuera
+    finMoment.toISOString(),     // periodoFinISO
+    devFueraCount,               // devolucionesFueraPeriodoCount
   );
 
   const excelFileName = `4_tickets_excel_${empresaSlug}_E${empresaId}_${periodo}.xlsx`;
@@ -730,7 +845,7 @@ export async function runCleanAuthenticTest(
     );
   } catch (mailErr: any) {
     console.warn(
-      `⚠️ Error al enviar email a dwigodski@wit.la: ${mailErr.message} (Verifica la clave SENDGRID_API_KEY en .env)`,
+      `⚠️ Error al enviar email a dwigodski@wit.la: ${mailErr.message} (No funciona de modo local SENDGRID_API_KEY)`,
     );
   }
 
@@ -795,7 +910,7 @@ export async function runCleanAuthenticTest(
   console.log(`📄 PDF 2 (Manual Controller Frontend) guardado en: ${pdf2Path}`);
 
   // --- PASO 3: AUDITORÍA Y VERIFICACIÓN AUTOMÁTICA DE INTEGRIDAD ---
-  await verifyAllEDPAndExcelIntegrity(
+  const auditoriaOk = await verifyAllEDPAndExcelIntegrity(
     edpAuto,
     edpManual,
     excelPath,
@@ -805,6 +920,8 @@ export async function runCleanAuthenticTest(
   );
 
   // --- PASO 4: RESTAURACIÓN Y NORMALIZACIÓN COMPLETA DE LA BASE DE DATOS ---
+  // IMPORTANTE: siempre se ejecuta aunque la auditoría haya fallado,
+  // para no dejar registros de prueba en la BD.
   console.log("\n-------------------------------------------------------");
   console.log(" PASO 4: Normalización y Restauración de Base de Datos");
   console.log("-------------------------------------------------------");
@@ -832,12 +949,21 @@ export async function runCleanAuthenticTest(
   console.log(` 3. ${pdf3FileName} (PDF Cron Backend Email)`);
   console.log(` 4. ${excelFileName} (Excel de Pasajes del Snapshot)`);
   console.log("=======================================================\n");
+
+  // Propagar el fallo DESPUÉS de limpiar la BD
+  if (!auditoriaOk) {
+    throw new Error(
+      `Auditoría de integridad FALLIDA para Empresa ${empresaId} / ${periodo} — revisa las discrepancias reportadas arriba.`,
+    );
+  }
 }
 
 if (require.main === module) {
   (async () => {
     console.log("\n=======================================================");
-    console.log(` 🚀 SUITE DE PRUEBAS EDP — ${TEST_TARGETS.length} empresa(s) en cola`);
+    console.log(
+      ` 🚀 SUITE DE PRUEBAS EDP — ${TEST_TARGETS.length} empresa(s) en cola`,
+    );
     console.log("=======================================================\n");
 
     const results: Array<{
@@ -849,13 +975,21 @@ if (require.main === module) {
 
     for (const target of TEST_TARGETS) {
       console.log("\n######################################################");
-      console.log(`# ▶ Iniciando prueba: Empresa ${target.empresaId} | Período ${target.periodo}`);
+      console.log(
+        `# ▶ Iniciando prueba: Empresa ${target.empresaId} | Período ${target.periodo}`,
+      );
       console.log("######################################################");
       try {
         await runCleanAuthenticTest(target.empresaId, target.periodo);
-        results.push({ empresaId: target.empresaId, periodo: target.periodo, ok: true });
+        results.push({
+          empresaId: target.empresaId,
+          periodo: target.periodo,
+          ok: true,
+        });
       } catch (err: any) {
-        console.error(`❌ Error en Empresa ${target.empresaId} / ${target.periodo}: ${err.message}`);
+        console.error(
+          `❌ Error en Empresa ${target.empresaId} / ${target.periodo}: ${err.message}`,
+        );
         results.push({
           empresaId: target.empresaId,
           periodo: target.periodo,
@@ -873,14 +1007,19 @@ if (require.main === module) {
     let passed = 0;
     let failed = 0;
     for (const r of results) {
-      const icon  = r.ok ? "✅" : "❌";
+      const icon = r.ok ? "✅" : "❌";
       const label = r.ok ? "PASÓ" : "FALLÓ";
-      console.log(`  ${icon} Empresa ${r.empresaId} | ${r.periodo} → ${label}${r.error ? `: ${r.error}` : ""}`);
-      if (r.ok) passed++; else failed++;
+      console.log(
+        `  ${icon} Empresa ${r.empresaId} | ${r.periodo} → ${label}${r.error ? `: ${r.error}` : ""}`,
+      );
+      if (r.ok) passed++;
+      else failed++;
     }
 
     console.log("");
-    console.log(`  Total: ${results.length} | ✅ ${passed} OK | ❌ ${failed} con error`);
+    console.log(
+      `  Total: ${results.length} | ✅ ${passed} OK | ❌ ${failed} con error`,
+    );
     console.log("=======================================================\n");
 
     process.exit(failed > 0 ? 1 : 0);

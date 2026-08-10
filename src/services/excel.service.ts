@@ -27,6 +27,9 @@ export interface EDPExcelTicket {
   };
   empresa?: { cuenta_corriente?: string };
   user?: { rut?: string; nombre?: string };
+  // Fechas del período para separar anulados dentro vs fuera
+  _periodoInicio?: string; // ISO string — se inyecta desde el llamador
+  _periodoFin?: string;    // ISO string — se inyecta desde el llamador
 }
 
 const formatDate = (dateStr?: string): string => {
@@ -58,6 +61,12 @@ export const generateEDPExcelBuffer = async (
   porcentajeDescuento?: number,
   montoDescuento?: number,
   reclamosDescuento?: number,
+  /** Inicio del período (ISO) para separar anulados dentro vs fuera del período */
+  periodoInicioISO?: string,
+  /** Fin del período (ISO) para separar anulados dentro vs fuera del período */
+  periodoFinISO?: string,
+  /** Cantidad real de tickets anulados de período anterior (viene del cron) */
+  devolucionesFueraPeriodoCount?: number,
 ): Promise<Buffer> => {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "WIT Innovación Tecnológica";
@@ -132,23 +141,34 @@ export const generateEDPExcelBuffer = async (
   });
   headerRow.height = 22;
 
+  // ─── Límites del período para clasificar anulados dentro vs fuera ─
+  const pInicio = periodoInicioISO ? new Date(periodoInicioISO).getTime() : null;
+  const pFin    = periodoFinISO    ? new Date(periodoFinISO).getTime()    : null;
+
   // ─── Filas de datos y acumulación de totales ───────────────────
   let totalMontoOriginal = 0;
   let totalDevolucion = 0;
   let totalMontoNeto = 0;
 
   let countConfirmados = 0;
-  let countAnulados = 0;
+  /** Tickets anulados cuyo confirmedAt está DENTRO del período */
+  let countAnuladosDentro = 0;
+  /** Tickets anulados cuyo confirmedAt está FUERA del período (período anterior) */
+  let countAnuladosFuera = 0;
   let countReclamados = 0;
 
   let montoConfirmados = 0;
-  let montoAnuladosDevolucion = 0;
+  /** Devoluciones de anulados DENTRO del período */
+  let montoAnuladosDentro = 0;
+  /** Devoluciones de anulados FUERA del período */
+  let montoAnuladosFuera = 0;
   let montoReclamadosDescuento = 0;
 
   tickets.forEach((ticket, idx) => {
     const esAnulado = ticket.ticketStatus === "Anulado";
     const tieneReclamoAceptado =
-      ticket.reclamos && ticket.reclamos.some((r) => r.estado === "Aceptado");
+      ticket.reclamos &&
+      ticket.reclamos.some((r) => r.estado === "Aceptado");
 
     const estadoLabel =
       tieneReclamoAceptado && !esAnulado ? "Reclamado" : ticket.ticketStatus;
@@ -164,8 +184,22 @@ export const generateEDPExcelBuffer = async (
     totalMontoNeto += montoNeto;
 
     if (esAnulado) {
-      countAnulados++;
-      montoAnuladosDevolucion += devolucion;
+      // Clasificar si el ticket fue comprado dentro o fuera del período
+      const confirmedTs = ticket.confirmedAt
+        ? new Date(ticket.confirmedAt).getTime()
+        : null;
+      const dentroPeriodo =
+        pInicio && pFin && confirmedTs
+          ? confirmedTs >= pInicio && confirmedTs <= pFin
+          : true; // si no hay fechas, asumir dentro
+
+      if (dentroPeriodo) {
+        countAnuladosDentro++;
+        montoAnuladosDentro += devolucion;
+      } else {
+        countAnuladosFuera++;
+        montoAnuladosFuera += devolucion;
+      }
     } else if (tieneReclamoAceptado) {
       countReclamados++;
       montoReclamadosDescuento += devolucion;
@@ -205,6 +239,8 @@ export const generateEDPExcelBuffer = async (
       nombreComprador,
     });
 
+    // Color especial para filas Reclamadas
+    const esReclamado = estadoLabel === "Reclamado";
     const isEven = idx % 2 === 0;
     const rowFill: ExcelJS.FillPattern = {
       type: "pattern",
@@ -224,8 +260,11 @@ export const generateEDPExcelBuffer = async (
   });
 
   // ─── Fila de Totales de Tabla ───────────────────────────────────
+  const countAnulados = countAnuladosDentro + countAnuladosFuera;
+  const montoAnuladosDevolucion = montoAnuladosDentro;
+
   const totalRow = sheet.addRow({
-    ticketNumber: `TOTALES (${tickets.length} tickets)`,
+    ticketNumber: `TOTALES (${tickets.length} tickets | ${countConfirmados} confirmados · ${countAnuladosDentro} anulados · ${countReclamados} reclamados)`,
     montoOriginal: formatCLP(totalMontoOriginal),
     devolucion: formatCLP(totalDevolucion),
     montoNeto: formatCLP(totalMontoNeto),
@@ -290,38 +329,46 @@ export const generateEDPExcelBuffer = async (
       isHighlighted: false,
     },
     {
-      concepto: "B. Total Tickets Anulados",
-      conteo: `${countAnulados} tickets`,
-      monto: formatCLP(montoAnuladosDevolucion || totalDevolucion),
-      descripcion: "Devoluciones por anulación de pasajes dentro del período.",
+      // B: solo anulados DENTRO del período
+      concepto: "B. Total Tickets Anulados (dentro del período)",
+      conteo: `${countAnuladosDentro} tickets`,
+      monto: formatCLP(montoAnuladosDentro),
+      descripcion: "Devoluciones por anulación de pasajes comprados dentro del período.",
       isHighlighted: false,
     },
     {
       concepto: "C. Tickets Confirmados (A - B)",
-      conteo: `${countConfirmados} tickets`,
+      conteo: `${countConfirmados} tickets${countReclamados > 0 ? ` (incl. ${countReclamados} reclamados)` : ""}`,
       monto: formatCLP(montoConfirmados),
-      descripcion: "Cantidad de pasajes vigentes del período.",
+      descripcion: "Cantidad de pasajes vigentes del período (confirmados + reclamados).",
       isHighlighted: false,
     },
     {
+      // D: igual que B
       concepto: "D. Devoluciones por anulación dentro del período",
-      conteo: `${countAnulados} anulados`,
-      monto: formatCLP(montoAnuladosDevolucion || totalDevolucion),
-      descripcion:
-        "Monto acumulado por devoluciones de pasajes anulados en el mes.",
+      conteo: `${countAnuladosDentro} anulados`,
+      monto: formatCLP(montoAnuladosDentro),
+      descripcion: "Monto acumulado por devoluciones de pasajes anulados en el mes.",
       isHighlighted: false,
     },
     {
+      // E: anulados FUERA (período anterior) + saldo devolucion_pendiente_edp
       concepto: "E. Devoluciones por anulación de período anterior",
-      conteo: "-",
+      // Usar el conteo pasado por el cron si está disponible; si no, el contado desde el snapshot
+      conteo:
+        (devolucionesFueraPeriodoCount ?? countAnuladosFuera) > 0
+          ? `${devolucionesFueraPeriodoCount ?? countAnuladosFuera} anulado${
+              (devolucionesFueraPeriodoCount ?? countAnuladosFuera) !== 1 ? "s" : ""
+            }`
+          : "-",
       monto: formatCLP(devFueraVal),
-      descripcion:
-        "Devoluciones acumuladas por pasajes de meses anteriores anulados en este período.",
+      descripcion: "Devoluciones acumuladas por pasajes de meses anteriores anulados en este período.",
       isHighlighted: false,
     },
     {
+      // F: reclamos aceptados (conteo desde las filas + monto pasado por el llamador)
       concepto: "F. Descuentos por Reclamos",
-      conteo: `${countReclamados} reclamos`,
+      conteo: `${countReclamados} reclamado${countReclamados !== 1 ? "s" : ""}`,
       monto: formatCLP(reclamosVal),
       descripcion: "Descuentos aplicados por reclamos comerciales aceptados.",
       isHighlighted: false,
@@ -330,8 +377,7 @@ export const generateEDPExcelBuffer = async (
       concepto: "G. Monto Tickets Confirmados",
       conteo: `${countConfirmados} confirmados`,
       monto: formatCLP(montoConfirmados),
-      descripcion:
-        "Monto bruto total correspondiente a los pasajes confirmados vigentes.",
+      descripcion: "Monto bruto total correspondiente a los pasajes confirmados vigentes.",
       isHighlighted: false,
     },
     {
@@ -345,16 +391,14 @@ export const generateEDPExcelBuffer = async (
       concepto: "I. Monto Total EDP (G - H)",
       conteo: "-",
       monto: formatCLP(montoTotalEDP),
-      descripcion:
-        "Subtotal bruto del Estado de Pago antes de devoluciones anteriores y reclamos.",
+      descripcion: "Subtotal bruto del Estado de Pago antes de devoluciones anteriores y reclamos.",
       isHighlighted: false,
     },
     {
       concepto: "J. MONTO EDP FINAL (Total a Facturar)",
       conteo: `${countConfirmados} confirmados`,
       monto: formatCLP(edpFinalVal),
-      descripcion:
-        "MONTO FINAL A FACTURAR (I - E - F) con descuentos y devoluciones aplicados.",
+      descripcion: "MONTO FINAL A FACTURAR (I - E - F) con descuentos y devoluciones aplicados.",
       isHighlighted: true,
     },
   ];

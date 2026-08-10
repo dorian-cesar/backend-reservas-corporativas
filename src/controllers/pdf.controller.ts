@@ -533,6 +533,13 @@ export const generarExcelEstadoCuenta = async (req: Request, res: Response) => {
       empresaData.cuenta_corriente ?? "",
       estadoData.periodo,
       periodoReservas,
+      undefined, // devolucionesFueraPeriodo (no disponible aquí)
+      undefined, // montoFinal
+      undefined, // porcentajeDescuento
+      undefined, // montoDescuento
+      undefined, // reclamosDescuento
+      estadoData.fecha_inicio ? new Date(estadoData.fecha_inicio).toISOString() : undefined,
+      estadoData.fecha_fin    ? new Date(estadoData.fecha_fin).toISOString()    : undefined,
     );
 
     const fileName = `tickets_edp_${estadoData.periodo}_${empresaData.cuenta_corriente || empresaData.id}.xlsx`;

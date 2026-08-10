@@ -20,6 +20,7 @@ export interface EDPMailQueueItem {
   montoDescuento: number;
   devolucionesDentroDelPeriodo: number;
   devolucionesFueraPeriodo: number;
+  devolucionesFueraPeriodoCount?: number;
   reclamosDescuento: number;
   empresa: {
     id: number;
@@ -184,6 +185,9 @@ export const processEDPMailQueue = async (
           item.porcentajeDescuento,
           montoDescuento,
           item.reclamosDescuento,
+          item.fechaInicio ? new Date(item.fechaInicio).toISOString() : undefined,
+          item.fechaFin    ? new Date(item.fechaFin).toISOString()    : undefined,
+          item.devolucionesFueraPeriodoCount,
         );
         const excelFilename = `tickets_edp_${item.periodo}_${empresa.cuenta_corriente || empresa.id}.xlsx`;
 

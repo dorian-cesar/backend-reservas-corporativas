@@ -551,6 +551,7 @@ export const generarEstadosPagoEmpresas = async (
                 montoDescuento: descuento,
                 devolucionesDentroDelPeriodo: devoluciones,
                 devolucionesFueraPeriodo: devoluciones_fuera_periodo_aplicadas,
+                devolucionesFueraPeriodoCount: ticketsAnuladosFueraPeriodo.length,
                 reclamosDescuento: reclamos_aplicados,
                 empresa: {
                   id: empresa.id,
