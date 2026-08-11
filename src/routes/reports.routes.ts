@@ -13,28 +13,28 @@ const router = Router();
 router.get(
   "/estado-cuenta-periodo",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "superadmin", "contralor", "auditoria"),
+  authorizeRoles("superuser"),
   obtenerEstadoCuentaGlobalPeriodo,
 );
 
 router.get(
   "/estado-cuenta-periodo/export-excel",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "superadmin", "contralor", "auditoria"),
+  authorizeRoles("superuser"),
   exportarEstadoCuentaGlobalPeriodoExcel,
 );
 
 router.get(
   "/estado-cuenta-empresa",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "superadmin", "contralor", "auditoria"),
+  authorizeRoles("superuser"),
   obtenerEstadoCuentaEmpresaDetalle,
 );
 
 router.get(
   "/estado-cuenta-empresa/export-excel",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "superadmin", "contralor", "auditoria"),
+  authorizeRoles("superuser"),
   exportarEstadoCuentaEmpresaDetalleExcel,
 );
 
