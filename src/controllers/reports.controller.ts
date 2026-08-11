@@ -94,7 +94,12 @@ const obtenerEstadoCuentaGlobalPeriodoData = async (
     FROM empresas e
     INNER JOIN estados_cuenta ec 
       ON e.id = ec.empresa_id 
-      AND ec.periodo >= :periodoInicial
+      AND (
+        CASE 
+          WHEN ec.periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN ec.periodo
+          ELSE DATE_FORMAT(ec.fecha_generacion, '%Y-%m')
+        END
+      ) >= :periodoInicial
       AND (
         CASE 
           WHEN ec.periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN ec.periodo
@@ -114,7 +119,8 @@ const obtenerEstadoCuentaGlobalPeriodoData = async (
     FROM cuenta_corriente
     WHERE tipo_movimiento = 'abono'
       AND fecha_movimiento >= :fechaReinicioCC
-      AND referencia NOT LIKE '%REINICIO%'
+      AND (referencia IS NULL OR referencia NOT LIKE '%REINICIO%')
+      AND (descripcion IS NULL OR (descripcion NOT LIKE '%reinicio%' AND descripcion NOT LIKE '%Ajuste por reinicio%'))
       ${filterCcEmpresaClause}
     GROUP BY empresa_id;
   `;
@@ -263,48 +269,70 @@ const obtenerEstadoCuentaEmpresaDetalleData = async (
     pInicioStr = PERIODO_INICIAL_NUEVO_SISTEMA;
   }
 
-  const fechaReinicioDate = new Date("2026-08-04T00:00:00");
   const companyIds = empresas.map((e) => e.id);
 
-  // Bulk queries filtradas para el nuevo sistema
-  const [allEdps, allMovimientos] = await Promise.all([
-    EstadoCuenta.findAll({
-      where: {
-        empresa_id: { [Op.in]: companyIds },
-        periodo: { [Op.gte]: PERIODO_INICIAL_NUEVO_SISTEMA },
-      },
-      order: [["fecha_generacion", "DESC"]],
+  if (companyIds.length === 0) {
+    return {
+      periodoInicio: pInicioStr,
+      periodoFin: pFinStr,
+      empresas: [],
+    };
+  }
+
+  // Bulk queries filtradas con CASE de normalización de períodos para excluir EDPs antiguos < 2026-07
+  const edpsQuery = `
+    SELECT *
+    FROM estados_cuenta
+    WHERE empresa_id IN (:companyIds)
+      AND (
+        CASE 
+          WHEN periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN periodo
+          ELSE DATE_FORMAT(fecha_generacion, '%Y-%m')
+        END
+      ) >= :periodoInicial
+    ORDER BY fecha_generacion DESC;
+  `;
+
+  // Bulk query para movimientos de cuenta corriente del nuevo sistema (excluyendo ajustes de reinicio $0)
+  const movsQuery = `
+    SELECT *
+    FROM cuenta_corriente
+    WHERE empresa_id IN (:companyIds)
+      AND fecha_movimiento >= :fechaReinicioCC
+      AND (referencia IS NULL OR referencia NOT LIKE '%REINICIO%')
+      AND (descripcion IS NULL OR (descripcion NOT LIKE '%reinicio%' AND descripcion NOT LIKE '%Ajuste por reinicio%'))
+    ORDER BY fecha_movimiento ASC, id ASC;
+  `;
+
+  const [allEdpRows, allMovRows] = await Promise.all([
+    sequelize.query<any>(edpsQuery, {
+      replacements: { companyIds, periodoInicial: PERIODO_INICIAL_NUEVO_SISTEMA },
+      type: QueryTypes.SELECT,
     }),
-    CuentaCorriente.findAll({
-      where: {
-        empresa_id: { [Op.in]: companyIds },
-        fecha_movimiento: { [Op.gte]: fechaReinicioDate },
-      },
-      order: [
-        ["fecha_movimiento", "ASC"],
-        ["id", "ASC"],
-      ],
+    sequelize.query<any>(movsQuery, {
+      replacements: { companyIds, fechaReinicioCC: FECHA_REINICIO_CUENTA_CORRIENTE },
+      type: QueryTypes.SELECT,
     }),
   ]);
 
   // Agrupar en memoria por empresa_id
-  const edpsByCompany = new Map<number, EstadoCuenta[]>();
-  allEdps.forEach((edp) => {
+  const edpsByCompany = new Map<number, any[]>();
+  allEdpRows.forEach((edp) => {
     if (!edpsByCompany.has(edp.empresa_id)) {
       edpsByCompany.set(edp.empresa_id, []);
     }
     edpsByCompany.get(edp.empresa_id)!.push(edp);
   });
 
-  const movsByCompany = new Map<number, CuentaCorriente[]>();
-  allMovimientos.forEach((mov) => {
+  const movsByCompany = new Map<number, any[]>();
+  allMovRows.forEach((mov) => {
     if (!movsByCompany.has(mov.empresa_id)) {
       movsByCompany.set(mov.empresa_id, []);
     }
     movsByCompany.get(mov.empresa_id)!.push(mov);
   });
 
-  const resultadoEmpresas = empresas.map((emp) => {
+  let resultadoEmpresas = empresas.map((emp) => {
     const edps = edpsByCompany.get(emp.id) || [];
     const movimientos = movsByCompany.get(emp.id) || [];
 
@@ -313,10 +341,10 @@ const obtenerEstadoCuentaEmpresaDetalleData = async (
       0,
     );
     const totalAbonos = movimientos
-      .filter((m) => m.tipo_movimiento === "abono" && !m.referencia?.includes("REINICIO"))
+      .filter((m) => m.tipo_movimiento === "abono")
       .reduce((acc, m) => acc + Number(m.monto || 0), 0);
     const totalCargos = movimientos
-      .filter((m) => m.tipo_movimiento === "cargo" && !m.referencia?.includes("REINICIO"))
+      .filter((m) => m.tipo_movimiento === "cargo")
       .reduce((acc, m) => acc + Number(m.monto || 0), 0);
 
     const ultimoMov =
@@ -367,6 +395,16 @@ const obtenerEstadoCuentaEmpresaDetalleData = async (
       },
     };
   });
+
+  // Si se consulta "todas las empresas", filtrar solo aquellas con actividad o saldo en el nuevo sistema
+  if (!empresa_id || empresa_id === "todas") {
+    resultadoEmpresas = resultadoEmpresas.filter(
+      (item) =>
+        item.edps.length > 0 ||
+        item.movimientos.length > 0 ||
+        item.totales.saldoFinal !== 0,
+    );
+  }
 
   return {
     periodoInicio: pInicioStr,
