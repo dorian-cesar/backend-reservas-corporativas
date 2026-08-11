@@ -66,11 +66,11 @@ export async function connectToDevDB() {
 // Cada entrada: { empresaId, periodo }
 // ============================================================================
 export const TEST_TARGETS: Array<{ empresaId: number; periodo: string }> = [
-  // { empresaId: 55,  periodo: "2026-07" }, // ARAMARK SERVICIOS MINEROS Y REMOTOS LTDA — 1.019 tickets
-  // { empresaId: 11,  periodo: "2026-06" }, // KOMATSU CHILE S.A.                        — 713 tickets
-  // { empresaId: 389, periodo: "2026-05" }, // MARIA LORETO HERRERA SPANO SERVICIOS E.I  — 639 tickets
-  { empresaId: 472, periodo: "2026-03" }, // TIP TOP SERVICE SPA                        — 487 tickets
-  // { empresaId: 462, periodo: "2026-03" }, // TECNASIC                                   — 426 tickets
+  { empresaId: 55, periodo: "2026-07" }, // ARAMARK SERVICIOS MINEROS Y REMOTOS LTDA
+  // { empresaId: 11,  periodo: "2026-06" }, // KOMATSU CHILE S.A.
+  // { empresaId: 389, periodo: "2026-05" }, // MARIA LORETO HERRERA SPANO SERVICIOS E.I
+  // { empresaId: 472, periodo: "2026-03" }, // TIP TOP SERVICE SPA
+  // { empresaId: 462, periodo: "2026-03" }, // TECNASIC
 ];
 
 // Compatibilidad: variables individuales apuntando al primer target del array
@@ -782,23 +782,24 @@ export async function runCleanAuthenticTest(
     })
     .filter(Boolean);
 
-  const [ticketsAnuladosFueraPeriodoRow]: any = await sequelizeDevInstance!.query(
-    `SELECT COUNT(*) as count
+  const [ticketsAnuladosFueraPeriodoRow]: any =
+    await sequelizeDevInstance!.query(
+      `SELECT COUNT(*) as count
      FROM tickets
      WHERE id_empresa = :emp
        AND ticketStatus = 'Anulado'
        AND confirmedAt < :inicio
        AND updated_at >= :inicio
        AND updated_at <= :fin`,
-    {
-      replacements: {
-        emp: targetEmpresa.id,
-        inicio: inicioMoment.toDate(),
-        fin: finMoment.toDate(),
+      {
+        replacements: {
+          emp: targetEmpresa.id,
+          inicio: inicioMoment.toDate(),
+          fin: finMoment.toDate(),
+        },
+        type: QueryTypes.SELECT,
       },
-      type: QueryTypes.SELECT,
-    }
-  );
+    );
   const devFueraCount = Number(ticketsAnuladosFueraPeriodoRow?.count || 0);
 
   const excelBuffer = await generateEDPExcelBuffer(
@@ -813,9 +814,9 @@ export async function runCleanAuthenticTest(
     pctDesc,
     montoDesc,
     recDesc,
-    inicioMoment.toISOString(),  // periodoInicioISO → para separar anulados dentro/fuera
-    finMoment.toISOString(),     // periodoFinISO
-    devFueraCount,               // devolucionesFueraPeriodoCount
+    inicioMoment.toISOString(), // periodoInicioISO → para separar anulados dentro/fuera
+    finMoment.toISOString(), // periodoFinISO
+    devFueraCount, // devolucionesFueraPeriodoCount
   );
 
   const excelFileName = `4_tickets_excel_${empresaSlug}_E${empresaId}_${periodo}.xlsx`;

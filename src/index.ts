@@ -19,6 +19,7 @@ import passwordRoutes from "./routes/password.routes";
 import userEmpresaRoutes from "./routes/user_empresa.routes";
 import emailFormRoutes from "./routes/cotizacion.routes";
 import reclamoRoutes from "./routes/reclamo.routes";
+import reportRoutes from "./routes/reports.routes";
 
 dotenv.config();
 
@@ -68,6 +69,7 @@ app.use("/api/password", passwordRoutes);
 app.use("/api/user-empresa/", userEmpresaRoutes);
 app.use("/api/email/", emailFormRoutes);
 app.use("/api/reclamos", reclamoRoutes);
+app.use("/api/reports", reportRoutes);
 
 app.get("/api/test", (req, res) => {
   res.json({
