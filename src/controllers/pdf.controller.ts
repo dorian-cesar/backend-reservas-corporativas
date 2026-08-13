@@ -533,11 +533,11 @@ export const generarExcelEstadoCuenta = async (req: Request, res: Response) => {
       empresaData.cuenta_corriente ?? "",
       estadoData.periodo,
       periodoReservas,
-      undefined, // devolucionesFueraPeriodo (no disponible aquí)
-      undefined, // montoFinal
-      undefined, // porcentajeDescuento
+      Number(estadoData.devoluciones_fuera_periodo || 0),
+      Number(estadoData.monto_facturado || 0),
+      Number(estadoData.porcentaje_descuento || 0),
       undefined, // montoDescuento
-      undefined, // reclamosDescuento
+      Number(estadoData.reclamos_descuento || 0),
       estadoData.fecha_inicio ? new Date(estadoData.fecha_inicio).toISOString() : undefined,
       estadoData.fecha_fin    ? new Date(estadoData.fecha_fin).toISOString()    : undefined,
     );

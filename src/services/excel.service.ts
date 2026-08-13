@@ -202,7 +202,8 @@ export const generateEDPExcelBuffer = async (
       }
     } else if (tieneReclamoAceptado) {
       countReclamados++;
-      montoReclamadosDescuento += devolucion;
+      const devReclamo = Number(ticket.monto_devolucion || ticket.monto_boleto || 0);
+      montoReclamadosDescuento += devReclamo;
       countConfirmados++;
       montoConfirmados += montoOriginal;
     } else {
