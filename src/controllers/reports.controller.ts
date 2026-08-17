@@ -94,6 +94,16 @@ const getGlobalPeriodoData = async (
     GROUP BY empresa_id
   `;
 
+  const cargosSql = `
+    SELECT empresa_id, COALESCE(SUM(monto), 0) AS total_cargos
+    FROM cuenta_corriente
+    WHERE tipo_movimiento = 'cargo'
+      AND fecha_movimiento >= :fechaReinicio
+      AND referencia != :referenciaReinicio
+      ${filterCcEmpresa}
+    GROUP BY empresa_id
+  `;
+
   // Obtener el saldo del movimiento de reinicio como punto de partida
   const saldosSql = `
     SELECT empresa_id, COALESCE(saldo, 0) AS saldo
@@ -110,15 +120,21 @@ const getGlobalPeriodoData = async (
     order: [["nombre", "ASC"]],
   });
 
-  const [edpRows, abonoRows, saldoRows] = await Promise.all([
+  const [edpRows, abonoRows, cargoRows, saldoRows] = await Promise.all([
     sequelize.query<any>(edpsSql, { replacements, type: QueryTypes.SELECT }),
     sequelize.query<any>(abonosSql, { replacements, type: QueryTypes.SELECT }),
+    sequelize.query<any>(cargosSql, { replacements, type: QueryTypes.SELECT }),
     sequelize.query<any>(saldosSql, { replacements, type: QueryTypes.SELECT }),
   ]);
 
   const abonosMap = new Map<number, number>();
   abonoRows.forEach((r) =>
     abonosMap.set(Number(r.empresa_id), Number(r.total_abonos || 0)),
+  );
+
+  const cargosMap = new Map<number, number>();
+  cargoRows.forEach((r) =>
+    cargosMap.set(Number(r.empresa_id), Number(r.total_cargos || 0)),
   );
 
   const saldosReinicioMap = new Map<number, number>();
@@ -144,12 +160,13 @@ const getGlobalPeriodoData = async (
     });
 
     const totalAbono = abonosMap.get(emp.id) || 0;
+    const totalCargo = cargosMap.get(emp.id) || 0;
 
     // Forzado a 0 para no arrastrar ningún saldo histórico de reinicio
     const saldoReinicio = 0;
 
-    // Cálculo matemático puro desde el inicio del nuevo sistema (Julio en adelante)
-    const saldoActual = saldoReinicio + totalEDP - totalAbono;
+    // Cálculo matemático contable de saldo actual de la cuenta corriente
+    const saldoActual = totalCargo - totalAbono;
 
     const ctaCte =
       emp.cuenta_corriente || `C${String(emp.id).padStart(5, "0")}-1`;
@@ -299,11 +316,35 @@ const getEmpresaDetalleData = async (
       .filter((m) => m.tipo_movimiento === "cargo")
       .reduce((a, m) => a + Number(m.monto || 0), 0);
 
-    // Saldo Final se calcula de forma pura basado en la facturación y pagos desde Julio en adelante
-    const saldoFinal = totalEDP - totalAbonos;
+    // Saldo Final se calcula de forma pura basado en cargos y abonos reales en la cuenta corriente
+    const saldoFinal = totalCargos - totalAbonos;
 
     const ctaCte =
       emp.cuenta_corriente || `C${String(emp.id).padStart(5, "0")}-1`;
+
+    // Calcular saldo acumulado en caliente de forma cronológica pura
+    let runningBalance = 0;
+    const movimientosMapeados = movsNormales.map((m) => {
+      const monto = Number(m.monto || 0);
+      if (m.tipo_movimiento === "cargo") {
+        runningBalance += monto;
+      } else if (m.tipo_movimiento === "abono") {
+        runningBalance -= monto;
+      }
+      return {
+        id: m.id,
+        idMov:
+          m.tipo_movimiento === "abono"
+            ? `ABON${String(m.id).padStart(4, "0")}`
+            : `CARG${String(m.id).padStart(4, "0")}`,
+        fechaMovimiento: m.fecha_movimiento,
+        tipoMovimiento: m.tipo_movimiento,
+        monto,
+        saldo: runningBalance,
+        referencia: m.referencia || "-",
+        descripcion: m.descripcion || "",
+      };
+    });
 
     return {
       empresa: {
@@ -329,19 +370,7 @@ const getEmpresaDetalleData = async (
           fechaGeneracion: e.fecha_generacion,
         };
       }),
-      movimientos: movsNormales.map((m) => ({
-        id: m.id,
-        idMov:
-          m.tipo_movimiento === "abono"
-            ? `ABON${String(m.id).padStart(4, "0")}`
-            : `CARG${String(m.id).padStart(4, "0")}`,
-        fechaMovimiento: m.fecha_movimiento,
-        tipoMovimiento: m.tipo_movimiento,
-        monto: Number(m.monto || 0),
-        saldo: Number(m.saldo || 0),
-        referencia: m.referencia || "-",
-        descripcion: m.descripcion || "",
-      })),
+      movimientos: movimientosMapeados,
       totales: { totalEDP, totalAbonos, totalCargos, saldoFinal },
     };
   });
