@@ -949,14 +949,22 @@ export const exportarEstadoCuentaGlobalPeriodoPDF = async (
           clr = rgb(0.1, 0.1, 0.1),
           customSize = 6.5
         ) => {
-          const s = String(text);
-          page.drawText(s, {
-            x: right ? fx + fw - font.widthOfTextAtSize(s, customSize) - 2 : fx + 2,
+          const maxW = fw - 4;
+          let renderVal = String(text);
+          let textW = font.widthOfTextAtSize(renderVal, customSize);
+          if (textW > maxW) {
+            while (renderVal.length > 0 && textW > maxW) {
+              renderVal = renderVal.slice(0, -1);
+              textW = font.widthOfTextAtSize(renderVal + "...", customSize);
+            }
+            renderVal = renderVal + "...";
+          }
+          page.drawText(renderVal, {
+            x: right ? fx + fw - textW - 2 : fx + 2,
             y: y - rowH + 4,
             size: customSize,
             font,
             color: clr,
-            maxWidth: fw - 4,
           });
           fx += fw;
         };
@@ -1188,8 +1196,17 @@ export const exportarEstadoCuentaEmpresaDetallePDF = async (
               borderWidth: 0.5,
             });
             if (val) {
-              const textW = textFont.widthOfTextAtSize(val, 7.5);
-              page.drawText(val, {
+              const maxW = cw - 8; // Margen de 4px por lado
+              let renderVal = val;
+              let textW = textFont.widthOfTextAtSize(renderVal, 7.5);
+              if (textW > maxW) {
+                while (renderVal.length > 0 && textW > maxW) {
+                  renderVal = renderVal.slice(0, -1);
+                  textW = textFont.widthOfTextAtSize(renderVal + "...", 7.5);
+                }
+                renderVal = renderVal + "...";
+              }
+              page.drawText(renderVal, {
                 x: right ? cx + cw - textW - 4 : cx + 4,
                 y: y - rowH + 4,
                 size: 7.5,
