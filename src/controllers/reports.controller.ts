@@ -9,7 +9,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 const TIMEZONE = "America/Santiago";
 
 const PERIODO_NUEVO_SISTEMA = "2026-07";
-const FECHA_REINICIO_CC = "2026-08-04 00:00:00";
+const FECHA_REINICIO_CC = "2026-07-01 00:00:00";
 const REFERENCIA_REINICIO = "REINICIO-SISTEMA-2026-08-04";
 
 const CLP = (n: number) =>
