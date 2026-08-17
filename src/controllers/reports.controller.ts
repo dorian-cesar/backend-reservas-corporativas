@@ -1,144 +1,107 @@
 import { Request, Response } from "express";
 import { Empresa } from "../models/empresa.model";
-import { EstadoCuenta } from "../models/estado_cuenta.model";
-import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { sequelize } from "../database";
-import { Op, QueryTypes } from "sequelize";
+import { QueryTypes } from "sequelize";
 import moment from "moment-timezone";
 import ExcelJS from "exceljs";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const TIMEZONE = "America/Santiago";
 
-// Constantes de inicio del nuevo sistema tras reinicio de cuenta corriente
-const PERIODO_INICIAL_NUEVO_SISTEMA = "2026-07";
-const FECHA_REINICIO_CUENTA_CORRIENTE = "2026-08-04 00:00:00";
+const PERIODO_NUEVO_SISTEMA = "2026-07";
+const FECHA_REINICIO_CC = "2026-08-04 00:00:00";
+const REFERENCIA_REINICIO = "REINICIO-SISTEMA-2026-08-04";
 
-/**
- * Genera la lista de períodos (YYYY-MM) entre inicio y fin (inclusive).
- */
-const generarListaPeriodos = (
-  periodoInicio: string,
-  periodoFin: string,
-): string[] => {
-  const periodos: string[] = [];
-  let current = moment.tz(periodoInicio, "YYYY-MM", TIMEZONE).startOf("month");
-  const end = moment.tz(periodoFin, "YYYY-MM", TIMEZONE).startOf("month");
+const CLP = (n: number) =>
+  `$${Math.round(Number(n || 0)).toLocaleString("es-CL")}`;
 
-  while (current.isSameOrBefore(end)) {
-    periodos.push(current.format("YYYY-MM"));
-    current.add(1, "month");
+const generarPeriodos = (ini: string, fin: string): string[] => {
+  const list: string[] = [];
+  let cur = moment.tz(ini, "YYYY-MM", TIMEZONE).startOf("month");
+  const end = moment.tz(fin, "YYYY-MM", TIMEZONE).startOf("month");
+  while (cur.isSameOrBefore(end)) {
+    list.push(cur.format("YYYY-MM"));
+    cur.add(1, "month");
   }
-  return periodos;
+  return list;
 };
 
-/**
- * Helper ultrarrápido para calcular la matriz multi-empresa desde el nuevo sistema (Periodo 2026-07 y reinicio de CC)
- */
-const obtenerEstadoCuentaGlobalPeriodoData = async (
+const getGlobalPeriodoData = async (
   meses: string = "6",
   periodo_inicio?: string,
   periodo_fin?: string,
   empresa_id?: string,
 ) => {
-  let pFinStr = periodo_fin
+  let pFin = periodo_fin
     ? String(periodo_fin)
     : moment().tz(TIMEZONE).format("YYYY-MM");
-
-  let pInicioStr = periodo_inicio
+  let pIni = periodo_inicio
     ? String(periodo_inicio)
-    : moment(pFinStr, "YYYY-MM")
+    : moment(pFin, "YYYY-MM")
         .tz(TIMEZONE)
         .subtract(Number(meses) - 1, "months")
         .format("YYYY-MM");
 
-  // Clampear inicio mínimo a 2026-07 (Reinicio del nuevo sistema)
-  if (pInicioStr < PERIODO_INICIAL_NUEVO_SISTEMA) {
-    pInicioStr = PERIODO_INICIAL_NUEVO_SISTEMA;
-  }
+  if (pIni < PERIODO_NUEVO_SISTEMA) pIni = PERIODO_NUEVO_SISTEMA;
 
-  const periodos = generarListaPeriodos(pInicioStr, pFinStr);
-  const fechaInicioPeriodo = moment
-    .tz(pInicioStr, "YYYY-MM", TIMEZONE)
-    .startOf("month")
-    .format("YYYY-MM-DD HH:mm:ss");
-  const fechaFinPeriodo = moment
-    .tz(pFinStr, "YYYY-MM", TIMEZONE)
-    .endOf("month")
-    .format("YYYY-MM-DD HH:mm:ss");
+  const periodos = generarPeriodos(pIni, pFin);
 
-  const filterEmpresaClause =
+  const filterEmpresa =
     empresa_id && empresa_id !== "todas" ? "AND e.id = :empresaId" : "";
-  const filterCcEmpresaClause =
+  const filterCcEmpresa =
     empresa_id && empresa_id !== "todas" ? "AND empresa_id = :empresaId" : "";
 
   const replacements: any = {
     periodos,
     empresaId: Number(empresa_id),
-    fechaInicio: fechaInicioPeriodo,
-    fechaFin: fechaFinPeriodo,
-    periodoInicial: PERIODO_INICIAL_NUEVO_SISTEMA,
-    fechaReinicioCC: FECHA_REINICIO_CUENTA_CORRIENTE,
+    periodoInicial: PERIODO_NUEVO_SISTEMA,
+    fechaReinicio: FECHA_REINICIO_CC,
+    referenciaReinicio: REFERENCIA_REINICIO,
   };
 
-  // 1. SQL Bulk: EDPs emitidos en el nuevo sistema (periodo >= '2026-07')
-  const edpsQuery = `
-    SELECT 
+  const edpsSql = `
+    SELECT
       e.id AS empresa_id,
       e.nombre,
-      COALESCE(NULLIF(e.cuenta_corriente, ''), CONCAT('C', LPAD(e.id, 5, '0'), '-1')) AS cuenta_corriente,
-      CASE 
+      COALESCE(NULLIF(e.cuenta_corriente,''), CONCAT('C', LPAD(e.id,5,'0'), '-1')) AS cuenta_corriente,
+      CASE
         WHEN ec.periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN ec.periodo
-        ELSE DATE_FORMAT(ec.fecha_generacion, '%Y-%m')
+        ELSE DATE_FORMAT(ec.fecha_generacion,'%Y-%m')
       END AS periodo,
       COALESCE(SUM(ec.monto_facturado), 0) AS monto_facturado
     FROM empresas e
-    INNER JOIN estados_cuenta ec 
-      ON e.id = ec.empresa_id 
+    INNER JOIN estados_cuenta ec ON e.id = ec.empresa_id
       AND (
-        CASE 
-          WHEN ec.periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN ec.periodo
-          ELSE DATE_FORMAT(ec.fecha_generacion, '%Y-%m')
-        END
+        CASE WHEN ec.periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN ec.periodo
+             ELSE DATE_FORMAT(ec.fecha_generacion,'%Y-%m') END
       ) >= :periodoInicial
       AND (
-        CASE 
-          WHEN ec.periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN ec.periodo
-          ELSE DATE_FORMAT(ec.fecha_generacion, '%Y-%m')
-        END
+        CASE WHEN ec.periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN ec.periodo
+             ELSE DATE_FORMAT(ec.fecha_generacion,'%Y-%m') END
       ) IN (:periodos)
-    WHERE e.estado = 1 ${filterEmpresaClause}
+    WHERE e.estado = 1 ${filterEmpresa}
     GROUP BY e.id, e.nombre, e.cuenta_corriente, periodo
-    ORDER BY e.nombre ASC;
+    ORDER BY e.nombre ASC
   `;
 
-  // 2. SQL Bulk: Abonos recibidos en el nuevo sistema (desde reinicio 04 Agosto 2026)
-  const abonosQuery = `
-    SELECT 
-      empresa_id,
-      COALESCE(SUM(monto), 0) AS total_abonos
+  const abonosSql = `
+    SELECT empresa_id, COALESCE(SUM(monto), 0) AS total_abonos
     FROM cuenta_corriente
     WHERE tipo_movimiento = 'abono'
-      AND fecha_movimiento >= :fechaReinicioCC
-      AND (referencia IS NULL OR referencia NOT LIKE '%REINICIO%')
-      AND (descripcion IS NULL OR (descripcion NOT LIKE '%reinicio%' AND descripcion NOT LIKE '%Ajuste por reinicio%'))
-      ${filterCcEmpresaClause}
-    GROUP BY empresa_id;
+      AND fecha_movimiento >= :fechaReinicio
+      AND referencia != :referenciaReinicio
+      ${filterCcEmpresa}
+    GROUP BY empresa_id
   `;
 
-  // 3. SQL Bulk: Último saldo registrado en el nuevo sistema (desde reinicio 04 Agosto 2026)
-  const saldosQuery = `
-    SELECT cc.empresa_id, cc.saldo
-    FROM cuenta_corriente cc
-    INNER JOIN (
-      SELECT empresa_id, MAX(id) AS max_id
-      FROM cuenta_corriente
-      WHERE fecha_movimiento >= :fechaReinicioCC
-      ${empresa_id && empresa_id !== "todas" ? "AND empresa_id = :empresaId" : ""}
-      GROUP BY empresa_id
-    ) latest ON cc.id = latest.max_id;
+  // Obtener el saldo del movimiento de reinicio como punto de partida
+  const saldosSql = `
+    SELECT empresa_id, COALESCE(saldo, 0) AS saldo
+    FROM cuenta_corriente
+    WHERE referencia = :referenciaReinicio
+      ${filterCcEmpresa}
   `;
 
-  // Obtener lista de empresas activas a incluir
   const empresasActivas = await Empresa.findAll({
     where:
       empresa_id && empresa_id !== "todas"
@@ -148,221 +111,214 @@ const obtenerEstadoCuentaGlobalPeriodoData = async (
   });
 
   const [edpRows, abonoRows, saldoRows] = await Promise.all([
-    sequelize.query<any>(edpsQuery, { replacements, type: QueryTypes.SELECT }),
-    sequelize.query<any>(abonosQuery, { replacements, type: QueryTypes.SELECT }),
-    sequelize.query<any>(saldosQuery, { replacements, type: QueryTypes.SELECT }),
+    sequelize.query<any>(edpsSql, { replacements, type: QueryTypes.SELECT }),
+    sequelize.query<any>(abonosSql, { replacements, type: QueryTypes.SELECT }),
+    sequelize.query<any>(saldosSql, { replacements, type: QueryTypes.SELECT }),
   ]);
 
-  // Mapas en memoria O(1)
   const abonosMap = new Map<number, number>();
   abonoRows.forEach((r) =>
     abonosMap.set(Number(r.empresa_id), Number(r.total_abonos || 0)),
   );
 
-  const saldosMap = new Map<number, number>();
+  const saldosReinicioMap = new Map<number, number>();
   saldoRows.forEach((r) =>
-    saldosMap.set(Number(r.empresa_id), Number(r.saldo || 0)),
+    saldosReinicioMap.set(Number(r.empresa_id), Number(r.saldo || 0)),
   );
 
-  const edpMap = new Map<string, number>(); // clave: `${empresa_id}_${periodo}`
-  edpRows.forEach((row) => {
-    const key = `${row.empresa_id}_${row.periodo}`;
-    edpMap.set(key, Number(row.monto_facturado || 0));
-  });
+  const edpMap = new Map<string, number>();
+  edpRows.forEach((row) =>
+    edpMap.set(
+      `${row.empresa_id}_${row.periodo}`,
+      Number(row.monto_facturado || 0),
+    ),
+  );
 
-  const empresasData = empresasActivas.map((emp) => {
+  const empresas = empresasActivas.map((emp) => {
     const montosPorPeriodo: Record<string, number> = {};
     let totalEDP = 0;
-
     periodos.forEach((p) => {
-      const key = `${emp.id}_${p}`;
-      const monto = edpMap.get(key) || 0;
-      montosPorPeriodo[p] = monto;
-      totalEDP += monto;
+      const m = edpMap.get(`${emp.id}_${p}`) || 0;
+      montosPorPeriodo[p] = m;
+      totalEDP += m;
     });
 
     const totalAbono = abonosMap.get(emp.id) || 0;
-    const saldoActual = saldosMap.get(emp.id) || 0;
-    const diferencia = totalEDP - totalAbono;
 
-    const ctaCteStr = emp.cuenta_corriente || `C${String(emp.id).padStart(5, "0")}-1`;
+    // Forzado a 0 para no arrastrar ningún saldo histórico de reinicio
+    const saldoReinicio = 0;
+
+    // Cálculo matemático puro desde el inicio del nuevo sistema (Julio en adelante)
+    const saldoActual = saldoReinicio + totalEDP - totalAbono;
+
+    const ctaCte =
+      emp.cuenta_corriente || `C${String(emp.id).padStart(5, "0")}-1`;
 
     return {
       id: emp.id,
       nombre: emp.nombre,
-      cuentaCorriente: ctaCteStr,
+      cuentaCorriente: ctaCte,
       montosPorPeriodo,
       totalEDP,
       totalAbono,
-      diferencia,
       saldoActual,
     };
   });
 
+  // Filtrar empresas sin actividad en el nuevo sistema
+  const empresasFiltradas =
+    empresa_id && empresa_id !== "todas"
+      ? empresas
+      : empresas.filter(
+          (e) => e.totalEDP > 0 || e.totalAbono > 0 || e.saldoActual !== 0,
+        );
+
   const totalesPorPeriodo: Record<string, number> = {};
   periodos.forEach((p) => {
-    totalesPorPeriodo[p] = empresasData.reduce(
-      (acc, emp) => acc + (emp.montosPorPeriodo[p] || 0),
+    totalesPorPeriodo[p] = empresasFiltradas.reduce(
+      (acc, e) => acc + (e.montosPorPeriodo[p] || 0),
       0,
     );
   });
 
-  const grandTotalEDP = empresasData.reduce(
-    (acc, emp) => acc + emp.totalEDP,
-    0,
-  );
-  const grandTotalAbono = empresasData.reduce(
-    (acc, emp) => acc + emp.totalAbono,
-    0,
-  );
-  const grandDiferencia = empresasData.reduce(
-    (acc, emp) => acc + emp.diferencia,
-    0,
-  );
-  const grandSaldoActual = empresasData.reduce(
-    (acc, emp) => acc + emp.saldoActual,
-    0,
-  );
-
   return {
-    periodoInicio: pInicioStr,
-    periodoFin: pFinStr,
+    periodoInicio: pIni,
+    periodoFin: pFin,
     periodos,
-    empresas: empresasData,
+    empresas: empresasFiltradas,
     totales: {
       totalesPorPeriodo,
-      grandTotalEDP,
-      grandTotalAbono,
-      grandDiferencia,
-      grandSaldoActual,
+      grandTotalEDP: empresasFiltradas.reduce((a, e) => a + e.totalEDP, 0),
+      grandTotalAbono: empresasFiltradas.reduce((a, e) => a + e.totalAbono, 0),
+      grandSaldoActual: empresasFiltradas.reduce(
+        (a, e) => a + e.saldoActual,
+        0,
+      ),
+      grandDiferencia: empresasFiltradas.reduce((a, e) => a + e.saldoActual, 0),
     },
   };
 };
 
-/**
- * Helper ultrarrápido para calcular el detalle por empresa desde el nuevo sistema (Periodo 2026-07 y reinicio de CC)
- */
-const obtenerEstadoCuentaEmpresaDetalleData = async (
+const getEmpresaDetalleData = async (
   empresa_id?: string,
-  periodo?: string,
   periodo_inicio?: string,
   periodo_fin?: string,
 ) => {
   const whereEmpresa: any = { estado: true };
-  if (empresa_id && empresa_id !== "todas") {
+  if (empresa_id && empresa_id !== "todas")
     whereEmpresa.id = Number(empresa_id);
-  }
 
   const empresas = await Empresa.findAll({
     where: whereEmpresa,
     order: [["nombre", "ASC"]],
   });
-
-  let pFinStr = periodo_fin
-    ? String(periodo_fin)
-    : moment().tz(TIMEZONE).format("YYYY-MM");
-  let pInicioStr = periodo_inicio
-    ? String(periodo_inicio)
-    : moment(pFinStr, "YYYY-MM").subtract(5, "months").format("YYYY-MM");
-
-  if (pInicioStr < PERIODO_INICIAL_NUEVO_SISTEMA) {
-    pInicioStr = PERIODO_INICIAL_NUEVO_SISTEMA;
-  }
-
-  const companyIds = empresas.map((e) => e.id);
-
-  if (companyIds.length === 0) {
+  if (empresas.length === 0) {
     return {
-      periodoInicio: pInicioStr,
-      periodoFin: pFinStr,
+      periodoInicio: PERIODO_NUEVO_SISTEMA,
+      periodoFin: moment().tz(TIMEZONE).format("YYYY-MM"),
       empresas: [],
     };
   }
 
-  // Bulk queries filtradas con CASE de normalización de períodos para excluir EDPs antiguos < 2026-07
-  const edpsQuery = `
+  let pFin = periodo_fin
+    ? String(periodo_fin)
+    : moment().tz(TIMEZONE).format("YYYY-MM");
+  let pIni = periodo_inicio
+    ? String(periodo_inicio)
+    : moment(pFin, "YYYY-MM").subtract(5, "months").format("YYYY-MM");
+  if (pIni < PERIODO_NUEVO_SISTEMA) pIni = PERIODO_NUEVO_SISTEMA;
+
+  const companyIds = empresas.map((e) => e.id);
+
+  const edpsSql = `
     SELECT *
     FROM estados_cuenta
     WHERE empresa_id IN (:companyIds)
       AND (
-        CASE 
-          WHEN periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN periodo
-          ELSE DATE_FORMAT(fecha_generacion, '%Y-%m')
-        END
+        CASE WHEN periodo REGEXP '^[0-9]{4}-[0-9]{2}$' THEN periodo
+             ELSE DATE_FORMAT(fecha_generacion,'%Y-%m') END
       ) >= :periodoInicial
-    ORDER BY fecha_generacion DESC;
+    ORDER BY empresa_id ASC, fecha_generacion ASC
   `;
 
-  // Bulk query para movimientos de cuenta corriente del nuevo sistema (excluyendo ajustes de reinicio $0)
-  const movsQuery = `
+  const movsSql = `
     SELECT *
     FROM cuenta_corriente
     WHERE empresa_id IN (:companyIds)
-      AND fecha_movimiento >= :fechaReinicioCC
-      AND (referencia IS NULL OR referencia NOT LIKE '%REINICIO%')
-      AND (descripcion IS NULL OR (descripcion NOT LIKE '%reinicio%' AND descripcion NOT LIKE '%Ajuste por reinicio%'))
-    ORDER BY fecha_movimiento ASC, id ASC;
+      AND fecha_movimiento >= :fechaReinicio
+    ORDER BY empresa_id ASC, fecha_movimiento ASC, id ASC
   `;
 
   const [allEdpRows, allMovRows] = await Promise.all([
-    sequelize.query<any>(edpsQuery, {
-      replacements: { companyIds, periodoInicial: PERIODO_INICIAL_NUEVO_SISTEMA },
+    sequelize.query<any>(edpsSql, {
+      replacements: { companyIds, periodoInicial: PERIODO_NUEVO_SISTEMA },
       type: QueryTypes.SELECT,
     }),
-    sequelize.query<any>(movsQuery, {
-      replacements: { companyIds, fechaReinicioCC: FECHA_REINICIO_CUENTA_CORRIENTE },
+    sequelize.query<any>(movsSql, {
+      replacements: { companyIds, fechaReinicio: FECHA_REINICIO_CC },
       type: QueryTypes.SELECT,
     }),
   ]);
 
-  // Agrupar en memoria por empresa_id
   const edpsByCompany = new Map<number, any[]>();
   allEdpRows.forEach((edp) => {
-    if (!edpsByCompany.has(edp.empresa_id)) {
+    if (!edpsByCompany.has(edp.empresa_id))
       edpsByCompany.set(edp.empresa_id, []);
-    }
     edpsByCompany.get(edp.empresa_id)!.push(edp);
   });
 
   const movsByCompany = new Map<number, any[]>();
   allMovRows.forEach((mov) => {
-    if (!movsByCompany.has(mov.empresa_id)) {
+    if (!movsByCompany.has(mov.empresa_id))
       movsByCompany.set(mov.empresa_id, []);
-    }
     movsByCompany.get(mov.empresa_id)!.push(mov);
   });
 
-  let resultadoEmpresas = empresas.map((emp) => {
+  let resultado = empresas.map((emp) => {
     const edps = edpsByCompany.get(emp.id) || [];
     const movimientos = movsByCompany.get(emp.id) || [];
 
-    const totalMontoEDP = edps.reduce(
-      (acc, e) => acc + Number(e.monto_facturado || 0),
+    const movReinicio = movimientos.find(
+      (m) => m.referencia === REFERENCIA_REINICIO,
+    );
+    const movsNormales = movimientos.filter(
+      (m) => m.referencia !== REFERENCIA_REINICIO,
+    );
+
+    // Forzado a 0 para no arrastrar deudas históricas
+    const saldoReinicio = 0;
+
+    const totalEDP = edps.reduce(
+      (a, e) => a + Number(e.monto_facturado || 0),
       0,
     );
-    const totalAbonos = movimientos
+    const totalAbonos = movsNormales
       .filter((m) => m.tipo_movimiento === "abono")
-      .reduce((acc, m) => acc + Number(m.monto || 0), 0);
-    const totalCargos = movimientos
+      .reduce((a, m) => a + Number(m.monto || 0), 0);
+    const totalCargos = movsNormales
       .filter((m) => m.tipo_movimiento === "cargo")
-      .reduce((acc, m) => acc + Number(m.monto || 0), 0);
+      .reduce((a, m) => a + Number(m.monto || 0), 0);
 
-    const ultimoMov =
-      movimientos.length > 0 ? movimientos[movimientos.length - 1] : null;
-    const saldoFinal = ultimoMov ? Number(ultimoMov.saldo || 0) : 0;
+    // Saldo Final se calcula de forma pura basado en la facturación y pagos desde Julio en adelante
+    const saldoFinal = totalEDP - totalAbonos;
+
+    const ctaCte =
+      emp.cuenta_corriente || `C${String(emp.id).padStart(5, "0")}-1`;
 
     return {
       empresa: {
         id: emp.id,
         nombre: emp.nombre,
         rut: emp.rut || "-",
-        cuentaCorriente:
-          emp.cuenta_corriente || `C${String(emp.id).padStart(5, "0")}-1`,
+        cuentaCorriente: ctaCte,
       },
+      saldoReinicio,
       edps: edps.map((e) => {
         let periodoNorm = e.periodo;
         if (!/^\d{4}-\d{2}$/.test(periodoNorm)) {
-          periodoNorm = moment(e.fecha_generacion).tz(TIMEZONE).format("YYYY-MM");
+          periodoNorm = moment(e.fecha_generacion)
+            .tz(TIMEZONE)
+            .format("YYYY-MM");
         }
         return {
           id: e.id,
@@ -371,12 +327,11 @@ const obtenerEstadoCuentaEmpresaDetalleData = async (
           montoFacturado: Number(e.monto_facturado || 0),
           pagado: Boolean(e.pagado),
           fechaGeneracion: e.fecha_generacion,
-          fechaPago: e.fecha_pago,
         };
       }),
-      movimientos: movimientos.map((m) => ({
+      movimientos: movsNormales.map((m) => ({
         id: m.id,
-        idAbono:
+        idMov:
           m.tipo_movimiento === "abono"
             ? `ABON${String(m.id).padStart(4, "0")}`
             : `CARG${String(m.id).padStart(4, "0")}`,
@@ -387,120 +342,124 @@ const obtenerEstadoCuentaEmpresaDetalleData = async (
         referencia: m.referencia || "-",
         descripcion: m.descripcion || "",
       })),
-      totales: {
-        totalMontoEDP,
-        totalAbonos,
-        totalCargos,
-        saldoFinal,
-      },
+      totales: { totalEDP, totalAbonos, totalCargos, saldoFinal },
     };
   });
 
-  // Si se consulta "todas las empresas", filtrar solo aquellas con actividad o saldo en el nuevo sistema
   if (!empresa_id || empresa_id === "todas") {
-    resultadoEmpresas = resultadoEmpresas.filter(
-      (item) =>
-        item.edps.length > 0 ||
-        item.movimientos.length > 0 ||
-        item.totales.saldoFinal !== 0,
+    resultado = resultado.filter(
+      (r) =>
+        r.edps.length > 0 || r.movimientos.length > 0 || r.saldoReinicio !== 0,
     );
   }
 
-  return {
-    periodoInicio: pInicioStr,
-    periodoFin: pFinStr,
-    empresas: resultadoEmpresas,
-  };
+  return { periodoInicio: pIni, periodoFin: pFin, empresas: resultado };
 };
 
-/**
- * 1. Endpoint JSON Estado de Cuenta Global por Período
- */
 export const obtenerEstadoCuentaGlobalPeriodo = async (
   req: Request,
   res: Response,
 ) => {
   try {
     const { meses = "6", periodo_inicio, periodo_fin, empresa_id } = req.query;
-    const data = await obtenerEstadoCuentaGlobalPeriodoData(
+    const data = await getGlobalPeriodoData(
       String(meses),
       periodo_inicio ? String(periodo_inicio) : undefined,
       periodo_fin ? String(periodo_fin) : undefined,
       empresa_id ? String(empresa_id) : undefined,
     );
     return res.json(data);
-  } catch (error: any) {
-    console.error("Error en obtenerEstadoCuentaGlobalPeriodo:", error);
+  } catch (err: any) {
+    console.error("Error obtenerEstadoCuentaGlobalPeriodo:", err);
     return res.status(500).json({
-      message: "Error al generar informe por período",
-      error: error.message,
+      message: "Error al generar informe por periodo",
+      error: err.message,
     });
   }
 };
 
-/**
- * 2. Exportar Estado de Cuenta Global por Período a Excel (.xlsx)
- */
+export const obtenerEstadoCuentaEmpresaDetalle = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { empresa_id, periodo_inicio, periodo_fin } = req.query;
+    const data = await getEmpresaDetalleData(
+      empresa_id ? String(empresa_id) : undefined,
+      periodo_inicio ? String(periodo_inicio) : undefined,
+      periodo_fin ? String(periodo_fin) : undefined,
+    );
+    return res.json(data);
+  } catch (err: any) {
+    console.error("Error obtenerEstadoCuentaEmpresaDetalle:", err);
+    return res.status(500).json({
+      message: "Error al consultar detalle por empresa",
+      error: err.message,
+    });
+  }
+};
+
 export const exportarEstadoCuentaGlobalPeriodoExcel = async (
   req: Request,
   res: Response,
 ) => {
   try {
     const { meses = "6", periodo_inicio, periodo_fin, empresa_id } = req.query;
-    const reportData = await obtenerEstadoCuentaGlobalPeriodoData(
+    const report = await getGlobalPeriodoData(
       String(meses),
       periodo_inicio ? String(periodo_inicio) : undefined,
       periodo_fin ? String(periodo_fin) : undefined,
       empresa_id ? String(empresa_id) : undefined,
     );
+    const {
+      periodos,
+      empresas,
+      periodoInicio: pIni,
+      periodoFin: pFin,
+      totales,
+    } = report;
 
-    const { periodos, empresas: empresasData, periodoInicio: pInicioStr, periodoFin: pFinStr } = reportData;
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "WIT Innovación Tecnológica";
-    const sheet = workbook.addWorksheet("Estado de Cuenta x Periodo");
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "WIT Innovacion Tecnologica";
+    const ws = wb.addWorksheet("Estado Cuenta Global");
 
     const totalCols = 3 + periodos.length + 3;
 
-    sheet.mergeCells(1, 1, 1, totalCols);
-    const titleCell = sheet.getCell(1, 1);
-    titleCell.value = "ESTADO DE CUENTA por Período";
-    titleCell.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
-    titleCell.alignment = { horizontal: "center", vertical: "middle" };
-    titleCell.fill = {
+    ws.mergeCells(1, 1, 1, totalCols);
+    const tCell = ws.getCell(1, 1);
+    tCell.value = "ESTADO DE CUENTA GLOBAL — POR PERIODO";
+    tCell.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
+    tCell.alignment = { horizontal: "center", vertical: "middle" };
+    tCell.fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: "FF1A1A2E" },
     };
-    sheet.getRow(1).height = 30;
+    ws.getRow(1).height = 28;
 
-    sheet.mergeCells(2, 1, 2, totalCols);
-    const subtitleCell = sheet.getCell(2, 1);
-    subtitleCell.value = `Período [${pInicioStr} a ${pFinStr}]  |  Total Empresas: ${empresasData.length}`;
-    subtitleCell.font = { size: 10, italic: true, color: { argb: "FF444444" } };
-    subtitleCell.alignment = { horizontal: "right", vertical: "middle" };
-    subtitleCell.fill = {
+    ws.mergeCells(2, 1, 2, totalCols);
+    const sCell = ws.getCell(2, 1);
+    sCell.value = `Periodo: ${pIni} a ${pFin}  |  Empresas: ${empresas.length}  |  Generado: ${moment().tz(TIMEZONE).format("DD/MM/YYYY HH:mm")}`;
+    sCell.font = { size: 9, italic: true, color: { argb: "FF555555" } };
+    sCell.alignment = { horizontal: "right", vertical: "middle" };
+    sCell.fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: "FFF8F9FA" },
     };
-    sheet.getRow(2).height = 20;
+    ws.getRow(2).height = 16;
 
-    sheet.addRow([]);
+    ws.addRow([]);
 
-    const headers = ["ID Empresa", "Empresa", "Cuenta Corriente"];
-    periodos.forEach((p) => {
-      headers.push(
-        `Monto ${moment(p, "YYYY-MM").locale("es").format("MMM YY")}`,
-      );
-    });
-    headers.push("Total EDP", "Total Abono", "Diferencia");
+    const headers = ["ID", "Empresa", "Cta. Corriente"];
+    periodos.forEach((p) => headers.push(p));
+    headers.push("Total EDP", "Total Abono", "Saldo Actual");
 
-    const headerRow = sheet.getRow(4);
-    headers.forEach((h, idx) => {
-      const cell = headerRow.getCell(idx + 1);
+    const hRow = ws.getRow(4);
+    headers.forEach((h, i) => {
+      const cell = hRow.getCell(i + 1);
       cell.value = h;
-      cell.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+      cell.font = { bold: true, size: 9, color: { argb: "FFFFFFFF" } };
       cell.alignment = { horizontal: "center", vertical: "middle" };
       cell.fill = {
         type: "pattern",
@@ -509,19 +468,17 @@ export const exportarEstadoCuentaGlobalPeriodoExcel = async (
       };
       cell.border = { bottom: { style: "thin", color: { argb: "FFE0E0E0" } } };
     });
-    headerRow.height = 24;
+    hRow.height = 22;
 
-    empresasData.forEach((emp, rIdx) => {
-      const rowVals: any[] = [emp.id, emp.nombre, emp.cuentaCorriente];
-      periodos.forEach((p) => {
-        rowVals.push(emp.montosPorPeriodo[p] || 0);
-      });
-      rowVals.push(emp.totalEDP, emp.totalAbono, emp.diferencia);
+    empresas.forEach((emp, rIdx) => {
+      const vals: any[] = [emp.id, emp.nombre, emp.cuentaCorriente];
+      periodos.forEach((p) => vals.push(emp.montosPorPeriodo[p] || 0));
+      vals.push(emp.totalEDP, emp.totalAbono, emp.saldoActual);
 
-      const row = sheet.addRow(rowVals);
-      row.height = 20;
-
+      const row = ws.addRow(vals);
+      row.height = 18;
       const isEven = rIdx % 2 === 0;
+
       row.eachCell((cell, cIdx) => {
         cell.fill = {
           type: "pattern",
@@ -530,10 +487,22 @@ export const exportarEstadoCuentaGlobalPeriodoExcel = async (
         };
         cell.font = { size: 9 };
         cell.border = {
-          bottom: { style: "hair", color: { argb: "FFE9E9E9" } },
+          bottom: { style: "hair", color: { argb: "FFEAEAEA" } },
         };
 
         if (cIdx >= 4) {
+          if (cIdx === totalCols - 1) {
+            cell.font = { size: 9, bold: true, color: { argb: "FF1F994D" } };
+          } else if (cIdx === totalCols) {
+            const val = Number(cell.value);
+            cell.font = {
+              size: 9,
+              bold: true,
+              color: {
+                argb: val > 0 ? "FFCC6600" : val < 0 ? "FF1F994D" : "FF555555",
+              },
+            };
+          }
           cell.numFmt = '"$"#,##0';
           cell.alignment = { horizontal: "right", vertical: "middle" };
         } else if (cIdx === 1) {
@@ -544,37 +513,36 @@ export const exportarEstadoCuentaGlobalPeriodoExcel = async (
       });
     });
 
-    const totalesRowVals: any[] = ["TOTALES", "", ""];
-    periodos.forEach((p) => {
-      const colSum = empresasData.reduce(
-        (acc, emp) => acc + (emp.montosPorPeriodo[p] || 0),
-        0,
-      );
-      totalesRowVals.push(colSum);
-    });
-
-    totalesRowVals.push(
-      reportData.totales.grandTotalEDP,
-      reportData.totales.grandTotalAbono,
-      reportData.totales.grandDiferencia,
+    const totRow: any[] = ["TOTALES", "", ""];
+    periodos.forEach((p) => totRow.push(totales.totalesPorPeriodo[p] || 0));
+    totRow.push(
+      totales.grandTotalEDP,
+      totales.grandTotalAbono,
+      totales.grandSaldoActual,
     );
 
-    const totalesRow = sheet.addRow(totalesRowVals);
-    sheet.mergeCells(totalesRow.number, 1, totalesRow.number, 3);
-    totalesRow.height = 24;
+    const tRow = ws.addRow(totRow);
+    ws.mergeCells(tRow.number, 1, tRow.number, 3);
+    tRow.height = 22;
+    tRow.eachCell((cell, cIdx) => {
+      let cellColor = "FF1A1A2E";
+      if (cIdx === totalCols - 1) {
+        cellColor = "FF1F994D";
+      } else if (cIdx === totalCols) {
+        const val = Number(cell.value);
+        cellColor = val > 0 ? "FFCC6600" : val < 0 ? "FF1F994D" : "FF1A1A2E";
+      }
 
-    totalesRow.eachCell((cell, cIdx) => {
-      cell.font = { bold: true, size: 10, color: { argb: "FF1A1A2E" } };
+      cell.font = { bold: true, size: 10, color: { argb: cellColor } };
       cell.fill = {
         type: "pattern",
         pattern: "solid",
         fgColor: { argb: "FFFFF3E0" },
       };
       cell.border = {
-        top: { style: "thin", color: { argb: "FFFF6600" } },
+        top: { style: "medium", color: { argb: "FFFF6600" } },
         bottom: { style: "double", color: { argb: "FFFF6600" } },
       };
-
       if (cIdx >= 4) {
         cell.numFmt = '"$"#,##0';
         cell.alignment = { horizontal: "right", vertical: "middle" };
@@ -583,257 +551,217 @@ export const exportarEstadoCuentaGlobalPeriodoExcel = async (
       }
     });
 
-    sheet.getColumn(1).width = 12;
-    sheet.getColumn(2).width = 28;
-    sheet.getColumn(3).width = 18;
-    for (let i = 4; i <= totalCols; i++) {
-      sheet.getColumn(i).width = 16;
-    }
+    ws.getColumn(1).width = 8;
+    ws.getColumn(2).width = 30;
+    ws.getColumn(3).width = 18;
+    for (let i = 4; i <= totalCols; i++) ws.getColumn(i).width = 15;
 
-    const buffer = await workbook.xlsx.writeBuffer();
+    const buffer = await wb.xlsx.writeBuffer();
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=Estado_Cuenta_Global_${pInicioStr}_a_${pFinStr}.xlsx`,
+      `attachment; filename=Estado_Cuenta_Global_${pIni}_${pFin}.xlsx`,
     );
     return res.send(Buffer.from(buffer));
-  } catch (error: any) {
-    console.error("Error al exportar Excel global periodo:", error);
-    return res.status(500).json({
-      message: "Error al generar archivo Excel",
-      error: error.message,
-    });
+  } catch (err: any) {
+    console.error("Error exportarEstadoCuentaGlobalPeriodoExcel:", err);
+    return res
+      .status(500)
+      .json({ message: "Error al generar Excel", error: err.message });
   }
 };
 
-/**
- * 3. Endpoint JSON Estado de Cuenta Detallado por Empresa
- */
-export const obtenerEstadoCuentaEmpresaDetalle = async (
-  req: Request,
-  res: Response,
-) => {
-  try {
-    const { empresa_id, periodo, periodo_inicio, periodo_fin } = req.query;
-    const data = await obtenerEstadoCuentaEmpresaDetalleData(
-      empresa_id ? String(empresa_id) : undefined,
-      periodo ? String(periodo) : undefined,
-      periodo_inicio ? String(periodo_inicio) : undefined,
-      periodo_fin ? String(periodo_fin) : undefined,
-    );
-    return res.json(data);
-  } catch (error: any) {
-    console.error("Error en obtenerEstadoCuentaEmpresaDetalle:", error);
-    return res.status(500).json({
-      message: "Error al consultar detalle por empresa",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * 4. Exportar Estado de Cuenta Detallado por Empresa a Excel (.xlsx)
- */
 export const exportarEstadoCuentaEmpresaDetalleExcel = async (
   req: Request,
   res: Response,
 ) => {
   try {
-    const { empresa_id, periodo, periodo_inicio, periodo_fin } = req.query;
-    const reportData = await obtenerEstadoCuentaEmpresaDetalleData(
+    const { empresa_id, periodo_inicio, periodo_fin } = req.query;
+    const report = await getEmpresaDetalleData(
       empresa_id ? String(empresa_id) : undefined,
-      periodo ? String(periodo) : undefined,
       periodo_inicio ? String(periodo_inicio) : undefined,
       periodo_fin ? String(periodo_fin) : undefined,
     );
+    const { empresas, periodoInicio: pIni, periodoFin: pFin } = report;
 
-    const { empresas, periodoInicio: pInicioStr, periodoFin: pFinStr } = reportData;
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "WIT Innovación Tecnológica";
-
-    const usedSheetNames = new Set<string>();
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "WIT Innovacion Tecnologica";
+    const usedNames = new Set<string>();
 
     for (const item of empresas) {
       const emp = item.empresa;
       const edps = item.edps;
-      const movimientos = item.movimientos;
+      const movs = item.movimientos;
 
-      const cleanName = emp.nombre.replace(/[*?:/\\\[\]]/g, "").trim();
-      let baseName = `${emp.id}-${cleanName}`.substring(0, 31).trim();
-      if (!baseName) baseName = `Empresa_${emp.id}`;
-
+      const cleanName = emp.nombre.replace(/[*?:/\\[\]]/g, "").trim();
+      let baseName =
+        `${emp.id}-${cleanName}`.substring(0, 31).trim() || `Empresa_${emp.id}`;
       let sheetName = baseName;
       let counter = 1;
-      while (usedSheetNames.has(sheetName)) {
-        const suffix = `_${counter}`;
-        sheetName = `${baseName.substring(0, 31 - suffix.length)}${suffix}`;
-        counter++;
+      while (usedNames.has(sheetName)) {
+        const suf = `_${counter++}`;
+        sheetName = `${baseName.substring(0, 31 - suf.length)}${suf}`;
       }
-      usedSheetNames.add(sheetName);
+      usedNames.add(sheetName);
 
-      const sheet = workbook.addWorksheet(sheetName);
+      const ws = wb.addWorksheet(sheetName);
 
-      sheet.mergeCells("A1:G1");
-      const titleCell = sheet.getCell("A1");
-      titleCell.value = `PULLMAN BUS — ESTADO DE CUENTA DE EMPRESA`;
-      titleCell.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
-      titleCell.alignment = { horizontal: "center", vertical: "middle" };
-      titleCell.fill = {
+      // Titulo superior
+      ws.mergeCells("A1:G1");
+      const t1 = ws.getCell("A1");
+      t1.value = `ESTADO DE CUENTA DETALLADO — ${emp.nombre.toUpperCase()}`;
+      t1.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
+      t1.alignment = { horizontal: "center", vertical: "middle" };
+      t1.fill = {
         type: "pattern",
         pattern: "solid",
         fgColor: { argb: "FF1A1A2E" },
       };
-      sheet.getRow(1).height = 28;
+      ws.getRow(1).height = 28;
 
-      sheet.mergeCells("A2:G2");
-      const subCell = sheet.getCell("A2");
-      subCell.value = `Empresa: ${emp.nombre}  |  RUT: ${emp.rut}  |  Cuenta Corriente: ${emp.cuentaCorriente}  |  Período: ${pInicioStr} a ${pFinStr}`;
-      subCell.font = { size: 10, color: { argb: "FF444444" } };
-      subCell.alignment = { horizontal: "center", vertical: "middle" };
-      subCell.fill = {
+      // Periodo y metadata en fila 2
+      ws.mergeCells("A2:G2");
+      const t2 = ws.getCell("A2");
+      t2.value = `RUT: ${emp.rut}  |  Cuenta Corriente: ${emp.cuentaCorriente}  |  Periodo [${pIni} a ${pFin}]  |  Generado: ${moment().tz(TIMEZONE).format("DD/MM/YYYY HH:mm")}`;
+      t2.font = { size: 9, italic: true, color: { argb: "FF555555" } };
+      t2.alignment = { horizontal: "right", vertical: "middle" };
+      t2.fill = {
         type: "pattern",
         pattern: "solid",
         fgColor: { argb: "FFF8F9FA" },
       };
-      sheet.getRow(2).height = 20;
+      ws.getRow(2).height = 16;
 
-      sheet.addRow([]);
+      ws.addRow([]);
 
-      sheet.mergeCells("A4:D4");
-      const edpSectionCell = sheet.getCell("A4");
-      edpSectionCell.value = "EDP (Estados de Pago Emitidos)";
-      edpSectionCell.font = {
-        bold: true,
-        size: 11,
-        color: { argb: "FFFFFFFF" },
-      };
-      edpSectionCell.alignment = { horizontal: "center", vertical: "middle" };
-      edpSectionCell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFFF6600" },
-      };
-
-      sheet.mergeCells("E4:G4");
-      const ccSectionCell = sheet.getCell("E4");
-      ccSectionCell.value = "Estado Cuenta Corriente (Movimientos y Abonos)";
-      ccSectionCell.font = {
-        bold: true,
-        size: 11,
-        color: { argb: "FFFFFFFF" },
-      };
-      ccSectionCell.alignment = { horizontal: "center", vertical: "middle" };
-      ccSectionCell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF1A1A2E" },
-      };
-      sheet.getRow(4).height = 22;
-
-      const hRow = sheet.getRow(5);
-      const cols = [
+      // Headers de Columnas (Fila 4)
+      const colHeaders = [
         "EDP ID",
-        "Período",
-        "Estado",
-        "Monto EDP $",
-        "ID Mov/Abono",
-        "Abono / Cargo $",
-        "Saldo $",
+        "Empresa",
+        "Cuenta corriente",
+        "Monto $",
+        "Fecha Abono",
+        "Abono $",
+        "Saldo$",
       ];
-      cols.forEach((colName, cIdx) => {
-        const cell = hRow.getCell(cIdx + 1);
-        cell.value = colName;
-        cell.font = { bold: true, size: 10, color: { argb: "FF333333" } };
-        cell.alignment = { horizontal: "center", vertical: "middle" };
+      const hRow = ws.getRow(4);
+      colHeaders.forEach((h, idx) => {
+        const cell = hRow.getCell(idx + 1);
+        cell.value = h;
+        cell.font = { bold: true, size: 9, color: { argb: "FFFFFFFF" } };
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "FFEEEEEF" },
+          fgColor: { argb: "FFFF6600" },
         };
         cell.border = {
-          bottom: { style: "thin", color: { argb: "FFCCCCCC" } },
+          bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
         };
+        if (idx === 3 || idx === 5 || idx === 6) {
+          cell.alignment = { horizontal: "right", vertical: "middle" };
+        } else {
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        }
       });
-      hRow.height = 20;
+      hRow.height = 22;
 
-      const maxRows = Math.max(edps.length, movimientos.length, 1);
-
-      let totalEdpMonto = 0;
-      let totalAbonoMonto = 0;
-
+      // Cargar Filas Apareadas (Fila 5 en adelante)
+      const maxRows = Math.max(edps.length, movs.length);
       for (let i = 0; i < maxRows; i++) {
         const edp = edps[i];
-        const mov = movimientos[i];
+        const mov = movs[i];
+        const isEven = i % 2 === 0;
 
-        const edpIdStr = edp ? edp.edpId : "-";
-        const edpPeriodoStr = edp ? edp.periodo : "-";
-        const edpEstadoStr = edp ? (edp.pagado ? "Pagado" : "Pendiente") : "-";
-        const edpMonto = edp ? edp.montoFacturado : null;
+        const fechaAbonoStr =
+          mov && mov.fechaMovimiento
+            ? moment(mov.fechaMovimiento).tz(TIMEZONE).format("DD-MM-YYYY")
+            : "";
 
-        if (edpMonto) totalEdpMonto += edpMonto;
+        const rowValues = [
+          edp ? edp.edpId : "",
+          edp ? emp.nombre : "",
+          edp ? emp.cuentaCorriente : "",
+          edp ? edp.montoFacturado : 0,
+          fechaAbonoStr,
+          mov ? (mov.tipoMovimiento === "abono" ? mov.monto : -mov.monto) : 0,
+          mov ? mov.saldo : 0,
+        ];
 
-        const movIdStr = mov ? mov.idAbono : "-";
-        const movMonto = mov ? mov.monto : null;
-        const movSaldo = mov ? mov.saldo : null;
+        const r = ws.addRow(rowValues);
+        r.height = 18;
 
-        if (mov && mov.tipoMovimiento === "abono" && !mov.referencia?.includes("REINICIO")) {
-          totalAbonoMonto += mov.monto;
-        }
-
-        const row = sheet.addRow([
-          edpIdStr,
-          edpPeriodoStr,
-          edpEstadoStr,
-          edpMonto !== null ? edpMonto : "-",
-          movIdStr,
-          movMonto !== null ? movMonto : "-",
-          movSaldo !== null ? movSaldo : "-",
-        ]);
-        row.height = 18;
-
-        row.eachCell((cell, cIdx) => {
+        r.eachCell((cell, colIdx) => {
           cell.font = { size: 9 };
-          cell.alignment = { vertical: "middle" };
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: isEven ? "FFFFFFFF" : "FFFAFAFA" },
+          };
+          cell.border = {
+            bottom: { style: "hair", color: { argb: "FFEAEAEA" } },
+          };
 
-          if (cIdx === 4 || cIdx === 6 || cIdx === 7) {
-            if (typeof cell.value === "number") {
-              cell.numFmt = '"$"#,##0';
+          if (colIdx === 4 || colIdx === 6 || colIdx === 7) {
+            if (cell.value !== null && typeof cell.value === "number") {
+              cell.numFmt = '"$"#,##0;[Red]"-$"#,##0';
               cell.alignment = { horizontal: "right", vertical: "middle" };
+              if (colIdx === 6) {
+                // Abonos en verde esmeralda
+                cell.font = {
+                  size: 9,
+                  bold: true,
+                  color: { argb: "FF1F994D" },
+                };
+              } else if (colIdx === 7) {
+                const val = Number(cell.value);
+                cell.font = {
+                  size: 9,
+                  bold: true,
+                  color: { argb: val > 0 ? "FFCC6600" : "FF1F994D" },
+                };
+              }
             }
-          } else {
+          } else if (colIdx === 1 || colIdx === 5) {
             cell.alignment = { horizontal: "center", vertical: "middle" };
+          } else {
+            cell.alignment = { horizontal: "left", vertical: "middle" };
           }
         });
       }
 
-      const totalesRow = sheet.addRow([
-        "TOTAL EDPs",
-        "",
-        "",
-        totalEdpMonto,
-        "TOTAL ABONOS",
-        totalAbonoMonto,
-        totalEdpMonto - totalAbonoMonto,
-      ]);
+      // Fila de Totales
+      const totalEDP = item.totales.totalEDP;
+      const totalAbonos = item.totales.totalAbonos;
+      const saldoFinal = item.totales.saldoFinal;
 
-      totalesRow.height = 22;
-      totalesRow.eachCell((cell, cIdx) => {
-        cell.font = { bold: true, size: 10 };
+      const totRow = ["TOTALES", "", "", totalEDP, "", totalAbonos, saldoFinal];
+      const tRow = ws.addRow(totRow);
+      ws.mergeCells(tRow.number, 1, tRow.number, 3);
+      tRow.height = 22;
+
+      tRow.eachCell((cell, colIdx) => {
+        let cellColor = "FF1A1A2E";
+        if (colIdx === 6) {
+          cellColor = "FF1F994D";
+        } else if (colIdx === 7) {
+          cellColor = saldoFinal > 0 ? "FFCC6600" : "FF1F994D";
+        }
+
+        cell.font = { bold: true, size: 10, color: { argb: cellColor } };
         cell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: "FFFFF3E0" },
         };
         cell.border = {
-          top: { style: "thin", color: { argb: "FFFF6600" } },
+          top: { style: "medium", color: { argb: "FFFF6600" } },
           bottom: { style: "double", color: { argb: "FFFF6600" } },
         };
 
-        if (typeof cell.value === "number") {
+        if (colIdx === 4 || colIdx === 6 || colIdx === 7) {
           cell.numFmt = '"$"#,##0';
           cell.alignment = { horizontal: "right", vertical: "middle" };
         } else {
@@ -841,30 +769,539 @@ export const exportarEstadoCuentaEmpresaDetalleExcel = async (
         }
       });
 
-      sheet.getColumn(1).width = 14;
-      sheet.getColumn(2).width = 14;
-      sheet.getColumn(3).width = 14;
-      sheet.getColumn(4).width = 18;
-      sheet.getColumn(5).width = 16;
-      sheet.getColumn(6).width = 18;
-      sheet.getColumn(7).width = 18;
+      // Ancho de columnas para la hoja actual
+      ws.getColumn(1).width = 12;
+      ws.getColumn(2).width = 25;
+      ws.getColumn(3).width = 16;
+      ws.getColumn(4).width = 15;
+      ws.getColumn(5).width = 12;
+      ws.getColumn(6).width = 15;
+      ws.getColumn(7).width = 15;
     }
 
-    const buffer = await workbook.xlsx.writeBuffer();
+    const buffer = await wb.xlsx.writeBuffer();
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=Estado_Cuenta_Empresa_Detalle_${pInicioStr}_a_${pFinStr}.xlsx`,
+      `attachment; filename=Estado_Cuenta_Empresa_${report.periodoInicio}_${report.periodoFin}.xlsx`,
     );
     return res.send(Buffer.from(buffer));
-  } catch (error: any) {
-    console.error("Error al exportar Excel empresa detalle:", error);
-    return res.status(500).json({
-      message: "Error al generar archivo Excel",
-      error: error.message,
+  } catch (err: any) {
+    console.error("Error exportarEstadoCuentaEmpresaDetalleExcel:", err);
+    return res
+      .status(500)
+      .json({ message: "Error al generar Excel", error: err.message });
+  }
+};
+
+export const exportarEstadoCuentaGlobalPeriodoPDF = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { meses = "6", periodo_inicio, periodo_fin, empresa_id } = req.query;
+    const report = await getGlobalPeriodoData(
+      String(meses),
+      periodo_inicio ? String(periodo_inicio) : undefined,
+      periodo_fin ? String(periodo_fin) : undefined,
+      empresa_id ? String(empresa_id) : undefined,
+    );
+    const {
+      periodos,
+      empresas,
+      periodoInicio: pIni,
+      periodoFin: pFin,
+      totales,
+    } = report;
+
+    const pdfDoc = await PDFDocument.create();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    const pageW = 842,
+      pageH = 595,
+      margin = 32;
+    const cHeader = rgb(0.1, 0.1, 0.18);
+    const cAccent = rgb(1, 0.4, 0);
+    const cWhite = rgb(1, 1, 1);
+    const cGray = rgb(0.45, 0.45, 0.45);
+    const cEven = rgb(0.97, 0.97, 0.97);
+    const cFoot = rgb(1, 0.95, 0.88);
+    const cGreen = rgb(0.12, 0.6, 0.3);
+    const cAmber = rgb(0.75, 0.45, 0.05);
+
+    const usable = pageW - margin * 2;
+    const colID = 28;
+    const colCC = 72;
+    const tailW = 100;
+    const tailN = 3;
+
+    // Calculamos el ancho de periodos dinámicamente
+    // Garantizamos que empresa tenga al menos 120px de espacio libre.
+    const spaceForPeriods = usable - colID - colCC - (tailW * tailN) - 120;
+    const perW = periodos.length > 0
+      ? Math.max(30, Math.min(42, Math.floor(spaceForPeriods / periodos.length)))
+      : 42;
+
+    // Tamaño de fuente dinámico según el ancho de columna disponible
+    const fSizePeriod = perW < 36 ? 5.2 : 6.5;
+
+    const fixedRest = colID + colCC + (perW * periodos.length) + (tailW * tailN);
+    const colEmp = Math.max(120, usable - fixedRest);
+
+    const tableW = usable;
+    const rowH = 15,
+      headH = 18;
+
+    const rowsPerPage = Math.floor((pageH - margin * 2 - 60 - headH) / rowH);
+    const chunks: any[][] = [];
+    for (let i = 0; i < empresas.length; i += rowsPerPage)
+      chunks.push(empresas.slice(i, i + rowsPerPage));
+    if (chunks.length === 0) chunks.push([]);
+    const totalPgs = chunks.length;
+
+    for (let pi = 0; pi < totalPgs; pi++) {
+      const page = pdfDoc.addPage([pageW, pageH]);
+      let y = pageH - margin;
+
+      page.drawRectangle({
+        x: margin,
+        y: y - 30,
+        width: tableW,
+        height: 30,
+        color: cHeader,
+      });
+      page.drawText("ESTADO DE CUENTA GLOBAL — POR PERIODO", {
+        x: margin + 8,
+        y: y - 19,
+        size: 11,
+        font: fontBold,
+        color: cWhite,
+      });
+      page.drawText(
+        `Periodo: ${pIni} a ${pFin}  |  Empresas: ${empresas.length}  |  Pág. ${pi + 1}/${totalPgs}  |  ${moment().tz(TIMEZONE).format("DD/MM/YYYY HH:mm")}`,
+        { x: margin + 8, y: y - 40, size: 6.5, font, color: cGray },
+      );
+      const drawH = (text: string, cx: number, cw: number, right = false, customSize = 6.5) => {
+        page.drawRectangle({
+          x: cx,
+          y: y - headH,
+          width: cw,
+          height: headH,
+          color: cAccent,
+        });
+        page.drawText(text, {
+          x: right
+            ? cx + cw - fontBold.widthOfTextAtSize(text, customSize) - 2
+            : cx + 2,
+          y: y - headH + 5,
+          size: customSize,
+          font: fontBold,
+          color: cWhite,
+          maxWidth: cw - 4,
+        });
+      };
+      y -= 48;
+
+      let cx = margin;
+      drawH("ID", cx, colID);
+      cx += colID;
+      drawH("Empresa", cx, colEmp);
+      cx += colEmp;
+      drawH("Cta. Cte.", cx, colCC);
+      cx += colCC;
+      for (const p of periodos) {
+        drawH(
+          p,
+          cx,
+          perW,
+          true,
+          fSizePeriod
+        );
+        cx += perW;
+      }
+      drawH("Total EDP", cx, tailW, true);
+      cx += tailW;
+      drawH("Total Abono", cx, tailW, true);
+      cx += tailW;
+      drawH("Saldo Actual", cx, tailW, true);
+      y -= headH;
+
+      for (let ri = 0; ri < chunks[pi].length; ri++) {
+        const emp = chunks[pi][ri];
+        const bg = ri % 2 === 0 ? cWhite : cEven;
+        page.drawRectangle({
+          x: margin,
+          y: y - rowH,
+          width: tableW,
+          height: rowH,
+          color: bg,
+        });
+
+        let fx = margin;
+        const drawC = (
+          text: string,
+          fw: number,
+          right = false,
+          clr = rgb(0.1, 0.1, 0.1),
+          customSize = 6.5
+        ) => {
+          const s = String(text);
+          page.drawText(s, {
+            x: right ? fx + fw - font.widthOfTextAtSize(s, customSize) - 2 : fx + 2,
+            y: y - rowH + 4,
+            size: customSize,
+            font,
+            color: clr,
+            maxWidth: fw - 4,
+          });
+          fx += fw;
+        };
+
+        drawC(String(emp.id), colID);
+        drawC(emp.nombre, colEmp);
+        drawC(emp.cuentaCorriente, colCC);
+        for (const p of periodos)
+          drawC(CLP(emp.montosPorPeriodo[p] || 0), perW, true, rgb(0.1, 0.1, 0.1), fSizePeriod);
+        drawC(CLP(emp.totalEDP), tailW, true);
+        drawC(CLP(emp.totalAbono), tailW, true, cGreen);
+        drawC(
+          CLP(emp.saldoActual),
+          tailW,
+          true,
+          emp.saldoActual > 0 ? cAmber : cGreen,
+        );
+        y -= rowH;
+      }
+
+      if (pi === totalPgs - 1) {
+        page.drawRectangle({
+          x: margin,
+          y: y - rowH,
+          width: tableW,
+          height: rowH,
+          color: cFoot,
+        });
+        page.drawText("TOTALES", {
+          x: margin + 2,
+          y: y - rowH + 4,
+          size: 6.5,
+          font: fontBold,
+          color: cHeader,
+        });
+        let tx = margin + colID + colEmp + colCC;
+        for (const p of periodos) {
+          const v = CLP(totales.totalesPorPeriodo[p] || 0);
+          page.drawText(v, {
+            x: tx + perW - fontBold.widthOfTextAtSize(v, fSizePeriod) - 2,
+            y: y - rowH + 4,
+            size: fSizePeriod,
+            font: fontBold,
+            color: cHeader,
+            maxWidth: perW - 4,
+          });
+          tx += perW;
+        }
+        const drawTotal = (v: string, w: number, clr: any) => {
+          page.drawText(v, {
+            x: tx + w - fontBold.widthOfTextAtSize(v, 6.5) - 2,
+            y: y - rowH + 4,
+            size: 6.5,
+            font: fontBold,
+            color: clr,
+            maxWidth: w - 4,
+          });
+          tx += w;
+        };
+        drawTotal(CLP(totales.grandTotalEDP), tailW, cHeader);
+        drawTotal(CLP(totales.grandTotalAbono), tailW, cGreen);
+        drawTotal(
+          CLP(totales.grandSaldoActual),
+          tailW,
+          totales.grandSaldoActual > 0 ? cAmber : cGreen,
+        );
+      }
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=Estado_Cuenta_Global_${pIni}_${pFin}.pdf`,
+    );
+    return res.send(Buffer.from(pdfBytes));
+  } catch (err: any) {
+    console.error("Error exportarEstadoCuentaGlobalPeriodoPDF:", err);
+    return res
+      .status(500)
+      .json({ message: "Error al generar PDF", error: err.message });
+  }
+};
+
+export const exportarEstadoCuentaEmpresaDetallePDF = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { empresa_id, periodo_inicio, periodo_fin } = req.query;
+    const report = await getEmpresaDetalleData(
+      empresa_id ? String(empresa_id) : undefined,
+      periodo_inicio ? String(periodo_inicio) : undefined,
+      periodo_fin ? String(periodo_fin) : undefined,
+    );
+    const { empresas, periodoInicio: pIni, periodoFin: pFin } = report;
+
+    const pdfDoc = await PDFDocument.create();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    const pageW = 842,
+      pageH = 595,
+      margin = 32;
+    const cWhite = rgb(1, 1, 1);
+    const cGray = rgb(0.2, 0.2, 0.2);
+    const cEven = rgb(0.98, 0.98, 0.98);
+
+    const colW = [60, 180, 110, 95, 80, 95, 100];
+    const colX: number[] = [];
+    let curX = margin;
+    colW.forEach((w) => {
+      colX.push(curX);
+      curX += w;
     });
+    const tableW = curX - margin;
+
+    const rowH = 15;
+    const headerH = 20;
+
+    const cHeader = rgb(0.1, 0.1, 0.18);
+    const cAccent = rgb(1, 0.4, 0);
+
+    for (const item of empresas) {
+      const emp = item.empresa;
+      const edps = item.edps;
+      const movs = item.movimientos;
+
+      const maxRows = Math.max(edps.length, movs.length, 1);
+      const bodyH = pageH - margin * 2 - 50 - headerH - headerH - 10;
+      const rowsPerPg = Math.max(1, Math.floor(bodyH / rowH));
+      const totalEmpPgs = Math.ceil(maxRows / rowsPerPg);
+
+      for (let ep = 0; ep < totalEmpPgs; ep++) {
+        const page = pdfDoc.addPage([pageW, pageH]);
+        let y = pageH - margin;
+
+        // Header Superior
+        page.drawRectangle({
+          x: margin,
+          y: y - 24,
+          width: tableW,
+          height: 24,
+          color: cHeader,
+        });
+        const titleText = `ESTADO DE CUENTA DETALLADO — ${emp.nombre.toUpperCase()}`;
+        page.drawText(titleText, {
+          x: margin + (tableW - fontBold.widthOfTextAtSize(titleText, 10)) / 2,
+          y: y - 16,
+          size: 10,
+          font: fontBold,
+          color: cWhite,
+        });
+        y -= 24;
+
+        // Metadata de la empresa
+        const periodText = `RUT: ${emp.rut}  |  Cta. Cte.: ${emp.cuentaCorriente}  |  Periodo [${pIni} a ${pFin}]  |  Generado: ${moment().tz(TIMEZONE).format("DD/MM/YYYY HH:mm")}`;
+        page.drawText(periodText, {
+          x: margin + tableW - font.widthOfTextAtSize(periodText, 7.5) - 2,
+          y: y - 10,
+          size: 7.5,
+          font,
+          color: cGray,
+        });
+        y -= 14;
+
+        const colHeaders = [
+          "EDP ID",
+          "Empresa",
+          "Cuenta corriente",
+          "Monto $",
+          "Fecha Abono",
+          "Abono $",
+          "Saldo$",
+        ];
+        colHeaders.forEach((h, idx) => {
+          const cx = colX[idx];
+          const cw = colW[idx];
+          page.drawRectangle({
+            x: cx,
+            y: y - headerH,
+            width: cw,
+            height: headerH,
+            color: cAccent,
+          });
+          const textW = fontBold.widthOfTextAtSize(h, 7.5);
+          const isRight = idx === 3 || idx === 5 || idx === 6;
+          page.drawText(h, {
+            x: isRight ? cx + cw - textW - 4 : cx + 4,
+            y: y - headerH + 6,
+            size: 7.5,
+            font: fontBold,
+            color: cWhite,
+          });
+        });
+        y -= headerH;
+
+        const startR = ep * rowsPerPg;
+        const endR = Math.min(startR + rowsPerPg, maxRows);
+
+        for (let i = startR; i < endR; i++) {
+          const edp = edps[i];
+          const mov = movs[i];
+          const bg = i % 2 === 0 ? cWhite : cEven;
+
+          page.drawRectangle({
+            x: margin,
+            y: y - rowH,
+            width: tableW,
+            height: rowH,
+            color: bg,
+          });
+
+          const drawCell = (
+            val: string,
+            colIdx: number,
+            right = false,
+            textClr = cGray,
+            textFont = font,
+          ) => {
+            const cx = colX[colIdx];
+            const cw = colW[colIdx];
+            page.drawRectangle({
+              x: cx,
+              y: y - rowH,
+              width: cw,
+              height: rowH,
+              borderColor: rgb(0.9, 0.9, 0.9),
+              borderWidth: 0.5,
+            });
+            if (val) {
+              const textW = textFont.widthOfTextAtSize(val, 7.5);
+              page.drawText(val, {
+                x: right ? cx + cw - textW - 4 : cx + 4,
+                y: y - rowH + 4,
+                size: 7.5,
+                font: textFont,
+                color: textClr,
+              });
+            }
+          };
+
+          const cGreen = rgb(0.12, 0.6, 0.3);
+          const cAmber = rgb(0.75, 0.45, 0.05);
+
+          const fechaAbonoStr =
+            mov && mov.fechaMovimiento
+              ? moment(mov.fechaMovimiento).tz(TIMEZONE).format("DD-MM-YYYY")
+              : "";
+
+          drawCell(edp ? edp.edpId : "", 0);
+          drawCell(edp ? emp.nombre : "", 1);
+          drawCell(edp ? emp.cuentaCorriente : "", 2);
+          drawCell(CLP(edp ? edp.montoFacturado : 0), 3, true);
+
+          drawCell(fechaAbonoStr, 4);
+          drawCell(
+            CLP(
+              mov
+                ? mov.tipoMovimiento === "abono"
+                  ? mov.monto
+                  : -mov.monto
+                : 0,
+            ),
+            5,
+            true,
+            cGreen,
+            fontBold,
+          );
+          drawCell(
+            CLP(mov ? mov.saldo : 0),
+            6,
+            true,
+            mov && mov.saldo > 0 ? cAmber : cGreen,
+            fontBold,
+          );
+
+          y -= rowH;
+        }
+
+        if (ep === totalEmpPgs - 1) {
+          const cFoot = rgb(1, 0.95, 0.88);
+          const totalEDP = item.totales.totalEDP;
+          const totalAbonos = item.totales.totalAbonos;
+          const saldoFinal = item.totales.saldoFinal;
+
+          const cGreen = rgb(0.12, 0.6, 0.3);
+          const cAmber = rgb(0.75, 0.45, 0.05);
+
+          page.drawRectangle({
+            x: margin,
+            y: y - rowH,
+            width: tableW,
+            height: rowH,
+            color: cFoot,
+            borderColor: rgb(0.8, 0.8, 0.8),
+            borderWidth: 0.5,
+          });
+
+          const drawTotalCell = (
+            val: string,
+            colIdx: number,
+            right = false,
+            textClr = cHeader,
+          ) => {
+            const cx = colX[colIdx];
+            const cw = colW[colIdx];
+            if (val) {
+              const textW = fontBold.widthOfTextAtSize(val, 7.5);
+              page.drawText(val, {
+                x: right ? cx + cw - textW - 4 : cx + 4,
+                y: y - rowH + 4,
+                size: 7.5,
+                font: fontBold,
+                color: textClr,
+              });
+            }
+          };
+
+          drawTotalCell("TOTALES", 0);
+          drawTotalCell(CLP(totalEDP), 3, true);
+          drawTotalCell(CLP(totalAbonos), 5, true, cGreen);
+          drawTotalCell(
+            CLP(saldoFinal),
+            6,
+            true,
+            saldoFinal > 0 ? cAmber : cGreen,
+          );
+
+          y -= rowH;
+        }
+      }
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=Estado_Cuenta_Empresa_${pIni}_${pFin}.pdf`,
+    );
+    return res.send(Buffer.from(pdfBytes));
+  } catch (err: any) {
+    console.error("Error exportarEstadoCuentaEmpresaDetallePDF:", err);
+    return res
+      .status(500)
+      .json({ message: "Error al generar PDF", error: err.message });
   }
 };

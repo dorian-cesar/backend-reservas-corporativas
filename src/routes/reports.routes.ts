@@ -2,8 +2,10 @@ import { Router } from "express";
 import {
   obtenerEstadoCuentaGlobalPeriodo,
   exportarEstadoCuentaGlobalPeriodoExcel,
+  exportarEstadoCuentaGlobalPeriodoPDF,
   obtenerEstadoCuentaEmpresaDetalle,
   exportarEstadoCuentaEmpresaDetalleExcel,
+  exportarEstadoCuentaEmpresaDetallePDF,
 } from "../controllers/reports.controller";
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
@@ -25,6 +27,13 @@ router.get(
 );
 
 router.get(
+  "/estado-cuenta-periodo/export-pdf",
+  authenticateJWT,
+  authorizeRoles("superuser"),
+  exportarEstadoCuentaGlobalPeriodoPDF,
+);
+
+router.get(
   "/estado-cuenta-empresa",
   authenticateJWT,
   authorizeRoles("superuser"),
@@ -36,6 +45,13 @@ router.get(
   authenticateJWT,
   authorizeRoles("superuser"),
   exportarEstadoCuentaEmpresaDetalleExcel,
+);
+
+router.get(
+  "/estado-cuenta-empresa/export-pdf",
+  authenticateJWT,
+  authorizeRoles("superuser"),
+  exportarEstadoCuentaEmpresaDetallePDF,
 );
 
 export default router;
