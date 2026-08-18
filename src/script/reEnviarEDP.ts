@@ -1,17 +1,9 @@
 /**
  * Script para re-enviar el correo de un EDP existente (con su PDF, HTML template y Excel oficial)
- *
- * Uso en servidor:
- *   npx ts-node src/script/reEnviarEDP.ts [EDP_ID]
- * Ejemplo para Acciona (EDP 7784):
- *   npx ts-node src/script/reEnviarEDP.ts 7784
  */
 
 import * as dotenv from "dotenv";
 dotenv.config();
-
-// Asegurar dispatch activo
-process.env.ENABLE_EDP_EMAIL_DISPATCH = "true";
 
 import { connectDB } from "../database";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
@@ -22,9 +14,8 @@ import {
   EDPMailQueueItem,
 } from "../services/edpMailBatch.service";
 
-async function main() {
-  const args = process.argv.slice(2);
-  const edpId = args[0] ? parseInt(args[0], 10) : 7784; // Por defecto EDP 7784 (Acciona)
+export async function reEnviarEDP(edpIdTarget?: number) {
+  const edpId = edpIdTarget || 7784; // Por defecto EDP 7784 (Acciona)
 
   console.log(`[${new Date().toISOString()}] === INICIO Re-Envío EDP ID ${edpId} ===`);
   await connectDB();
@@ -32,15 +23,13 @@ async function main() {
   // 1. Cargar el EDP
   const estadoCuenta = await EstadoCuenta.findByPk(edpId);
   if (!estadoCuenta) {
-    console.error(`❌ EDP ID ${edpId} no fue encontrado en la base de datos.`);
-    process.exit(1);
+    throw new Error(`❌ EDP ID ${edpId} no fue encontrado en la base de datos.`);
   }
 
   // 2. Cargar la Empresa
   const empresa = await Empresa.findByPk(estadoCuenta.empresa_id);
   if (!empresa) {
-    console.error(`❌ Empresa ID ${estadoCuenta.empresa_id} no encontrada.`);
-    process.exit(1);
+    throw new Error(`❌ Empresa ID ${estadoCuenta.empresa_id} no encontrada.`);
   }
 
   // 3. Cargar Snapshots de tickets guardados para este EDP
@@ -134,10 +123,4 @@ async function main() {
   await processEDPMailQueue([queueItem]);
 
   console.log(`\n[${new Date().toISOString()}] === FIN Re-Envío EDP ID ${edpId} ===`);
-  process.exit(0);
 }
-
-main().catch((err) => {
-  console.error("❌ Error ejecutando re-envío de EDP:", err);
-  process.exit(1);
-});
