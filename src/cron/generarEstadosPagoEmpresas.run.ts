@@ -1,4 +1,5 @@
-// src/cron/generarEstadosPagoEmpresas.run.ts
+import * as dotenv from "dotenv";
+dotenv.config();
 
 import "../database"; // Asegúrate de importar tu inicialización de Sequelize/DB
 import { generarEstadosPagoEmpresas } from "./generarEstadosPagoEmpresas";
