@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import ExcelJS from "exceljs";
+import moment from "moment-timezone";
 import { Empresa } from "../models/empresa.model";
 import { EmpresaTramo } from "../models/empresa_tramos.model";
 import {
@@ -530,8 +532,161 @@ export const exportEmpresas = async (req: Request, res: Response) => {
                 ente_facturador
             FROM empresas
         `;
-    const [rows] = await sequelize.query(query);
-    return res.json(rows);
+    const [rows] = (await sequelize.query(query)) as [any[], any];
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "WIT Innovación Tecnológica";
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet("Empresas", {
+      pageSetup: { fitToPage: true, orientation: "landscape" },
+    });
+
+    const totalCols = 20;
+
+    // ─── Encabezado institucional ─────────────────────────────────
+    sheet.mergeCells(1, 1, 1, totalCols);
+    const titleCell = sheet.getCell(1, 1);
+    titleCell.value = "PULLMAN BUS — LISTADO DE EMPRESAS";
+    titleCell.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    titleCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF1A1A2E" },
+    };
+    sheet.getRow(1).height = 28;
+
+    sheet.mergeCells(2, 1, 2, totalCols);
+    const subtitleCell = sheet.getCell(2, 1);
+    subtitleCell.value = `Total Empresas: ${rows.length}  |  Exportado el: ${moment().tz("America/Santiago").format("DD/MM/YYYY HH:mm")}`;
+    subtitleCell.font = { size: 10, color: { argb: "FF444444" } };
+    subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+    subtitleCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFF8F9FA" },
+    };
+    sheet.getRow(2).height = 18;
+
+    sheet.addRow([]); // fila 3 vacía
+
+    // ─── Encabezados de columna (fila 4) ──────────────────────────
+    const COLUMNS = [
+      { header: "ID", key: "id", width: 8, align: "center" },
+      { header: "RUT", key: "rut", width: 15, align: "left" },
+      { header: "Nombre", key: "nombre", width: 30, align: "left" },
+      { header: "Cta. Corriente", key: "cuenta_corriente", width: 18, align: "center" },
+      { header: "Recargo (%)", key: "recargo", width: 14, align: "right" },
+      { header: "% Devolución", key: "porcentaje_devolucion", width: 14, align: "right" },
+      { header: "Día Facturación", key: "dia_facturacion", width: 16, align: "center" },
+      { header: "Día Vencimiento", key: "dia_vencimiento", width: 16, align: "center" },
+      { header: "Monto Máximo", key: "monto_maximo", width: 18, align: "right" },
+      { header: "Monto Acumulado", key: "monto_acumulado", width: 18, align: "right" },
+      { header: "Facturación Manual", key: "fact_manual", width: 18, align: "center" },
+      { header: "Morosidad", key: "morosidad", width: 12, align: "center" },
+      { header: "Tipo Facturación", key: "tipo_facturacion", width: 18, align: "center" },
+      { header: "Contacto Fact. Nombre", key: "contacto_fact_nombre", width: 25, align: "left" },
+      { header: "Contacto Fact. Email", key: "contacto_fact_email", width: 25, align: "left" },
+      { header: "Contacto Fact. Teléfono", key: "contacto_fact_telefono", width: 20, align: "left" },
+      { header: "Ejecutivo Com. Nombre", key: "ejecutivo_com_nombre", width: 25, align: "left" },
+      { header: "Ejecutivo Com. Email", key: "ejecutivo_com_email", width: 25, align: "left" },
+      { header: "Ejecutivo Com. Teléfono", key: "ejecutivo_com_telefono", width: 20, align: "left" },
+      { header: "Ente Facturador", key: "ente_facturador", width: 25, align: "left" },
+    ];
+
+    sheet.columns = COLUMNS.map((c) => ({ key: c.key, width: c.width }));
+
+    const headerRow = sheet.getRow(4);
+    COLUMNS.forEach((col, i) => {
+      const cell = headerRow.getCell(i + 1);
+      cell.value = col.header;
+      cell.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFF6600" }, // Naranja Pullman
+      };
+      cell.border = {
+        bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
+      };
+    });
+    headerRow.height = 22;
+
+    const formatCLP = (monto: any): string => {
+      if (monto === null || monto === undefined) return "$0";
+      return `$${Number(monto).toLocaleString("es-CL")}`;
+    };
+
+    const formatPercent = (val: any): string => {
+      if (val === null || val === undefined) return "0%";
+      return `${val}%`;
+    };
+
+    const formatBool = (val: any): string => {
+      return val ? "Sí" : "No";
+    };
+
+    rows.forEach((empresa, idx) => {
+      const rowData = {
+        id: empresa.id,
+        rut: empresa.rut || "",
+        nombre: empresa.nombre || "",
+        cuenta_corriente: empresa.cuenta_corriente || "",
+        recargo: formatPercent(empresa.recargo),
+        porcentaje_devolucion: formatPercent(empresa.porcentaje_devolucion),
+        dia_facturacion: empresa.dia_facturacion !== null && empresa.dia_facturacion !== undefined ? empresa.dia_facturacion : "-",
+        dia_vencimiento: empresa.dia_vencimiento !== null && empresa.dia_vencimiento !== undefined ? empresa.dia_vencimiento : "-",
+        monto_maximo: formatCLP(empresa.monto_maximo),
+        monto_acumulado: formatCLP(empresa.monto_acumulado),
+        fact_manual: formatBool(empresa.fact_manual),
+        morosidad: formatBool(empresa.morosidad),
+        tipo_facturacion: empresa.tipo_facturacion || "",
+        contacto_fact_nombre: empresa.contacto_fact_nombre || "",
+        contacto_fact_email: empresa.contacto_fact_email || "",
+        contacto_fact_telefono: empresa.contacto_fact_telefono || "",
+        ejecutivo_com_nombre: empresa.ejecutivo_com_nombre || "",
+        ejecutivo_com_email: empresa.ejecutivo_com_email || "",
+        ejecutivo_com_telefono: empresa.ejecutivo_com_telefono || "",
+        ente_facturador: empresa.ente_facturador || "-",
+      };
+
+      const row = sheet.addRow(rowData);
+      const isEven = idx % 2 === 0;
+      const rowFill: ExcelJS.FillPattern = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: isEven ? "FFFFFFFF" : "FFFAFAFA" },
+      };
+
+      row.eachCell((cell, colIdx) => {
+        const colDef = COLUMNS[colIdx - 1];
+        cell.fill = rowFill;
+        cell.font = { size: 9 };
+        cell.alignment = { 
+          vertical: "middle", 
+          horizontal: (colDef?.align || "left") as ExcelJS.Alignment["horizontal"] 
+        };
+        cell.border = {
+          bottom: { style: "hair", color: { argb: "FFE9E9E9" } },
+        };
+      });
+      row.height = 18;
+    });
+
+    const fileName = `empresas_export_${moment().tz("America/Santiago").format("YYYYMMDD_HHmmss")}.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    const excelBuffer = await workbook.xlsx.writeBuffer();
+    res.setHeader("Content-Length", (excelBuffer as any).length);
+    return res.send(excelBuffer);
+
   } catch (err: any) {
     console.error("Error al exportar empresas:", err);
     return res
