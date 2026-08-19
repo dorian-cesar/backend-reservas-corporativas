@@ -532,6 +532,42 @@ export const exportEmpresas = async (req: Request, res: Response) => {
                 ente_facturador
             FROM empresas
         `;
+    const [rows] = await sequelize.query(query);
+    return res.json(rows);
+  } catch (err: any) {
+    console.error("Error al exportar empresas:", err);
+    return res
+      .status(500)
+      .json({ message: "Error interno del servidor", error: err.message });
+  }
+};
+
+export const exportEmpresasExcel = async (req: Request, res: Response) => {
+  try {
+    const query = `
+            SELECT 
+                id, 
+                nombre, 
+                recargo, 
+                porcentaje_devolucion, 
+                dia_facturacion, 
+                dia_vencimiento, 
+                monto_maximo, 
+                monto_acumulado, 
+                rut, 
+                cuenta_corriente,
+                fact_manual,
+                morosidad,
+                tipo_facturacion,
+                contacto_fact_nombre,
+                contacto_fact_email,
+                contacto_fact_telefono,
+                ejecutivo_com_nombre,
+                ejecutivo_com_email,
+                ejecutivo_com_telefono,
+                ente_facturador
+            FROM empresas
+        `;
     const [rows] = (await sequelize.query(query)) as [any[], any];
 
     const workbook = new ExcelJS.Workbook();
@@ -688,7 +724,7 @@ export const exportEmpresas = async (req: Request, res: Response) => {
     return res.send(excelBuffer);
 
   } catch (err: any) {
-    console.error("Error al exportar empresas:", err);
+    console.error("Error al exportar empresas excel:", err);
     return res
       .status(500)
       .json({ message: "Error interno del servidor", error: err.message });
