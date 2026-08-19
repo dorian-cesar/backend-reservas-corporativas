@@ -520,7 +520,14 @@ export const exportEmpresas = async (req: Request, res: Response) => {
                 cuenta_corriente,
                 fact_manual,
                 morosidad,
-                tipo_facturacion
+                tipo_facturacion,
+                contacto_fact_nombre,
+                contacto_fact_email,
+                contacto_fact_telefono,
+                ejecutivo_com_nombre,
+                ejecutivo_com_email,
+                ejecutivo_com_telefono,
+                ente_facturador
             FROM empresas
         `;
     const [rows] = await sequelize.query(query);
