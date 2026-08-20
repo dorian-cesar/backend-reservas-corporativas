@@ -9,7 +9,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 const TIMEZONE = "America/Santiago";
 
 const PERIODO_NUEVO_SISTEMA = "2026-07";
-const FECHA_REINICIO_CC = "2026-08-04 00:00:00";
+const FECHA_REINICIO_CC = "2026-07-01 00:00:00";
 const REFERENCIA_REINICIO = "REINICIO-SISTEMA-2026-08-04";
 
 const CLP = (n: number) =>
@@ -85,13 +85,23 @@ const getGlobalPeriodoData = async (
   `;
 
   const abonosSql = `
-    SELECT empresa_id, COALESCE(SUM(monto), 0) AS total_abonos
-    FROM cuenta_corriente
-    WHERE tipo_movimiento = 'abono'
-      AND fecha_movimiento >= :fechaReinicio
-      AND referencia != :referenciaReinicio
-      ${filterCcEmpresa}
-    GROUP BY empresa_id
+    SELECT cc.empresa_id, COALESCE(SUM(cc.monto), 0) AS total_abonos
+    FROM cuenta_corriente cc
+    LEFT JOIN estados_cuenta ec ON cc.estado_cuenta_id = ec.id
+    WHERE cc.tipo_movimiento = 'abono'
+      AND cc.fecha_movimiento >= :fechaReinicio
+      AND cc.referencia != :referenciaReinicio
+      AND (
+        cc.referencia NOT LIKE 'FACT-%'
+        OR STR_TO_DATE(CONCAT(SUBSTRING_INDEX(cc.referencia, '-', -2), '-01'), '%Y-%m-%d') >= '2026-07-01'
+      )
+      AND (
+        cc.referencia NOT LIKE 'DESCUENTO-EDC-%'
+        OR ec.periodo IS NULL
+        OR STR_TO_DATE(CONCAT(ec.periodo, '-01'), '%Y-%m-%d') >= '2026-07-01'
+      )
+      ${filterCcEmpresa ? "AND cc.empresa_id = :empresaId" : ""}
+    GROUP BY cc.empresa_id
   `;
 
   const cargosSql = `
@@ -100,6 +110,11 @@ const getGlobalPeriodoData = async (
     WHERE tipo_movimiento = 'cargo'
       AND fecha_movimiento >= :fechaReinicio
       AND referencia != :referenciaReinicio
+      AND pagado = 0
+      AND (
+        referencia NOT LIKE 'FACT-%'
+        OR STR_TO_DATE(CONCAT(SUBSTRING_INDEX(referencia, '-', -2), '-01'), '%Y-%m-%d') >= '2026-07-01'
+      )
       ${filterCcEmpresa}
     GROUP BY empresa_id
   `;
@@ -259,11 +274,21 @@ const getEmpresaDetalleData = async (
   `;
 
   const movsSql = `
-    SELECT *
-    FROM cuenta_corriente
-    WHERE empresa_id IN (:companyIds)
-      AND fecha_movimiento >= :fechaReinicio
-    ORDER BY empresa_id ASC, fecha_movimiento ASC, id ASC
+    SELECT cc.*, ec.periodo AS edc_periodo
+    FROM cuenta_corriente cc
+    LEFT JOIN estados_cuenta ec ON cc.estado_cuenta_id = ec.id
+    WHERE cc.empresa_id IN (:companyIds)
+      AND cc.fecha_movimiento >= :fechaReinicio
+      AND (
+        cc.referencia NOT LIKE 'FACT-%'
+        OR STR_TO_DATE(CONCAT(SUBSTRING_INDEX(cc.referencia, '-', -2), '-01'), '%Y-%m-%d') >= '2026-07-01'
+      )
+      AND (
+        cc.referencia NOT LIKE 'DESCUENTO-EDC-%'
+        OR ec.periodo IS NULL
+        OR STR_TO_DATE(CONCAT(ec.periodo, '-01'), '%Y-%m-%d') >= '2026-07-01'
+      )
+    ORDER BY cc.empresa_id ASC, cc.fecha_movimiento ASC, cc.id ASC
   `;
 
   const [allEdpRows, allMovRows] = await Promise.all([
@@ -313,7 +338,7 @@ const getEmpresaDetalleData = async (
       .filter((m) => m.tipo_movimiento === "abono")
       .reduce((a, m) => a + Number(m.monto || 0), 0);
     const totalCargos = movsNormales
-      .filter((m) => m.tipo_movimiento === "cargo")
+      .filter((m) => m.tipo_movimiento === "cargo" && !m.pagado)
       .reduce((a, m) => a + Number(m.monto || 0), 0);
 
     // Saldo Final se calcula de forma pura basado en cargos y abonos reales en la cuenta corriente
