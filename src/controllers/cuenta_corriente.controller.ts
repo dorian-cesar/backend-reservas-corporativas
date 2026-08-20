@@ -25,9 +25,9 @@ export const listarMovimientos = async (req: Request, res: Response) => {
 
     const where: any = { empresa_id };
 
-    // if (movimientoReinicio) {
-    //   where.id = { [Op.gt]: movimientoReinicio.id };
-    // }
+    if (movimientoReinicio) {
+      where.id = { [Op.gt]: movimientoReinicio.id };
+    }
 
     if (tipo && (tipo === "abono" || tipo === "cargo")) {
       where.tipo_movimiento = tipo;
@@ -38,21 +38,21 @@ export const listarMovimientos = async (req: Request, res: Response) => {
     }
 
     // Filtro por fecha
-    // if (desde || hasta) {
-    //     where.fecha_movimiento = {};
+    if (desde || hasta) {
+      where.fecha_movimiento = {};
 
-    //     if (desde) {
-    //         const desdeDate = new Date(desde as string);
-    //         desdeDate.setHours(0, 0, 0, 0);
-    //         where.fecha_movimiento[Op.gte] = desdeDate;
-    //     }
+      if (desde) {
+        const desdeDate = new Date(desde as string);
+        desdeDate.setHours(0, 0, 0, 0);
+        where.fecha_movimiento[Op.gte] = desdeDate;
+      }
 
-    //     if (hasta) {
-    //         const hastaDate = new Date(hasta as string);
-    //         hastaDate.setHours(23, 59, 59, 999);
-    //         where.fecha_movimiento[Op.lte] = hastaDate;
-    //     }
-    // }
+      if (hasta) {
+        const hastaDate = new Date(hasta as string);
+        hastaDate.setHours(23, 59, 59, 999);
+        where.fecha_movimiento[Op.lte] = hastaDate;
+      }
+    }
 
     // Obtener total de registros
     const total = await CuentaCorriente.count({ where });
