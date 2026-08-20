@@ -81,7 +81,7 @@ const getGlobalPeriodoData = async (
       ) IN (:periodos)
     WHERE e.estado = 1 ${filterEmpresa}
     GROUP BY e.id, e.nombre, e.cuenta_corriente, periodo
-    ORDER BY e.nombre ASC
+    ORDER BY e.id ASC
   `;
 
   const abonosSql = `
@@ -132,7 +132,7 @@ const getGlobalPeriodoData = async (
       empresa_id && empresa_id !== "todas"
         ? { id: Number(empresa_id), estado: true }
         : { estado: true },
-    order: [["nombre", "ASC"]],
+    order: [["id", "ASC"]],
   });
 
   const [edpRows, abonoRows, cargoRows, saldoRows] = await Promise.all([
@@ -242,7 +242,7 @@ const getEmpresaDetalleData = async (
 
   const empresas = await Empresa.findAll({
     where: whereEmpresa,
-    order: [["nombre", "ASC"]],
+    order: [["id", "ASC"]],
   });
   if (empresas.length === 0) {
     return {
