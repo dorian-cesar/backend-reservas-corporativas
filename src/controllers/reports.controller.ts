@@ -8,7 +8,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const TIMEZONE = "America/Santiago";
 
-const PERIODO_NUEVO_SISTEMA = "2026-08";
+const PERIODO_NUEVO_SISTEMA = "2026-07";
 const FECHA_REINICIO_CC = "2026-08-04 00:00:00";
 const REFERENCIA_REINICIO = "REINICIO-SISTEMA-2026-08-04";
 
@@ -870,15 +870,19 @@ export const exportarEstadoCuentaGlobalPeriodoPDF = async (
 
     // Calculamos el ancho de periodos dinámicamente
     // Garantizamos que empresa tenga al menos 120px de espacio libre.
-    const spaceForPeriods = usable - colID - colCC - (tailW * tailN) - 120;
-    const perW = periodos.length > 0
-      ? Math.max(30, Math.min(42, Math.floor(spaceForPeriods / periodos.length)))
-      : 42;
+    const spaceForPeriods = usable - colID - colCC - tailW * tailN - 120;
+    const perW =
+      periodos.length > 0
+        ? Math.max(
+            30,
+            Math.min(42, Math.floor(spaceForPeriods / periodos.length)),
+          )
+        : 42;
 
     // Tamaño de fuente dinámico según el ancho de columna disponible
     const fSizePeriod = perW < 36 ? 5.2 : 6.5;
 
-    const fixedRest = colID + colCC + (perW * periodos.length) + (tailW * tailN);
+    const fixedRest = colID + colCC + perW * periodos.length + tailW * tailN;
     const colEmp = Math.max(120, usable - fixedRest);
 
     const tableW = usable;
@@ -914,7 +918,13 @@ export const exportarEstadoCuentaGlobalPeriodoPDF = async (
         `Periodo: ${pIni} a ${pFin}  |  Empresas: ${empresas.length}  |  Pág. ${pi + 1}/${totalPgs}  |  ${moment().tz(TIMEZONE).format("DD/MM/YYYY HH:mm")}`,
         { x: margin + 8, y: y - 40, size: 6.5, font, color: cGray },
       );
-      const drawH = (text: string, cx: number, cw: number, right = false, customSize = 6.5) => {
+      const drawH = (
+        text: string,
+        cx: number,
+        cw: number,
+        right = false,
+        customSize = 6.5,
+      ) => {
         page.drawRectangle({
           x: cx,
           y: y - headH,
@@ -943,13 +953,7 @@ export const exportarEstadoCuentaGlobalPeriodoPDF = async (
       drawH("Cta. Cte.", cx, colCC);
       cx += colCC;
       for (const p of periodos) {
-        drawH(
-          p,
-          cx,
-          perW,
-          true,
-          fSizePeriod
-        );
+        drawH(p, cx, perW, true, fSizePeriod);
         cx += perW;
       }
       drawH("Total EDP", cx, tailW, true);
@@ -976,7 +980,7 @@ export const exportarEstadoCuentaGlobalPeriodoPDF = async (
           fw: number,
           right = false,
           clr = rgb(0.1, 0.1, 0.1),
-          customSize = 6.5
+          customSize = 6.5,
         ) => {
           const maxW = fw - 4;
           let renderVal = String(text);
@@ -1002,7 +1006,13 @@ export const exportarEstadoCuentaGlobalPeriodoPDF = async (
         drawC(emp.nombre, colEmp);
         drawC(emp.cuentaCorriente, colCC);
         for (const p of periodos)
-          drawC(CLP(emp.montosPorPeriodo[p] || 0), perW, true, rgb(0.1, 0.1, 0.1), fSizePeriod);
+          drawC(
+            CLP(emp.montosPorPeriodo[p] || 0),
+            perW,
+            true,
+            rgb(0.1, 0.1, 0.1),
+            fSizePeriod,
+          );
         drawC(CLP(emp.totalEDP), tailW, true);
         drawC(CLP(emp.totalAbono), tailW, true, cGreen);
         drawC(
