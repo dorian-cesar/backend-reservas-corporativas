@@ -668,11 +668,13 @@ export const generarEstadosPagoEmpresas = async (
     console.log(
       `[${new Date().toISOString()}] Iniciando envio de emails EDP para ${edpCreatedForEmail.length} EDPs...`,
     );
-    processEDPMailQueue(edpCreatedForEmail).catch((err) => {
+    try {
+      await processEDPMailQueue(edpCreatedForEmail);
+    } catch (err) {
       console.error(
         `[${new Date().toISOString()}] Error en processEDPMailQueue:`,
         err,
       );
-    });
+    }
   }
 };
