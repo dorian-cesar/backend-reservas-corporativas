@@ -308,6 +308,16 @@ async function run() {
     });
     const omitidos = todosLosEstados.length - estados.length;
 
+    // Ordenar alfabéticamente por Empresa y luego por ID de EDP DESC (más recientes primero)
+    estados.sort((a, b) => {
+      const nomA = (a.empresa?.nombre || "").toLowerCase();
+      const nomB = (b.empresa?.nombre || "").toLowerCase();
+      if (nomA !== nomB) {
+        return nomA.localeCompare(nomB, "es", { sensitivity: "base" });
+      }
+      return Number(b.id) - Number(a.id);
+    });
+
     console.log(`Se encontraron ${todosLosEstados.length} Estados de Pago en total.`);
     console.log(`✂️  Omitidos (0 tickets y $0): ${omitidos} | A procesar: ${estados.length}`);
 
@@ -321,8 +331,8 @@ async function run() {
       pageSetup: { fitToPage: true, orientation: "landscape" },
     });
 
-    // Encabezado institucional Pullman
-    sheet.mergeCells("A1:I1");
+    // Encabezado institucional Pullman (10 columnas: A a J)
+    sheet.mergeCells("A1:J1");
     const titleCell = sheet.getCell("A1");
     titleCell.value = "PULLMAN BUS — REPORTE GLOBAL DE ESTADOS DE PAGO (EDP)";
     titleCell.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
@@ -334,10 +344,10 @@ async function run() {
     };
     sheet.getRow(1).height = 32;
 
-    sheet.mergeCells("A2:I2");
+    sheet.mergeCells("A2:J2");
     const subtitleCell = sheet.getCell("A2");
     const todayStr = moment().tz(TIMEZONE).format("DD-MM-YYYY HH:mm");
-    subtitleCell.value = `Total Registros: ${estados.length}  |  Fecha de Generación: ${todayStr}  |  Estado: Lectura Global`;
+    subtitleCell.value = `Total Registros: ${estados.length}  |  Fecha de Generación: ${todayStr}  |  Orden: Alfabético por Empresa`;
     subtitleCell.font = { size: 10, italic: true, color: { argb: "FF555555" } };
     subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
     subtitleCell.fill = {
@@ -351,11 +361,12 @@ async function run() {
 
     // Definición de columnas
     const COLUMNS = [
+      { header: "N° EDP", key: "idEdp", width: 12, align: "center" },
       { header: "ID Empresa", key: "idEmpresa", width: 12, align: "center" },
       {
         header: "Nombre Empresa",
         key: "nombreEmpresa",
-        width: 30,
+        width: 32,
         align: "left",
       },
       {
@@ -446,6 +457,7 @@ async function run() {
       sumSumaDevoluciones += sumaDevoluciones;
 
       const row = sheet.addRow({
+        idEdp: ecData.id,
         idEmpresa,
         nombreEmpresa: empresaNombre,
         fechaGeneracion: fechaGenStr,
@@ -484,7 +496,8 @@ async function run() {
 
     // Fila de Totales
     const totalRow = sheet.addRow({
-      idEmpresa: "TOTALES",
+      idEdp: "TOTALES",
+      idEmpresa: "",
       nombreEmpresa: `${estados.length} registros`,
       fechaGeneracion: "",
       periodoFacturacion: "",
@@ -519,6 +532,14 @@ async function run() {
     const excelPath = path.join(outputDir, "reporte_global_edp.xlsx");
     await workbook.xlsx.writeFile(excelPath);
     console.log(`Planilla Excel Global guardada con éxito en: ${excelPath}`);
+
+    const conPdfs = process.argv.includes("--con-pdfs") || process.argv.includes("--descargar-pdfs");
+    if (!conPdfs) {
+      console.log(`\n¡Listo! Planilla Excel generada exitosamente en modo ordenado con N° EDP.`);
+      console.log(`(Para re-ejecutar la descarga de PDFs en el futuro, usa: npx ts-node src/script/descargarEdpGlobales.ts --descargar-pdfs)`);
+      return;
+    }
+
     // ─── 2. Descargar PDFs con concurrencia controlada ─────────────────────────
     console.log("\nIniciando descarga de PDFs (modo concurrente)...");
     const pdfDir = path.join(outputDir, "pdfs");
