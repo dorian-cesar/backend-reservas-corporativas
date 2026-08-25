@@ -127,12 +127,12 @@ export const processEDPMailQueue = async (
           montoBruto * ((item.porcentajeDescuento || 0) / 100),
         );
         const montoI = Math.max(0, montoBruto - montoDescuento);
-        const montoFinal = item.montoFacturado !== undefined
-          ? item.montoFacturado
-          : Math.max(
-              0,
-              montoI - (item.devolucionesFueraPeriodo || 0) - (item.reclamosDescuento || 0),
-            );
+        const montoFinal = Math.max(
+          0,
+          montoI -
+            (item.devolucionesFueraPeriodo || 0) -
+            (item.reclamosDescuento || 0),
+        );
 
         const edpPDFData: EDPPDFData = {
           edp: {
@@ -202,7 +202,7 @@ export const processEDPMailQueue = async (
           periodoReservas,
           totalTickets: item.totalTickets,
           totalAnulados: item.totalTicketsAnulados,
-          montoFacturado: item.montoFacturado,
+          montoFacturado: montoFinal,
           pdfBuffer,
           pdfFilename,
           excelBuffer,

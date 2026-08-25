@@ -385,9 +385,10 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
     // I = montoBrutoAntesDeDescuento - montoDescuento
     const montoI = Math.max(0, montoBrutoAntesDeDescuento - montoDescuento);
     const devFueraBD = Number(estadoData.devoluciones_fuera_periodo || 0);
-    const montoFinalConDescuento = estadoData.monto_facturado !== undefined && estadoData.monto_facturado !== null
-      ? Number(estadoData.monto_facturado)
-      : Math.max(0, montoI - devFueraBD - montoReclamos);
+    const montoFinalConDescuento = Math.max(
+      0,
+      montoI - devFueraBD - montoReclamos,
+    );
 
     // Saldo a Favor Restante (Acumulado para próx. período) proviene de los campos de la empresa
     const saldoFavorRestante =
@@ -526,6 +527,16 @@ export const generarExcelEstadoCuenta = async (req: Request, res: Response) => {
         ? `${estadoData.fecha_inicio.substring(0, 10)} - ${estadoData.fecha_fin.substring(0, 10)}`
         : estadoData.periodo;
 
+    const montoConfirmadosExcel = tickets
+      .filter((t) => t.ticketStatus === "Confirmed")
+      .reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
+    const pctDescExcel = Number(estadoData.porcentaje_descuento || 0);
+    const mDescuentoExcel = Math.round(montoConfirmadosExcel * (pctDescExcel / 100));
+    const montoTotalEDPExcel = Math.max(0, montoConfirmadosExcel - mDescuentoExcel);
+    const devFueraExcel = Number(estadoData.devoluciones_fuera_periodo || 0);
+    const reclamosExcel = Number(estadoData.reclamos_descuento || 0);
+    const montoFinalExcel = Math.max(0, montoTotalEDPExcel - devFueraExcel - reclamosExcel);
+
     const excelBuffer = await generateEDPExcelBuffer(
       tickets,
       empresaData.nombre,
@@ -533,11 +544,11 @@ export const generarExcelEstadoCuenta = async (req: Request, res: Response) => {
       empresaData.cuenta_corriente ?? "",
       estadoData.periodo,
       periodoReservas,
-      Number(estadoData.devoluciones_fuera_periodo || 0),
-      Number(estadoData.monto_facturado || 0),
-      Number(estadoData.porcentaje_descuento || 0),
-      undefined, // montoDescuento
-      Number(estadoData.reclamos_descuento || 0),
+      devFueraExcel,
+      montoFinalExcel,
+      pctDescExcel,
+      mDescuentoExcel,
+      reclamosExcel,
       estadoData.fecha_inicio ? new Date(estadoData.fecha_inicio).toISOString() : undefined,
       estadoData.fecha_fin    ? new Date(estadoData.fecha_fin).toISOString()    : undefined,
     );

@@ -884,9 +884,15 @@ export const aplicarDescuentoEstadoCuenta = async (
       estado_cuenta_id: estadoCuenta.id, // Vinculamos el abono con el estado de cuenta
     });
 
-    // 4. Actualizar estado de cuenta con el porcentaje de descuento
+    // 4. Actualizar estado de cuenta con el porcentaje de descuento y el nuevo monto facturado final
+    const nuevoMontoFacturado = Math.max(
+      0,
+      Number(estadoCuenta.monto_facturado) - montoDescuento,
+    );
+
     await estadoCuenta.update({
       porcentaje_descuento: porcentaje,
+      monto_facturado: nuevoMontoFacturado,
     });
 
     return res.json({
@@ -895,6 +901,7 @@ export const aplicarDescuentoEstadoCuenta = async (
         porcentaje,
         monto_descuento: montoDescuento,
         monto_original: montoConsumoNetoPeriodo,
+        monto_final: nuevoMontoFacturado,
         nuevo_saldo_empresa: nuevoSaldo,
       },
       movimiento_descuento: abonoDescuento,
@@ -958,10 +965,9 @@ export const revertirDescuentoEstadoCuenta = async (
       });
     }
 
-    // Calcular montos
-    const montoOriginal = Number(estadoCuenta.monto_facturado);
-    const porcentaje = estadoCuenta.porcentaje_descuento;
-    const montoDescuento = montoOriginal * (porcentaje / 100);
+    // Obtener el monto de descuento real del movimiento
+    const montoDescuento = Number(movimientoDescuento.monto);
+    const porcentaje = estadoCuenta.porcentaje_descuento || 0;
 
     // 1. Obtener último saldo
     const ultimoMovimiento = await CuentaCorriente.findOne({
@@ -993,9 +999,12 @@ export const revertirDescuentoEstadoCuenta = async (
     // 3. Eliminar el movimiento de descuento original
     await movimientoDescuento.destroy();
 
-    // 4. Actualizar estado de cuenta (quitar porcentaje)
+    // 4. Actualizar estado de cuenta (quitar porcentaje y restaurar monto facturado)
+    const montoRestaurado = Number(estadoCuenta.monto_facturado) + montoDescuento;
+
     await estadoCuenta.update({
       porcentaje_descuento: 0,
+      monto_facturado: montoRestaurado,
     });
 
     // 5. Recalcular saldos posteriores al movimiento eliminado
@@ -1091,10 +1100,10 @@ export const obtenerDescuentoEstadoCuenta = async (
       },
     });
 
-    const montoOriginal = Number(estadoCuenta.monto_facturado);
-    const porcentaje = estadoCuenta.porcentaje_descuento || 0;
-    const montoDescuento = montoOriginal * (porcentaje / 100);
-    const montoFinal = montoOriginal - montoDescuento;
+    const porcentaje = Number(estadoCuenta.porcentaje_descuento || 0);
+    const montoFacturado = Number(estadoCuenta.monto_facturado || 0);
+    const montoDescuento = movimientoDescuento ? Number(movimientoDescuento.monto) : 0;
+    const montoOriginal = montoFacturado + montoDescuento;
 
     return res.json({
       estado_cuenta: estadoCuenta,
@@ -1104,15 +1113,15 @@ export const obtenerDescuentoEstadoCuenta = async (
             porcentaje,
             monto_descuento: montoDescuento,
             monto_original: montoOriginal,
-            monto_final: montoFinal,
+            monto_final: montoFacturado,
             movimiento: movimientoDescuento,
           }
         : {
             existe: false,
             porcentaje: 0,
             monto_descuento: 0,
-            monto_original: montoOriginal,
-            monto_final: montoOriginal,
+            monto_original: montoFacturado,
+            monto_final: montoFacturado,
           },
     });
   } catch (error) {

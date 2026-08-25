@@ -316,10 +316,10 @@ export const generateEDPExcelBuffer = async (
       ? Number(reclamosDescuento)
       : Number(montoReclamadosDescuento || 0);
 
-  const edpFinalVal =
-    montoFinal !== undefined && montoFinal !== null
-      ? Number(montoFinal)
-      : Math.max(0, montoTotalEDP - devFueraVal - reclamosVal);
+  const edpFinalVal = Math.max(
+    0,
+    montoTotalEDP - devFueraVal - reclamosVal,
+  );
 
   const legendRows = [
     {
