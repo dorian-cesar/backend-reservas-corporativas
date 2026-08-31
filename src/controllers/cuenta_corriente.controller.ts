@@ -90,12 +90,59 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       ],
     });
 
+    const MESES = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+
+    const movimientosConMes = movimientos.map((m) => {
+      const mJSON: any = m.toJSON();
+      let mesOperacion = "—";
+      let periodoOperacion = "";
+
+      if (mJSON.referencia) {
+        const match = mJSON.referencia.match(/(\d{4})-(\d{2})/);
+        if (match) {
+          const year = match[1];
+          const monthIndex = parseInt(match[2], 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            mesOperacion = `${MESES[monthIndex]} ${year}`;
+            periodoOperacion = `${year}-${match[2]}`;
+          }
+        }
+      }
+
+      if (mesOperacion === "—" && mJSON.descripcion) {
+        const match = mJSON.descripcion.match(/(\d{4})-(\d{2})/);
+        if (match) {
+          const year = match[1];
+          const monthIndex = parseInt(match[2], 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            mesOperacion = `${MESES[monthIndex]} ${year}`;
+            periodoOperacion = `${year}-${match[2]}`;
+          }
+        }
+      }
+
+      if (mesOperacion === "—" && mJSON.fecha_movimiento) {
+        const d = new Date(mJSON.fecha_movimiento);
+        if (!isNaN(d.getTime())) {
+          mesOperacion = `${MESES[d.getMonth()]} ${d.getFullYear()}`;
+          periodoOperacion = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        }
+      }
+
+      mJSON.mes_operacion = mesOperacion;
+      mJSON.periodo_operacion = periodoOperacion;
+      return mJSON;
+    });
+
     const totalPages = Math.ceil(total / limitNum);
     const hasNextPage = pageNum < totalPages;
     const hasPrevPage = pageNum > 1;
 
     res.json({
-      movimientos,
+      movimientos: movimientosConMes,
       pagination: {
         page: pageNum,
         limit: limitNum,
