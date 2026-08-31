@@ -17,6 +17,7 @@ import { Pasajero } from "./models/pasajero.model";
 import { UserEmpresa } from "./models/user_empresa.model";
 import { Reclamo } from "./models/reclamo.model";
 import { EdpTicketSnapshot } from "./models/edp_ticket_snapshot.model";
+import { CuentaCorrienteAdjunto } from "./models/cuenta_corriente_adjunto.model";
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ export const sequelize = new Sequelize({
     CentroCosto,
     User,
     CuentaCorriente,
+    CuentaCorrienteAdjunto,
     Ticket,
     EstadoCuenta,
     Pasajero,

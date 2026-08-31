@@ -5,8 +5,10 @@ import {
   DataType,
   ForeignKey,
   BelongsTo,
+  HasMany,
 } from "sequelize-typescript";
 import { Empresa } from "./empresa.model";
+import { CuentaCorrienteAdjunto } from "./cuenta_corriente_adjunto.model";
 
 export type TipoMovimiento = "abono" | "cargo";
 
@@ -22,6 +24,7 @@ export interface ICuentaCorriente {
   pagado?: boolean;
   tipo_pago?: string;
   estado_cuenta_id?: number;
+  adjuntos?: CuentaCorrienteAdjunto[];
 }
 
 @Table({ tableName: "cuenta_corriente", timestamps: false })
@@ -62,4 +65,7 @@ export class CuentaCorriente extends Model<ICuentaCorriente> {
 
   @BelongsTo(() => Empresa)
   declare empresa: Empresa;
+
+  @HasMany(() => CuentaCorrienteAdjunto, "cuenta_corriente_id")
+  declare adjuntos: CuentaCorrienteAdjunto[];
 }
