@@ -103,6 +103,17 @@ export const subirAdjunto = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Movimiento de cuenta corriente no encontrado" });
     }
 
+    // Validar límite máximo de 5 adjuntos por movimiento
+    const totalAdjuntos = await CuentaCorrienteAdjunto.count({
+      where: { cuenta_corriente_id: movimiento.id },
+    });
+
+    if (totalAdjuntos >= 5) {
+      return res.status(400).json({
+        message: "Límite alcanzado: Este movimiento ya cuenta con el máximo permitido de 5 archivos adjuntos.",
+      });
+    }
+
     // Sanitizar nombre de archivo
     const safeOriginalName = Buffer.from(file.originalname, "latin1").toString("utf8");
     const sanitizedFilename = safeOriginalName.replace(/[^a-zA-Z0-9._-]/g, "_");
