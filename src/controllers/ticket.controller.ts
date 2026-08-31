@@ -75,11 +75,13 @@ export const getTickets = async (req: Request, res: Response) => {
                 include: [
                     {
                         model: User,
-                        attributes: ['id', 'nombre', 'email', 'empresa_id']
+                        attributes: ['id', 'nombre', 'rut', 'email', 'empresa_id'],
+                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }]
                     },
                     {
                         model: Pasajero,
                         attributes: ['id', 'nombre', 'rut', 'correo'],
+                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }],
                         required: false
                     },
                     {
@@ -94,7 +96,15 @@ export const getTickets = async (req: Request, res: Response) => {
                 ]
             });
 
-            const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+            const ticketsJSON = tickets.map(ticket => {
+                const t = ticket.toJSON();
+                const cc = t.pasajero?.centroCosto || t.user?.centroCosto;
+                if (cc) {
+                    if (t.user && !t.user.centroCosto) t.user.centroCosto = cc;
+                    if (t.pasajero && !t.pasajero.centroCosto) t.pasajero.centroCosto = cc;
+                }
+                return t;
+            });
             return res.json(ticketsJSON);
         }
 
@@ -104,11 +114,13 @@ export const getTickets = async (req: Request, res: Response) => {
                 include: [
                     {
                         model: User,
-                        attributes: ['id', 'nombre', 'email', 'empresa_id']
+                        attributes: ['id', 'nombre', 'rut', 'email', 'empresa_id'],
+                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }]
                     },
                     {
                         model: Pasajero,
                         attributes: ['id', 'nombre', 'rut', 'correo'],
+                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }],
                         required: false
                     },
                     {
@@ -123,7 +135,15 @@ export const getTickets = async (req: Request, res: Response) => {
                 ]
             });
 
-            const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+            const ticketsJSON = tickets.map(ticket => {
+                const t = ticket.toJSON();
+                const cc = t.pasajero?.centroCosto || t.user?.centroCosto;
+                if (cc) {
+                    if (t.user && !t.user.centroCosto) t.user.centroCosto = cc;
+                    if (t.pasajero && !t.pasajero.centroCosto) t.pasajero.centroCosto = cc;
+                }
+                return t;
+            });
             return res.json(ticketsJSON);
         }
 
@@ -133,11 +153,13 @@ export const getTickets = async (req: Request, res: Response) => {
                 include: [
                     {
                         model: User,
-                        attributes: ['id', 'nombre', 'email', 'empresa_id']
+                        attributes: ['id', 'nombre', 'rut', 'email', 'empresa_id'],
+                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }]
                     },
                     {
                         model: Pasajero,
                         attributes: ['id', 'nombre', 'rut', 'correo'],
+                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }],
                         required: false
                     },
                     {
@@ -152,7 +174,15 @@ export const getTickets = async (req: Request, res: Response) => {
                 ]
             });
 
-            const ticketsJSON = tickets.map(ticket => ticket.toJSON());
+            const ticketsJSON = tickets.map(ticket => {
+                const t = ticket.toJSON();
+                const cc = t.pasajero?.centroCosto || t.user?.centroCosto;
+                if (cc) {
+                    if (t.user && !t.user.centroCosto) t.user.centroCosto = cc;
+                    if (t.pasajero && !t.pasajero.centroCosto) t.pasajero.centroCosto = cc;
+                }
+                return t;
+            });
             return res.json(ticketsJSON);
         }
 
@@ -889,7 +919,8 @@ export const getTicketsByEmpresa = async (
             include: [
                 {
                     model: User,
-                    attributes: ['id', 'nombre', 'rut', 'email', 'empresa_id']
+                    attributes: ['id', 'nombre', 'rut', 'email', 'empresa_id'],
+                    include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }]
                 },
                 {
                     model: Empresa,
@@ -945,7 +976,19 @@ export const getTicketsByEmpresa = async (
 
         const result = await Ticket.findAndCountAll(queryOptions);
 
-        const tickets = result.rows.map(t => t.toJSON());
+        const tickets = result.rows.map(t => {
+            const ticketJSON = t.toJSON();
+            const cc = ticketJSON.pasajero?.centroCosto || ticketJSON.user?.centroCosto;
+            if (cc) {
+                if (ticketJSON.user && !ticketJSON.user.centroCosto) {
+                    ticketJSON.user.centroCosto = cc;
+                }
+                if (ticketJSON.pasajero && !ticketJSON.pasajero.centroCosto) {
+                    ticketJSON.pasajero.centroCosto = cc;
+                }
+            }
+            return ticketJSON;
+        });
         const total = result.count;
 
         // Si es para exportación, retornar solo los tickets sin paginación
