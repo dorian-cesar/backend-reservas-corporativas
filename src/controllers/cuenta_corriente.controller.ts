@@ -9,7 +9,7 @@ import { Empresa } from "../models/empresa.model";
 export const listarMovimientos = async (req: Request, res: Response) => {
   try {
     const { empresa_id } = req.params;
-    const { tipo, pagado, desde, hasta, page = "1", limit = "10" } = req.query;
+    const { tipo, pagado, desde, hasta, page = "1", limit = "10", ente_facturador } = req.query;
 
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 10;
@@ -72,8 +72,26 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       }
     }
 
+    const includeEmpresa: any = {
+      model: Empresa,
+      as: "empresa",
+      attributes: ["id", "nombre", "ente_facturador"],
+    };
+
+    if (ente_facturador) {
+      includeEmpresa.where = {
+        ente_facturador: String(ente_facturador),
+      };
+      includeEmpresa.required = true;
+    }
+
     // Obtener total de registros
-    const total = await CuentaCorriente.count({ where });
+    const total = await CuentaCorriente.count({
+      where,
+      include: ente_facturador ? [includeEmpresa] : undefined,
+      distinct: true,
+      col: "id",
+    });
 
     // Obtener movimientos con paginación
     const movimientos = await CuentaCorriente.findAll({
@@ -81,13 +99,7 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       order: [["fecha_movimiento", "DESC"]],
       limit: limitNum,
       offset: offset,
-      include: [
-        {
-          model: Empresa,
-          as: "empresa",
-          attributes: ["id", "nombre"],
-        },
-      ],
+      include: [includeEmpresa],
     });
 
     const MESES = [

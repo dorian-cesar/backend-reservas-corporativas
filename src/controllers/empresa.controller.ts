@@ -28,6 +28,7 @@ export const listarEmpresas = async (req: Request, res: Response) => {
     const page = req.query.page ? Number(req.query.page) : null;
     const limit = req.query.limit ? Number(req.query.limit) : null;
     const search = req.query.search ? String(req.query.search).trim() : null;
+    const ente_facturador = req.query.ente_facturador ? String(req.query.ente_facturador).trim() : null;
 
     const includeInactives = req.query.includeInactives === "true";
 
@@ -35,6 +36,10 @@ export const listarEmpresas = async (req: Request, res: Response) => {
 
     if (!includeInactives) {
       whereCondition.estado = true;
+    }
+
+    if (ente_facturador) {
+      whereCondition.ente_facturador = ente_facturador;
     }
 
     if (search) {
