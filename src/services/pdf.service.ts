@@ -1090,16 +1090,23 @@ export const generateEDPPDF = async (
     return Math.floor(availableHeight / rowHeight);
   };
 
-  const truncateText = (text: string, targetFont: any, size: number, maxWidth: number): string => {
+  const truncateText = (
+    text: string,
+    targetFont: any,
+    size: number,
+    maxWidth: number,
+  ): string => {
     if (!text) return "";
     if (targetFont.widthOfTextAtSize(text, size) <= maxWidth) return text;
     let truncated = text;
-    while (truncated.length > 0 && targetFont.widthOfTextAtSize(truncated + "...", size) > maxWidth) {
+    while (
+      truncated.length > 0 &&
+      targetFont.widthOfTextAtSize(truncated + "...", size) > maxWidth
+    ) {
       truncated = truncated.slice(0, -1);
     }
     return truncated ? truncated + "..." : "";
   };
-
 
   const drawPageHeader = async (page: any, isFirstPage: boolean = false) => {
     let localY = height - margin;
@@ -1187,7 +1194,6 @@ export const generateEDPPDF = async (
     font: fontBold,
     color: rgb(0, 0, 0),
   });
-
 
   yPosition -= 20;
 
@@ -1428,10 +1434,7 @@ export const generateEDPPDF = async (
   yPosition -= 18;
 
   // I. Monto Total EDP
-  const montoBrutoEDP = Math.max(
-    0,
-    montoConfirmados - mDescuento,
-  );
+  const montoBrutoEDP = Math.max(0, montoConfirmados - mDescuento);
   currentPage.drawText(
     `I. Monto Total EDP (G - H): $${formatNumber(montoBrutoEDP)}`,
     {
@@ -1456,7 +1459,6 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     },
   );
-
 
   yPosition -= 40;
 
@@ -1562,7 +1564,6 @@ export const generateEDPPDF = async (
       font,
     });
 
-
     currentPage.drawText(centro.cantidad_tickets.toString(), {
       x: colCantidadX,
       y: yPosition,
@@ -1656,7 +1657,8 @@ export const generateEDPPDF = async (
       // (=) Subtotal Servicio (Monto Total EDP)
       const montoBrutoEDP = Math.max(
         0,
-        (edpData.totales.monto_facturado || 0) - (edpData.resumen.monto_descuento || 0),
+        (edpData.totales.monto_facturado || 0) -
+          (edpData.resumen.monto_descuento || 0),
       );
       yPosition -= 15;
       currentPage.drawText("(=) Subtotal Servicio (Monto Total EDP)", {
@@ -1681,13 +1683,16 @@ export const generateEDPPDF = async (
       edpData.resumen.devoluciones_fuera_periodo > 0
     ) {
       yPosition -= 15;
-      currentPage.drawText("(-) Devoluciones por anulación de periodo anterior", {
-        x: colCentroX,
-        y: yPosition,
-        size: 9,
-        font: font,
-        color: rgb(0.4, 0.4, 0.4),
-      });
+      currentPage.drawText(
+        "(-) Devoluciones por anulación de periodo anterior",
+        {
+          x: colCentroX,
+          y: yPosition,
+          size: 9,
+          font: font,
+          color: rgb(0.4, 0.4, 0.4),
+        },
+      );
       currentPage.drawText(
         `-$${formatNumber(edpData.resumen.devoluciones_fuera_periodo)}`,
         {
@@ -1738,7 +1743,6 @@ export const generateEDPPDF = async (
       color: rgb(0, 0, 0),
     });
 
-
     currentPage.drawText(`$${formatNumber(edpData.resumen.monto_final || 0)}`, {
       x: colMontoX,
       y: yPosition,
@@ -1748,71 +1752,70 @@ export const generateEDPPDF = async (
     });
   }
 
-
   yPosition -= 40;
 
-  // Firma de conformidad (solo en la última página)
-  if (yPosition > 140) {
-    // Verificar que haya espacio suficiente para firma ampliada
-    currentPage.drawText("Firma de conformidad", {
+  // Función auxiliar para dibujar el bloque de firma y sello virtual
+  const drawSignatureAndStamp = async (page: any, startY: number) => {
+    let currentY = startY;
+
+    page.drawText("Firma de conformidad", {
       x: margin,
-      y: yPosition,
+      y: currentY,
       size: 12,
       font: fontBold,
       color: rgb(0, 0, 0),
     });
 
-    yPosition -= 65;
+    // Cargar y dibujar el sello / timbre virtual Pullman Bus (si existe en assets)
+    const timbrePath = path.resolve(__dirname, "../assets/timbre-pullman.png");
+    if (fs.existsSync(timbrePath)) {
+      try {
+        const timbreBytes = fs.readFileSync(timbrePath);
+        const timbreImage = await pdfDoc.embedPng(timbreBytes);
+        const timbreDims = timbreImage.scale(0.36); // ~95x95 px
+        page.drawImage(timbreImage, {
+          x: width - margin - timbreDims.width - 25,
+          y: currentY - 80,
+          width: timbreDims.width,
+          height: timbreDims.height,
+          opacity: 0.7,
+        });
+      } catch (err) {
+        console.error("Error al incrustar timbre virtual en EDP PDF:", err);
+      }
+    }
+
+    currentY -= 65;
 
     // Línea para firma
-    currentPage.drawLine({
-      start: { x: margin, y: yPosition },
-      end: { x: margin + 220, y: yPosition },
+    page.drawLine({
+      start: { x: margin, y: currentY },
+      end: { x: margin + 220, y: currentY },
       thickness: 1,
       color: rgb(0, 0, 0),
     });
 
-    yPosition -= 15;
+    currentY -= 15;
 
-    currentPage.drawText("Firma Responsable", {
+    page.drawText("Firma Responsable", {
       x: margin,
-      y: yPosition,
+      y: currentY,
       size: 10,
       font: font,
       color: rgb(0, 0, 0),
     });
+
+    return currentY;
+  };
+
+  // Firma y sello virtual (solo en la última página)
+  if (yPosition > 140) {
+    yPosition = await drawSignatureAndStamp(currentPage, yPosition);
   } else {
-    // Si no hay espacio, crear una nueva página para la firma
+    // Si no hay espacio, crear una nueva página para la firma y el sello
     addNewPage();
     yPosition = await drawPageHeader(currentPage, false);
-
-    currentPage.drawText("Firma de conformidad", {
-      x: margin,
-      y: yPosition,
-      size: 12,
-      font: fontBold,
-      color: rgb(0, 0, 0),
-    });
-
-    yPosition -= 65;
-
-    // Línea para firma
-    currentPage.drawLine({
-      start: { x: margin, y: yPosition },
-      end: { x: margin + 220, y: yPosition },
-      thickness: 1,
-      color: rgb(0, 0, 0),
-    });
-
-    yPosition -= 15;
-
-    currentPage.drawText("Firma Responsable", {
-      x: margin,
-      y: yPosition,
-      size: 10,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
+    yPosition = await drawSignatureAndStamp(currentPage, yPosition);
   }
 
   // Agregar número de página en el pie de cada página
@@ -1841,7 +1844,6 @@ export const generateEDPPDF = async (
       font: font,
       color: rgb(0.5, 0.5, 0.5),
     });
-
   });
 
   // Guardar el PDF
