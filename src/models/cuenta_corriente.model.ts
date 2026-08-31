@@ -20,6 +20,7 @@ export interface ICuentaCorriente {
   saldo: number;
   referencia?: string;
   pagado?: boolean;
+  tipo_pago?: string;
   estado_cuenta_id?: number;
 }
 
@@ -52,6 +53,9 @@ export class CuentaCorriente extends Model<ICuentaCorriente> {
 
   @Column({ type: DataType.BOOLEAN, defaultValue: false })
   declare pagado: boolean;
+
+  @Column({ type: DataType.STRING(50), allowNull: true })
+  declare tipo_pago?: string;
 
   @Column({ type: DataType.INTEGER, allowNull: true })
   declare estado_cuenta_id?: number;

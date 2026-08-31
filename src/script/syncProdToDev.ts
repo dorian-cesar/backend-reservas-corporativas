@@ -103,17 +103,7 @@ async function main() {
       }
     }
 
-    // 3. Asegurar que la columna 'ente_facturador' exista en Desarrollo (ya que en Prod aún no existe)
-    console.log("\n🛠️ Asegurando columna 'ente_facturador' en la tabla 'empresas' de Desarrollo...");
-    const [cols] = await devConn.query<any[]>("SHOW COLUMNS FROM `empresas` LIKE 'ente_facturador'");
-    if (cols.length === 0) {
-      await devConn.query("ALTER TABLE `empresas` ADD COLUMN `ente_facturador` VARCHAR(150) NULL DEFAULT NULL;");
-      console.log("✅ Columna 'ente_facturador' creada en Desarrollo.");
-    } else {
-      console.log("✅ Columna 'ente_facturador' ya presente.");
-    }
-
-    // 4. Rehabilitar Foreign Keys en Desarrollo
+    // 3. Rehabilitar Foreign Keys en Desarrollo
     console.log("\n🔑 Rehabilitando FOREIGN_KEY_CHECKS en Desarrollo...");
     await devConn.query("SET FOREIGN_KEY_CHECKS = 1;");
 

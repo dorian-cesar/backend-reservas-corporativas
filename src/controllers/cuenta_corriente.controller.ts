@@ -191,7 +191,7 @@ export const crearMovimiento = async (
   res: Response,
 ) => {
   try {
-    const { empresa_id, tipo_movimiento, monto, descripcion, referencia } =
+    const { empresa_id, tipo_movimiento, monto, descripcion, referencia, tipo_pago } =
       req.body;
 
     // Obtener último saldo
@@ -215,6 +215,7 @@ export const crearMovimiento = async (
       descripcion,
       saldo,
       referencia,
+      tipo_pago,
     });
 
     res.status(201).json(movimiento);
@@ -238,7 +239,7 @@ export const eliminarMovimiento = async (req: Request, res: Response) => {
 
 export const pagarMovimiento = async (req: Request, res: Response) => {
   try {
-    const { movimientoId, monto, referenciaPago } = req.body;
+    const { movimientoId, monto, referenciaPago, tipo_pago } = req.body;
 
     // Validaciones básicas
     if (!movimientoId || !monto) {
@@ -289,11 +290,15 @@ export const pagarMovimiento = async (req: Request, res: Response) => {
         : `Pago de ${movimiento.descripcion || `cargo #${movimiento.id}`}`,
       saldo: nuevoSaldo,
       referencia: `ABONO-PAGO-${movimiento.id}`,
+      tipo_pago: tipo_pago || null,
       fecha_movimiento: new Date(),
     });
 
     // 6. Marcar el cargo original como PAGADO
     movimiento.pagado = true;
+    if (tipo_pago) {
+      movimiento.tipo_pago = tipo_pago;
+    }
     await movimiento.save();
 
     res.json({

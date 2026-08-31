@@ -6,4 +6,5 @@ export interface ICuentaCorrienteCreate {
     monto: number;
     descripcion?: string;
     referencia?: string;
+    tipo_pago?: string;
 }
