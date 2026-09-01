@@ -304,6 +304,19 @@ export const createGestion = async (
         .json({ message: "La empresa seleccionada no existe" });
     }
 
+    if (fecha_compromiso) {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const fechaComp = new Date(fecha_compromiso);
+      fechaComp.setHours(0, 0, 0, 0);
+      if (fechaComp < hoy) {
+        return res.status(400).json({
+          message:
+            "La fecha de compromiso de pago no puede ser anterior al día de hoy",
+        });
+      }
+    }
+
     const nuevaGestion = await CobranzaGestion.create({
       empresa_id: Number(empresa_id),
       user_id: Number(userId),
@@ -389,8 +402,21 @@ export const updateGestion = async (
         ? Number(monto_compromiso)
         : null;
     }
-    if (fecha_compromiso !== undefined)
+    if (fecha_compromiso !== undefined) {
+      if (fecha_compromiso) {
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaComp = new Date(fecha_compromiso);
+        fechaComp.setHours(0, 0, 0, 0);
+        if (fechaComp < hoy) {
+          return res.status(400).json({
+            message:
+              "La fecha de compromiso de pago no puede ser anterior al día de hoy",
+          });
+        }
+      }
       gestion.fecha_compromiso = fecha_compromiso || null;
+    }
     if (observaciones !== undefined) gestion.observaciones = observaciones;
     if (proxima_accion !== undefined) gestion.proxima_accion = proxima_accion;
     if (fecha_proxima_accion !== undefined) {
