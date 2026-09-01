@@ -28,6 +28,7 @@ export interface EDPMailQueueItem {
     rut?: string;
     cuenta_corriente?: string;
     contacto_fact_email: string;
+    contacto_fact_email_cc?: string;
     ejecutivo_com_email: string;
     tipo_facturacion: "Masiva" | "Especial";
   };
@@ -86,6 +87,12 @@ export const processEDPMailQueue = async (
           empresa.ejecutivo_com_email,
         ]
           .map((e) => (e ? e.trim() : ""))
+          .filter((e) => e.length > 0 && emailRegex.test(e));
+
+        // Filtrar destinatarios en copia (CC)
+        const ccRecipients = (empresa.contacto_fact_email_cc || "")
+          .split(/[,;]+/)
+          .map((e) => e.trim())
           .filter((e) => e.length > 0 && emailRegex.test(e));
 
         if (recipients.length === 0) {
@@ -194,6 +201,7 @@ export const processEDPMailQueue = async (
         // 5. Enviar email
         await sendEDPEmail({
           recipients,
+          cc: ccRecipients,
           empresaNombre: empresa.nombre,
           rutEmpresa: empresa.rut ?? "No disponible",
           cuentaCorriente: empresa.cuenta_corriente ?? "",

@@ -9,6 +9,10 @@ export interface ITramoInput {
 export interface IEmpresaCreate {
     rut?: string;
     nombre: string;
+    giro?: string;
+    direccion?: string;
+    ciudad?: string;
+    comuna?: string;
     cuenta_corriente?: string;
     estado?: boolean;
     recargo?: number;
@@ -24,6 +28,7 @@ export interface IEmpresaCreate {
     ente_facturador?: string;
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;
+    contacto_fact_email_cc?: string;
     contacto_fact_telefono?: string;
     ejecutivo_com_nombre?: string;
     ejecutivo_com_email?: string;
@@ -34,6 +39,10 @@ export interface IEmpresaCreate {
 export interface IEmpresaUpdate {
     rut?: string;
     nombre?: string;
+    giro?: string;
+    direccion?: string;
+    ciudad?: string;
+    comuna?: string;
     cuenta_corriente?: string;
     estado?: boolean;
     recargo?: number;
@@ -49,6 +58,7 @@ export interface IEmpresaUpdate {
     ente_facturador?: string;
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;
+    contacto_fact_email_cc?: string;
     contacto_fact_telefono?: string;
     ejecutivo_com_nombre?: string;
     ejecutivo_com_email?: string;

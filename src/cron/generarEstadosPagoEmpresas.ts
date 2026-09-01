@@ -570,6 +570,7 @@ export const generarEstadosPagoEmpresas = async (
                   rut: empresa.rut,
                   cuenta_corriente: empresa.cuenta_corriente,
                   contacto_fact_email: empresa.contacto_fact_email || "",
+                  contacto_fact_email_cc: empresa.contacto_fact_email_cc || "",
                   ejecutivo_com_email: empresa.ejecutivo_com_email || "",
                   tipo_facturacion: empresa.tipo_facturacion,
                 },

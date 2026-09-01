@@ -13,6 +13,10 @@ export interface IEmpresa {
   id?: number;
   rut?: string;
   nombre: string;
+  giro?: string;
+  direccion?: string;
+  ciudad?: string;
+  comuna?: string;
   cuenta_corriente?: string;
   estado?: boolean;
   recargo?: number;
@@ -27,6 +31,7 @@ export interface IEmpresa {
   tipo_facturacion?: "Masiva" | "Especial";
   contacto_fact_nombre?: string;
   contacto_fact_email?: string;
+  contacto_fact_email_cc?: string;
   contacto_fact_telefono?: string;
   ejecutivo_com_nombre?: string;
   ejecutivo_com_email?: string;
@@ -44,6 +49,18 @@ export class Empresa extends Model<IEmpresa> {
 
   @Column({ type: DataType.STRING(20), allowNull: true })
   declare rut?: string;
+
+  @Column({ type: DataType.STRING(255), allowNull: true, field: "giro" })
+  declare giro?: string;
+
+  @Column({ type: DataType.STRING(255), allowNull: true, field: "direccion" })
+  declare direccion?: string;
+
+  @Column({ type: DataType.STRING(100), allowNull: true, field: "ciudad" })
+  declare ciudad?: string;
+
+  @Column({ type: DataType.STRING(100), allowNull: true, field: "comuna" })
+  declare comuna?: string;
 
   @Column({ type: DataType.STRING(150), allowNull: false })
   declare nombre: string;
@@ -112,6 +129,14 @@ export class Empresa extends Model<IEmpresa> {
     field: "contacto_fact_email",
   })
   declare contacto_fact_email: string;
+
+  @Column({
+    type: DataType.STRING(500),
+    allowNull: true,
+    defaultValue: null,
+    field: "contacto_fact_email_cc",
+  })
+  declare contacto_fact_email_cc?: string;
 
   @Column({
     type: DataType.STRING(50),

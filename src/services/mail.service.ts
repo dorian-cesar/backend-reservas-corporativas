@@ -1,4 +1,4 @@
-﻿import sgMail from "@sendgrid/mail";
+import sgMail from "@sendgrid/mail";
 import * as dotenv from "dotenv";
 import * as moment from "moment-timezone";
 import * as fs from "fs";
@@ -1093,6 +1093,7 @@ function generateReclamoRechazadoHTML(data: ReclamoEmailData): string {
 
 export interface SendEDPEmailParams {
   recipients: string[];
+  cc?: string[];
   empresaNombre: string;
   rutEmpresa: string;
   cuentaCorriente: string;
@@ -1111,6 +1112,7 @@ export interface SendEDPEmailParams {
 export const sendEDPEmail = async (params: SendEDPEmailParams): Promise<void> => {
   const {
     recipients,
+    cc,
     empresaNombre,
     rutEmpresa,
     cuentaCorriente,
@@ -1127,6 +1129,10 @@ export const sendEDPEmail = async (params: SendEDPEmailParams): Promise<void> =>
   } = params;
 
   const validRecipients = recipients.filter((r) => r && r.trim().length > 0);
+  const validCc = Array.isArray(cc)
+    ? cc.map((r) => (r ? r.trim() : "")).filter((r) => r.length > 0)
+    : [];
+
   if (validRecipients.length === 0) {
     console.warn(`[EDP Mail] Sin destinatarios validos para empresa: ${empresaNombre}`);
     return;
@@ -1309,8 +1315,12 @@ export const sendEDPEmail = async (params: SendEDPEmailParams): Promise<void> =>
     ],
   };
 
+  if (validCc.length > 0) {
+    msg.cc = validCc;
+  }
+
   await sgMail.send(msg);
   console.log(
-    `[EDP Mail] Enviado exitosamente a: ${validRecipients.join(", ")} | Empresa: ${empresaNombre} | Período: ${periodo}`,
+    `[EDP Mail] Enviado exitosamente a: ${validRecipients.join(", ")}${validCc.length > 0 ? ` | CC: ${validCc.join(", ")}` : ""} | Empresa: ${empresaNombre} | Período: ${periodo}`,
   );
 };
