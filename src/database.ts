@@ -18,6 +18,7 @@ import { UserEmpresa } from "./models/user_empresa.model";
 import { Reclamo } from "./models/reclamo.model";
 import { EdpTicketSnapshot } from "./models/edp_ticket_snapshot.model";
 import { CuentaCorrienteAdjunto } from "./models/cuenta_corriente_adjunto.model";
+import { CobranzaGestion } from "./models/cobranza_gestion.model";
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ export const sequelize = new Sequelize({
     UserEmpresa,
     Reclamo,
     EdpTicketSnapshot,
+    CobranzaGestion,
   ],
   logging: false,
   timezone: (() => {
@@ -77,6 +79,8 @@ export const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log("Database connection established successfully.");
+    await CobranzaGestion.sync({ alter: true });
+    console.log("Tabla cobranza_gestiones sincronizada correctamente.");
   } catch (error) {
     console.error("Unable to connect to the database:", error);
     process.exit(1);
