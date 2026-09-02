@@ -3,7 +3,6 @@ import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { ICuentaCorrienteCreate } from "../interfaces/cuentaCorriente.interface";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { Op } from "sequelize";
-import { sequelize } from "../database";
 import { Empresa } from "../models/empresa.model";
 
 export const listarMovimientos = async (req: Request, res: Response) => {
@@ -15,37 +14,7 @@ export const listarMovimientos = async (req: Request, res: Response) => {
     const limitNum = parseInt(limit as string, 10) || 10;
     const offset = (pageNum - 1) * limitNum;
 
-    // Buscar movimiento de reinicio por sistema más reciente para esta empresa
-    const movimientoReinicio = await CuentaCorriente.findOne({
-      where: {
-        empresa_id,
-        referencia: { [Op.like]: "REINICIO-SISTEMA%" },
-      },
-      order: [["id", "DESC"]],
-    });
-
     const where: any = { empresa_id };
-
-    if (movimientoReinicio) {
-      where.id = { [Op.gt]: movimientoReinicio.id };
-      
-      // Excluir cargos automáticos retroactivos cuyo periodo de facturación (YYYY-MM) sea anterior a Julio 2026 (2026-07)
-      // La referencia tiene el formato FACT-{empresaId}-YYYY-MM (ej: FACT-485-2026-05)
-      // Los periodos que queremos excluir son de Junio 2026 hacia atrás (2026-01 a 2026-06)
-      where[Op.and] = [
-        {
-          [Op.or]: [
-            { referencia: { [Op.notLike]: "FACT-%" } },
-            {
-              [Op.and]: [
-                { referencia: { [Op.like]: "FACT-%" } },
-                sequelize.literal(`STR_TO_DATE(CONCAT(SUBSTRING_INDEX(referencia, '-', -2), '-01'), '%Y-%m-%d') >= '2026-07-01'`)
-              ]
-            }
-          ]
-        }
-      ];
-    }
 
     if (tipo && (tipo === "abono" || tipo === "cargo")) {
       where.tipo_movimiento = tipo;
