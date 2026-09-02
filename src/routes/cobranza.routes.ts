@@ -39,16 +39,22 @@ const cobranzaReadRateLimit = rateLimit({
   },
 });
 
-// Todas las rutas de cobranza requieren estar autenticado y ser superuser o admin
+// Todas las rutas de cobranza requieren estar autenticado
 router.use(authenticateJWT);
-router.use(authorizeRoles("superuser", "admin"));
 
-router.get("/", cobranzaReadRateLimit, getGestiones);
-router.get("/stats", cobranzaReadRateLimit, getCobranzaStats);
-router.get("/empresa/:empresaId", cobranzaReadRateLimit, getGestionesByEmpresa);
-router.get("/:id", cobranzaReadRateLimit, getGestionById);
-router.post("/", cobranzaWriteRateLimit, createGestion);
-router.put("/:id", cobranzaWriteRateLimit, updateGestion);
-router.delete("/:id", cobranzaWriteRateLimit, deleteGestion);
+// Lectura de cobranza: superuser, contralor, admincc, auditoria
+const authorizeCobranzaRead = authorizeRoles("superuser", "contralor", "admincc", "auditoria");
+// Creación y edición de cobranza: superuser, contralor, admincc
+const authorizeCobranzaWrite = authorizeRoles("superuser", "contralor", "admincc");
+// Eliminación de cobranza: solo superuser
+const authorizeCobranzaDelete = authorizeRoles("superuser");
+
+router.get("/", authorizeCobranzaRead, cobranzaReadRateLimit, getGestiones);
+router.get("/stats", authorizeCobranzaRead, cobranzaReadRateLimit, getCobranzaStats);
+router.get("/empresa/:empresaId", authorizeCobranzaRead, cobranzaReadRateLimit, getGestionesByEmpresa);
+router.get("/:id", authorizeCobranzaRead, cobranzaReadRateLimit, getGestionById);
+router.post("/", authorizeCobranzaWrite, cobranzaWriteRateLimit, createGestion);
+router.put("/:id", authorizeCobranzaWrite, cobranzaWriteRateLimit, updateGestion);
+router.delete("/:id", authorizeCobranzaDelete, cobranzaWriteRateLimit, deleteGestion);
 
 export default router;

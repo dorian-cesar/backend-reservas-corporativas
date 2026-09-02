@@ -21,6 +21,7 @@ import emailFormRoutes from "./routes/cotizacion.routes";
 import reclamoRoutes from "./routes/reclamo.routes";
 import reportRoutes from "./routes/reports.routes";
 import cobranzaRoutes from "./routes/cobranza.routes";
+import permisoRoutes from "./routes/permiso.routes";
 
 dotenv.config();
 
@@ -72,6 +73,7 @@ app.use("/api/email/", emailFormRoutes);
 app.use("/api/reclamos", reclamoRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/cobranzas", cobranzaRoutes);
+app.use("/api/permisos", permisoRoutes);
 
 app.get("/api/test", (req, res) => {
   res.json({

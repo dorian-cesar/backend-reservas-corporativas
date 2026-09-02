@@ -19,6 +19,7 @@ import { Reclamo } from "./models/reclamo.model";
 import { EdpTicketSnapshot } from "./models/edp_ticket_snapshot.model";
 import { CuentaCorrienteAdjunto } from "./models/cuenta_corriente_adjunto.model";
 import { CobranzaGestion } from "./models/cobranza_gestion.model";
+import { RolPermiso } from "./models/rol_permiso.model";
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ export const sequelize = new Sequelize({
     Reclamo,
     EdpTicketSnapshot,
     CobranzaGestion,
+    RolPermiso,
   ],
   logging: false,
   timezone: (() => {

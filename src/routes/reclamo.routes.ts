@@ -20,7 +20,7 @@ router.post(
 router.get(
   "/",
   authenticateJWT,
-  authorizeRoles("superuser", "soporte"),
+  authorizeRoles("superuser", "soporte", "admincc"),
   listarReclamos,
 );
 
