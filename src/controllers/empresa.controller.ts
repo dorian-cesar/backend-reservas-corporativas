@@ -7,7 +7,7 @@ import {
   IEmpresaCreate,
   IEmpresaUpdate,
 } from "../interfaces/empresa.interface";
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import { UserEmpresa } from "../models/user_empresa.model";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
 import { sequelize } from "../database";
@@ -81,22 +81,22 @@ export const listarEmpresas = async (req: Request, res: Response) => {
       };
     }
 
-    // Obtener deudas impagas de Cuenta Corriente agregadas por empresa en 1 sola consulta SQL instantánea
-    const deudasImpagas = await CuentaCorriente.findAll({
-      attributes: [
-        "empresa_id",
-        [sequelize.fn("SUM", sequelize.col("monto")), "deuda_cc_impaga"],
-      ],
-      where: {
-        tipo_movimiento: "cargo",
-        pagado: false,
-      },
-      group: ["empresa_id"],
-      raw: true,
-    });
+    // Obtener deudas impagas de Cuenta Corriente agregadas por empresa considerando abonos reales post-reinicio
+    const deudasImpagas: any[] = await sequelize.query(
+      `SELECT 
+        empresa_id,
+        GREATEST(0, 
+          COALESCE(SUM(CASE WHEN tipo_movimiento = 'cargo' AND pagado = 0 AND fecha_movimiento >= '2026-07-01' AND referencia NOT LIKE '%REINICIO%' AND descripcion NOT LIKE '%reinicio%' AND descripcion NOT LIKE '%Neteo%' THEN monto ELSE 0 END), 0)
+          -
+          COALESCE(SUM(CASE WHEN tipo_movimiento = 'abono' AND fecha_movimiento >= '2026-07-01' AND referencia NOT LIKE '%REINICIO%' AND descripcion NOT LIKE '%reinicio%' AND descripcion NOT LIKE '%Neteo%' THEN monto ELSE 0 END), 0)
+        ) as deuda_cc_impaga
+      FROM cuenta_corriente
+      GROUP BY empresa_id`,
+      { type: QueryTypes.SELECT }
+    );
 
     const mapaDeudasCC: Record<number, number> = {};
-    (deudasImpagas as any[]).forEach((d) => {
+    deudasImpagas.forEach((d) => {
       mapaDeudasCC[d.empresa_id] = Number(d.deuda_cc_impaga || 0);
     });
 
