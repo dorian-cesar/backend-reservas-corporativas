@@ -77,11 +77,22 @@ export const listarMovimientos = async (req: Request, res: Response) => {
     const saldosDinamicosMap = new Map<number, number>();
     let runningBalance = 0;
     for (const m of todosMovimientosEmpresa) {
-      const monto = Number(m.monto || 0);
-      if (m.tipo_movimiento === "cargo") {
-        runningBalance += monto;
-      } else if (m.tipo_movimiento === "abono") {
-        runningBalance -= monto;
+      const ref = (m.referencia || "").toUpperCase();
+      const desc = (m.descripcion || "").toLowerCase();
+      const esReinicio =
+        ref.includes("REINICIO") ||
+        desc.includes("reinicio") ||
+        desc.includes("neteo");
+
+      if (esReinicio) {
+        runningBalance = 0;
+      } else {
+        const monto = Number(m.monto || 0);
+        if (m.tipo_movimiento === "cargo") {
+          runningBalance += monto;
+        } else if (m.tipo_movimiento === "abono") {
+          runningBalance -= monto;
+        }
       }
       saldosDinamicosMap.set(m.id, runningBalance);
     }
@@ -108,8 +119,18 @@ export const listarMovimientos = async (req: Request, res: Response) => {
     });
 
     const MESES = [
-      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre",
     ];
 
     const movimientosConMes = movimientos.map((m) => {
@@ -152,7 +173,8 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       mJSON.mes_operacion = mesOperacion;
       mJSON.periodo_operacion = periodoOperacion;
       // Asignar el saldo dinámico continuo exacto
-      mJSON.saldo = saldosDinamicosMap.get(mJSON.id) ?? Number(mJSON.saldo || 0);
+      mJSON.saldo =
+        saldosDinamicosMap.get(mJSON.id) ?? Number(mJSON.saldo || 0);
       return mJSON;
     });
 
