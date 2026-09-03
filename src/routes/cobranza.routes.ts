@@ -9,12 +9,11 @@ import {
   updateGestion,
   deleteGestion,
 } from "../controllers/cobranza.controller";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
+import { authenticateJWT, checkPermission } from "../middleware/auth.middleware";
 
 const router = Router();
 
 // Rate limiter para operaciones de escritura (crear, editar, eliminar):
-// Máximo 30 operaciones por minuto por IP/cliente
 const cobranzaWriteRateLimit = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
   max: 30,
@@ -27,7 +26,6 @@ const cobranzaWriteRateLimit = rateLimit({
 });
 
 // Rate limiter para consultas de lectura (listados, estadísticas, detalle):
-// Máximo 120 peticiones por minuto por IP/cliente
 const cobranzaReadRateLimit = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
   max: 120,
@@ -42,19 +40,47 @@ const cobranzaReadRateLimit = rateLimit({
 // Todas las rutas de cobranza requieren estar autenticado
 router.use(authenticateJWT);
 
-// Lectura de cobranza: superuser, contralor, admincc, auditoria
-const authorizeCobranzaRead = authorizeRoles("superuser", "contralor", "admincc", "auditoria");
-// Creación y edición de cobranza: superuser, contralor, admincc
-const authorizeCobranzaWrite = authorizeRoles("superuser", "contralor", "admincc");
-// Eliminación de cobranza: solo superuser
-const authorizeCobranzaDelete = authorizeRoles("superuser");
-
-router.get("/", authorizeCobranzaRead, cobranzaReadRateLimit, getGestiones);
-router.get("/stats", authorizeCobranzaRead, cobranzaReadRateLimit, getCobranzaStats);
-router.get("/empresa/:empresaId", authorizeCobranzaRead, cobranzaReadRateLimit, getGestionesByEmpresa);
-router.get("/:id", authorizeCobranzaRead, cobranzaReadRateLimit, getGestionById);
-router.post("/", authorizeCobranzaWrite, cobranzaWriteRateLimit, createGestion);
-router.put("/:id", authorizeCobranzaWrite, cobranzaWriteRateLimit, updateGestion);
-router.delete("/:id", authorizeCobranzaDelete, cobranzaWriteRateLimit, deleteGestion);
+router.get(
+  "/",
+  checkPermission("historial_de_cobranza_visualizar_modulo"),
+  cobranzaReadRateLimit,
+  getGestiones
+);
+router.get(
+  "/stats",
+  checkPermission("historial_de_cobranza_visualizar_modulo"),
+  cobranzaReadRateLimit,
+  getCobranzaStats
+);
+router.get(
+  "/empresa/:empresaId",
+  checkPermission("historial_de_cobranza_visualizar_modulo"),
+  cobranzaReadRateLimit,
+  getGestionesByEmpresa
+);
+router.get(
+  "/:id",
+  checkPermission("historial_de_cobranza_visualizar_modulo"),
+  cobranzaReadRateLimit,
+  getGestionById
+);
+router.post(
+  "/",
+  checkPermission("historial_de_cobranza_crear"),
+  cobranzaWriteRateLimit,
+  createGestion
+);
+router.put(
+  "/:id",
+  checkPermission("historial_de_cobranza_crear"),
+  cobranzaWriteRateLimit,
+  updateGestion
+);
+router.delete(
+  "/:id",
+  checkPermission("historial_de_cobranza_eliminar"),
+  cobranzaWriteRateLimit,
+  deleteGestion
+);
 
 export default router;

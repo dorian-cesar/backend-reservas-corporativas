@@ -14,7 +14,7 @@ const router = Router();
 router.get(
     "/empresa/:empresa_id",
     authenticateJWT,
-    authorizeRoles("admin", "superuser", "auditoria", "contralor", "subusuario", "admincc", "empresa", "soporte"),
+    authorizeRoles("admin", "superuser", "auditoria", "contralor", "subusuario", "admincc", "empresa"),
     listarCentrosCosto
 );
 
@@ -22,7 +22,7 @@ router.get(
 router.get(
     "/:id",
     authenticateJWT,
-    authorizeRoles("admin", "superuser", "auditoria", "contralor", "subusuario", "admincc", "empresa", "soporte"),
+    authorizeRoles("admin", "superuser", "auditoria", "contralor", "subusuario", "admincc", "empresa"),
     obtenerCentroCosto
 );
 
