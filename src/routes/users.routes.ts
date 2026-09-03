@@ -1,19 +1,22 @@
-// src/routes/users.routes.ts
 import { Router } from "express";
 import {
-  getUsers,
   create,
-  update,
   remove,
-  setEstado,
+  getUsers,
+  update,
   getUserById,
+  exportUsers,
+  setEstado,
   setNewLogin,
   setNewLoginForEmpresa,
   cambiarEmpresaActual,
-  exportUsers,
 } from "../controllers/users.controller";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
-import { onlySuperUser } from "../middleware/role.middleware";
+import {
+  authenticateJWT,
+  authorizeRoles,
+  checkPermission,
+  onlySuperUser,
+} from "../middleware/auth.middleware";
 
 const router = Router();
 
@@ -21,7 +24,7 @@ const router = Router();
 router.get(
   "/",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "contralor", "auditoria", "admincc"),
+  checkPermission("usuarios_ver_informacion_de_usuario"),
   getUsers,
 );
 
@@ -29,11 +32,11 @@ router.get(
 router.get(
   "/export",
   authenticateJWT,
-  authorizeRoles("superuser"),
+  checkPermission("usuarios_exportar_datos"),
   exportUsers,
 );
 
-// Obtener información completa de un usuario por ID
+// Obtener información completa de un usuario por ID (usado por el store de sesión de todos los roles)
 router.get(
   "/:id",
   authenticateJWT,
@@ -54,7 +57,7 @@ router.get(
 router.post(
   "/",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "contralor", "auditoria"),
+  checkPermission("usuarios_crear_nuevo_usuario"),
   create,
 );
 
@@ -62,7 +65,7 @@ router.post(
 router.put(
   "/:id",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "contralor", "auditoria"),
+  checkPermission("usuarios_modificar_datos_de_usuarios"),
   update,
 );
 
@@ -70,7 +73,7 @@ router.put(
 router.delete(
   "/:id",
   authenticateJWT,
-  authorizeRoles("superuser", "admin"),
+  checkPermission("usuarios_modificar_estado_de_usuarios"),
   remove,
 );
 
@@ -78,15 +81,17 @@ router.delete(
 router.patch(
   "/:id/estado",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "contralor", "auditoria"),
+  checkPermission("usuarios_modificar_estado_de_usuarios"),
   setEstado,
 );
+
 router.patch(
   "/:id/new-login",
   authenticateJWT,
   authorizeRoles("superuser"),
   setNewLogin,
 );
+
 router.patch(
   "/:empresaId/empresa-new-login",
   authenticateJWT,
@@ -97,13 +102,13 @@ router.patch(
 router.patch(
   "/cambiar-empresa",
   authenticateJWT,
-  authorizeRoles("superuser", "admin"),
+  authorizeRoles("superuser", "admin", "admincc"),
   cambiarEmpresaActual,
 );
 
 // Ejemplo de ruta solo para superuser
 router.post("/superuser-only", authenticateJWT, onlySuperUser, (req, res) => {
-  res.json({ message: "Solo superuser puede ver esto" });
+  res.json({ message: "Acceso concedido a superuser" });
 });
 
 export default router;

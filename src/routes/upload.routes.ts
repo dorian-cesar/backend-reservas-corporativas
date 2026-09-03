@@ -4,15 +4,14 @@ import { uploadUsersCSV } from "../middleware/upload-user.middleware";
 import { uploadPassengersCSV } from "../middleware/upload-passenger.middleware";
 import { uploadCentrosCostoCSV } from "../middleware/upload-centro-costo.middleware";
 import { uploadEmpresaCSV } from "../middleware/upload-empresa.middleware";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
-
+import { authenticateJWT, checkPermission, authorizeRoles } from "../middleware/auth.middleware";
 
 const router = Router();
 
 router.post(
     "/users/csv",
     authenticateJWT,
-    authorizeRoles("superuser"),
+    checkPermission("usuarios_carga_masiva"),
     uploadUsersCSV.single("file"),
     CSVController.uploadUser
 );
@@ -20,7 +19,7 @@ router.post(
 router.post(
     "/passengers/csv",
     authenticateJWT,
-    authorizeRoles("superuser"),
+    checkPermission("pasajeros_carga_masiva"),
     uploadPassengersCSV.single("file"),
     CSVController.uploadPassenger
 );
@@ -28,7 +27,7 @@ router.post(
 router.post(
     "/centros-costo/csv",
     authenticateJWT,
-    authorizeRoles("superuser"),
+    checkPermission("centro_de_costo_carga_masiva"),
     uploadCentrosCostoCSV.single("file"),
     CSVController.uploadCentroCosto
 );
@@ -36,18 +35,17 @@ router.post(
 router.post(
     "/empresas/csv",
     authenticateJWT,
-    authorizeRoles("superuser"),
+    checkPermission("empresa_carga_masiva"),
     uploadEmpresaCSV.single("file"),
     CSVController.uploadEmpresa
-)
+);
 
 router.post(
     "/csv",
     authenticateJWT,
-    authorizeRoles("superuser"),
+    authorizeRoles("superuser", "admincc", "admin"),
     uploadUsersCSV.single("file"),
     CSVController.uploadGeneric
 );
-
 
 export default router;

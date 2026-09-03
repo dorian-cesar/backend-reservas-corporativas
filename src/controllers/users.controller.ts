@@ -64,7 +64,7 @@ export const getUsers = async (req: Request, res: Response) => {
         }
 
         if (empresa_id === 1) {
-            if (rol === "superuser" || rol === "contralor" || rol === "auditoria") {
+            if (rol === "superuser" || rol === "contralor" || rol === "auditoria" || rol === "admincc") {
                 const where: any = {
                     rol: { [Op.ne]: "superuser" },
                     ...baseWhere
@@ -185,7 +185,7 @@ export const getUsers = async (req: Request, res: Response) => {
             });
         }
 
-        if (rol === "superuser" || rol === "contralor" || rol === "auditoria") {
+        if (rol === "superuser" || rol === "contralor" || rol === "auditoria" || rol === "admincc") {
             const where: any = {
                 rol: { [Op.ne]: "superuser" },
                 ...baseWhere
@@ -287,7 +287,7 @@ export const create = async (
             return res.status(403).json({ message: "Solo el superuser puede crear superusers" });
 
         let targetEmpresaId = empresa_id;
-        if ((req.user as any).rol !== "admin" && (req.user as any).rol !== "superuser") {
+        if ((req.user as any).rol !== "admin" && (req.user as any).rol !== "superuser" && (req.user as any).rol !== "admincc") {
             targetEmpresaId = (req.user as any).empresa_id;
         }
 
@@ -341,7 +341,7 @@ export const update = async (
         if (data.rol === "superuser" && requestingUser.rol !== "superuser")
             return res.status(403).json({ message: "No puedes asignar rol superuser" });
 
-        if ((req.user as any).rol !== "admin" && (req.user as any).rol !== "superuser") {
+        if ((req.user as any).rol !== "admin" && (req.user as any).rol !== "superuser" && (req.user as any).rol !== "admincc") {
             if (data.empresa_id && data.empresa_id !== user.empresa_id)
                 return res.status(403).json({ message: "No autorizado a cambiar empresa" });
             data.empresa_id = user.empresa_id;

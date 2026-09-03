@@ -118,6 +118,57 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       include: [includeEmpresa],
     });
 
+    // 4. Obtener información de estados de cuenta y descuentos para los cargos del lote de forma universal (cualquier empresa)
+    const edpIds = new Set<number>();
+    const empresaPeriodoKeys = new Set<string>();
+
+    for (const m of movimientos) {
+      const mJSON = m.toJSON();
+      if (mJSON.tipo_movimiento === "cargo") {
+        if (mJSON.estado_cuenta_id) {
+          edpIds.add(Number(mJSON.estado_cuenta_id));
+        }
+        if (mJSON.referencia) {
+          const matchId = mJSON.referencia.match(/EDC-(\d+)/i);
+          if (matchId) edpIds.add(parseInt(matchId[1], 10));
+
+          const matchPer = mJSON.referencia.match(/(\d{4}-\d{2})/);
+          if (matchPer) empresaPeriodoKeys.add(`${mJSON.empresa_id}_${matchPer[1]}`);
+        }
+        if (mJSON.descripcion) {
+          const matchId = mJSON.descripcion.match(/#(\d+)/);
+          if (matchId) edpIds.add(parseInt(matchId[1], 10));
+
+          const matchPer = mJSON.descripcion.match(/(\d{4}-\d{2})/);
+          if (matchPer) empresaPeriodoKeys.add(`${mJSON.empresa_id}_${matchPer[1]}`);
+        }
+      }
+    }
+
+    const edpMapById = new Map<number, EstadoCuenta>();
+    const edpMapByEmpresaPeriodo = new Map<string, EstadoCuenta>();
+
+    const orClauses: any[] = [];
+    if (edpIds.size > 0) {
+      orClauses.push({ id: Array.from(edpIds) });
+    }
+    if (empresaPeriodoKeys.size > 0) {
+      for (const key of empresaPeriodoKeys) {
+        const [empId, per] = key.split("_");
+        orClauses.push({ empresa_id: Number(empId), periodo: per });
+      }
+    }
+
+    if (orClauses.length > 0) {
+      const edps = await EstadoCuenta.findAll({
+        where: { [Op.or]: orClauses },
+      });
+      for (const edp of edps) {
+        edpMapById.set(edp.id, edp);
+        edpMapByEmpresaPeriodo.set(`${edp.empresa_id}_${edp.periodo}`, edp);
+      }
+    }
+
     const MESES = [
       "Enero",
       "Febrero",
@@ -175,6 +226,71 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       // Asignar el saldo dinámico continuo exacto
       mJSON.saldo =
         saldosDinamicosMap.get(mJSON.id) ?? Number(mJSON.saldo || 0);
+
+      // Enriquecer con datos de descuento si el cargo proviene de un Estado de Cuenta con descuento
+      let descuentoInfo: any = null;
+      let montoAPagar = Number(mJSON.monto || 0);
+
+      if (mJSON.tipo_movimiento === "cargo") {
+        let edp: EstadoCuenta | undefined;
+
+        // 1. Buscar por ID de EDP si está disponible
+        let edpId = mJSON.estado_cuenta_id ? Number(mJSON.estado_cuenta_id) : null;
+        if (!edpId && mJSON.referencia) {
+          const match = mJSON.referencia.match(/EDC-(\d+)/i);
+          if (match) edpId = parseInt(match[1], 10);
+        }
+        if (!edpId && mJSON.descripcion) {
+          const match = mJSON.descripcion.match(/#(\d+)/);
+          if (match) edpId = parseInt(match[1], 10);
+        }
+
+        if (edpId && edpMapById.has(edpId)) {
+          edp = edpMapById.get(edpId);
+        }
+
+        // 2. Si no se encontró por ID, buscar por empresa_id + periodo
+        if (!edp) {
+          let periodo: string | null = null;
+          if (mJSON.referencia) {
+            const matchPer = mJSON.referencia.match(/(\d{4}-\d{2})/);
+            if (matchPer) periodo = matchPer[1];
+          }
+          if (!periodo && mJSON.descripcion) {
+            const matchPer = mJSON.descripcion.match(/(\d{4}-\d{2})/);
+            if (matchPer) periodo = matchPer[1];
+          }
+          if (periodo) {
+            edp = edpMapByEmpresaPeriodo.get(`${mJSON.empresa_id}_${periodo}`);
+          }
+        }
+
+        if (edp && Number(edp.porcentaje_descuento || 0) > 0) {
+          const pct = Number(edp.porcentaje_descuento);
+          const montoOriginal = Number(mJSON.monto || 0);
+          let montoFinal = Number(edp.monto_facturado || 0);
+          let montoDescuento = montoOriginal - montoFinal;
+
+          if (montoDescuento <= 0 || montoFinal <= 0) {
+            montoDescuento = Math.round(montoOriginal * (pct / 100));
+            montoFinal = Math.max(0, montoOriginal - montoDescuento);
+          }
+
+          descuentoInfo = {
+            porcentaje: pct,
+            monto_descuento: montoDescuento,
+            monto_original: montoOriginal,
+            monto_final: montoFinal,
+            estado_cuenta_id: edp.id,
+            periodo: edp.periodo,
+          };
+          montoAPagar = montoFinal;
+        }
+      }
+
+      mJSON.descuento_aplicado = descuentoInfo;
+      mJSON.monto_a_pagar = montoAPagar;
+
       return mJSON;
     });
 
@@ -209,7 +325,72 @@ export const obtenerMovimiento = async (req: Request, res: Response) => {
     const { id } = req.params;
     const movimiento = await CuentaCorriente.findByPk(id);
     if (!movimiento) return res.status(404).json({ message: "No encontrado" });
-    res.json(movimiento);
+
+    const mJSON: any = movimiento.toJSON();
+    let descuentoInfo: any = null;
+    let montoAPagar = Number(mJSON.monto || 0);
+
+    if (mJSON.tipo_movimiento === "cargo") {
+      let edp: EstadoCuenta | null = null;
+
+      let edpId = mJSON.estado_cuenta_id ? Number(mJSON.estado_cuenta_id) : null;
+      if (!edpId && mJSON.referencia) {
+        const match = mJSON.referencia.match(/EDC-(\d+)/i);
+        if (match) edpId = parseInt(match[1], 10);
+      }
+      if (!edpId && mJSON.descripcion) {
+        const match = mJSON.descripcion.match(/#(\d+)/);
+        if (match) edpId = parseInt(match[1], 10);
+      }
+
+      if (edpId) {
+        edp = await EstadoCuenta.findByPk(edpId);
+      }
+
+      if (!edp) {
+        let periodo: string | null = null;
+        if (mJSON.referencia) {
+          const matchPer = mJSON.referencia.match(/(\d{4}-\d{2})/);
+          if (matchPer) periodo = matchPer[1];
+        }
+        if (!periodo && mJSON.descripcion) {
+          const matchPer = mJSON.descripcion.match(/(\d{4}-\d{2})/);
+          if (matchPer) periodo = matchPer[1];
+        }
+        if (periodo) {
+          edp = await EstadoCuenta.findOne({
+            where: { empresa_id: mJSON.empresa_id, periodo },
+          });
+        }
+      }
+
+      if (edp && Number(edp.porcentaje_descuento || 0) > 0) {
+        const pct = Number(edp.porcentaje_descuento);
+        const montoOriginal = Number(mJSON.monto || 0);
+        let montoFinal = Number(edp.monto_facturado || 0);
+        let montoDescuento = montoOriginal - montoFinal;
+
+        if (montoDescuento <= 0 || montoFinal <= 0) {
+          montoDescuento = Math.round(montoOriginal * (pct / 100));
+          montoFinal = Math.max(0, montoOriginal - montoDescuento);
+        }
+
+        descuentoInfo = {
+          porcentaje: pct,
+          monto_descuento: montoDescuento,
+          monto_original: montoOriginal,
+          monto_final: montoFinal,
+          estado_cuenta_id: edp.id,
+          periodo: edp.periodo,
+        };
+        montoAPagar = montoFinal;
+      }
+    }
+
+    mJSON.descuento_aplicado = descuentoInfo;
+    mJSON.monto_a_pagar = montoAPagar;
+
+    res.json(mJSON);
   } catch (err) {
     res.status(500).json({ message: "Error en servidor" });
   }
@@ -297,7 +478,7 @@ export const pagarMovimiento = async (req: Request, res: Response) => {
       });
     }
 
-    // 3. Verificar que no esté ya pagado (opcional, pero buena práctica)
+    // 3. Verificar que no esté ya pagado
     if (movimiento.pagado) {
       return res.status(400).json({
         message: "Este movimiento ya está marcado como pagado",
@@ -337,12 +518,46 @@ export const pagarMovimiento = async (req: Request, res: Response) => {
     }
     await movimiento.save();
 
+    // 7. Si está vinculado a un Estado de Cuenta, marcar también el EDP como pagado
+    let edpId = movimiento.estado_cuenta_id ? Number(movimiento.estado_cuenta_id) : null;
+    if (!edpId && movimiento.referencia) {
+      const match = movimiento.referencia.match(/EDC-(\d+)/i);
+      if (match) edpId = parseInt(match[1], 10);
+    }
+    if (!edpId && movimiento.descripcion) {
+      const match = movimiento.descripcion.match(/#(\d+)/);
+      if (match) edpId = parseInt(match[1], 10);
+    }
+    if (edpId) {
+      await EstadoCuenta.update(
+        { pagado: true, fecha_pago: new Date() },
+        { where: { id: edpId } }
+      );
+    } else {
+      let p: string | null = null;
+      if (movimiento.referencia) {
+        const mPeriod = movimiento.referencia.match(/(\d{4}-\d{2})/);
+        if (mPeriod) p = mPeriod[1];
+      }
+      if (!p && movimiento.descripcion) {
+        const mPeriod = movimiento.descripcion.match(/(\d{4}-\d{2})/);
+        if (mPeriod) p = mPeriod[1];
+      }
+      if (p) {
+        await EstadoCuenta.update(
+          { pagado: true, fecha_pago: new Date() },
+          { where: { empresa_id: movimiento.empresa_id, periodo: p } }
+        );
+      }
+    }
+
     res.json({
       message: "Pago registrado exitosamente",
       pago: abono.toJSON(),
       cargoPagado: {
         id: movimiento.id,
         monto: movimiento.monto,
+        montoPagado: Number(monto),
         ahoraPagado: true,
       },
     });

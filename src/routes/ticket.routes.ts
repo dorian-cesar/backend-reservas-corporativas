@@ -35,9 +35,9 @@ router.post("/disponibilidad", authenticateJWT, checkPermission("buscar_generar_
 router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor"), update);
 
 // Eliminar ticket
-router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin"), remove);
+router.delete("/:id", authenticateJWT, checkPermission("tickets_anular_pasaje", "reservas_anular_pasaje"), remove);
 
 // Cambiar estado del ticket
-router.patch("/:id/status", authenticateJWT, authorizeRoles("superuser", "admin", "contralor"), setStatus);
+router.patch("/:id/status", authenticateJWT, checkPermission("tickets_anular_pasaje", "reservas_anular_pasaje"), setStatus);
 
 export default router;

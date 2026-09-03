@@ -3,9 +3,13 @@ import { Router } from 'express';
 import { getDashboardStats } from '../controllers/dashboard.controller';
 import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
 
-
 const router = Router();
 
-router.get('/stats', authenticateJWT, authorizeRoles("admin", "superuser", "auditoria", "contralor", "empresa", "subusuario"), getDashboardStats);
+router.get(
+    '/stats',
+    authenticateJWT,
+    authorizeRoles("admin", "superuser", "auditoria", "contralor", "empresa", "subusuario", "admincc"),
+    getDashboardStats
+);
 
 export default router;

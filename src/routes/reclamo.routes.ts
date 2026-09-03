@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
+import { authenticateJWT, checkPermission } from "../middleware/auth.middleware";
 import {
   crearReclamo,
   listarReclamos,
@@ -12,7 +12,7 @@ const router = Router();
 router.post(
   "/",
   authenticateJWT,
-  authorizeRoles("superuser", "admin", "empresa", "subusuario"),
+  checkPermission("tickets_ingresar_reclamo", "reservas_ingresar_reclamo"),
   crearReclamo,
 );
 
@@ -20,7 +20,7 @@ router.post(
 router.get(
   "/",
   authenticateJWT,
-  authorizeRoles("superuser", "soporte", "admincc"),
+  checkPermission("reclamos_visualizar_listado_de_reclamos"),
   listarReclamos,
 );
 
@@ -28,7 +28,7 @@ router.get(
 router.put(
   "/:id/resolver",
   authenticateJWT,
-  authorizeRoles("superuser", "soporte"),
+  checkPermission("reclamos_aprobar_reclamo", "reclamos_rechazar_reclamo"),
   resolverReclamo,
 );
 

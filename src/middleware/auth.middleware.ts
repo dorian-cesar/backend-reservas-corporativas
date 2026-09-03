@@ -58,6 +58,8 @@ export const authorizeRoles = (...roles: string[]) => {
   };
 };
 
+export const onlySuperUser = authorizeRoles("superuser");
+
 /**
  * Middleware dinámico que verifica si el rol del usuario tiene el permiso
  * habilitado en la tabla `roles_permisos` (respaldado por caché en memoria).
