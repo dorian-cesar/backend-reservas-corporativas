@@ -30,7 +30,7 @@ router.get("/empresa/:id_empresa", authenticateJWT, checkPermission("tickets_ver
 router.get("/usuario/:id_User", authenticateJWT, checkPermission("reservas_ver_informacion_de_reservas"), getTicketsByUser);
 
 // Ver disponibilidad (búsqueda de servicios)
-router.post("/disponibilidad", authenticateJWT, checkPermission("buscar_generar_buequeda_de_servicios", "tickets_ver_informacion_de_tickets"), checkDisponibilidad);
+router.post("/disponibilidad", authenticateJWT, checkPermission("buscar_generar_busqueda_de_servicios", "buscar_generar_buequeda_de_servicios", "tickets_ver_informacion_de_tickets"), checkDisponibilidad);
 
 // Actualizar ticket
 router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor"), update);

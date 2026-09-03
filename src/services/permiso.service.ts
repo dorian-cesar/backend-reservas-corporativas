@@ -66,6 +66,19 @@ export class PermisoService {
       }
     });
 
+    // Compatibilidad bidireccional para correcciones ortográficas
+    if (mapaPermisos["buscar_generar_busqueda_de_servicios"] !== undefined) {
+      mapaPermisos["buscar_generar_buequeda_de_servicios"] = mapaPermisos["buscar_generar_busqueda_de_servicios"];
+    } else if (mapaPermisos["buscar_generar_buequeda_de_servicios"] !== undefined) {
+      mapaPermisos["buscar_generar_busqueda_de_servicios"] = mapaPermisos["buscar_generar_buequeda_de_servicios"];
+    }
+
+    if (mapaPermisos["empresa_modificar_morosidad_empresa"] !== undefined) {
+      mapaPermisos["empresa_modicar_morocidad_empresa"] = mapaPermisos["empresa_modificar_morosidad_empresa"];
+    } else if (mapaPermisos["empresa_modicar_morocidad_empresa"] !== undefined) {
+      mapaPermisos["empresa_modificar_morosidad_empresa"] = mapaPermisos["empresa_modicar_morocidad_empresa"];
+    }
+
     cachePermisosPorRol.set(rol, mapaPermisos);
     cacheTimestamp = ahora;
 
