@@ -6,15 +6,15 @@ import {
     actualizarCentroCosto,
     eliminarCentroCosto,
 } from "../controllers/centro_costo.controller";
-import { authenticateJWT, checkPermission } from "../middleware/auth.middleware";
+import { authenticateJWT, checkPermission, authorizeRoles } from "../middleware/auth.middleware";
 
 const router = Router();
 
-// Listar todos los centros de costo de una empresa
+// Listar todos los centros de costo de una empresa (usado tanto por compradores/subusuarios al reservar como por administradores)
 router.get(
     "/empresa/:empresa_id",
     authenticateJWT,
-    checkPermission("centro_de_costo_ver_informacion_de_centros_de_costos"),
+    authorizeRoles("admin", "superuser", "auditoria", "contralor", "subusuario", "admincc", "empresa", "soporte"),
     listarCentrosCosto
 );
 
@@ -22,11 +22,11 @@ router.get(
 router.get(
     "/:id",
     authenticateJWT,
-    checkPermission("centro_de_costo_ver_informacion_de_centros_de_costos"),
+    authorizeRoles("admin", "superuser", "auditoria", "contralor", "subusuario", "admincc", "empresa", "soporte"),
     obtenerCentroCosto
 );
 
-// Crear un centro de costo
+// Crear un centro de costo (Acción administrativa del mantenedor)
 router.post(
     "/",
     authenticateJWT,
@@ -34,7 +34,7 @@ router.post(
     crearCentroCosto
 );
 
-// Actualizar un centro de costo
+// Actualizar un centro de costo (Acción administrativa del mantenedor)
 router.put(
     "/:id",
     authenticateJWT,
@@ -42,7 +42,7 @@ router.put(
     actualizarCentroCosto
 );
 
-// Eliminar un centro de costo
+// Eliminar un centro de costo (Acción administrativa del mantenedor)
 router.delete(
     "/:id",
     authenticateJWT,
