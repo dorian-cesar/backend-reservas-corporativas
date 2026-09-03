@@ -181,7 +181,7 @@ const getGlobalPeriodoData = async (
     const saldoReinicio = 0;
 
     // Cálculo matemático contable de saldo actual de la cuenta corriente
-    const saldoActual = totalCargo - totalAbono;
+    const saldoActual = totalEDP - totalAbono;
 
     const ctaCte =
       emp.cuenta_corriente || `C${String(emp.id).padStart(5, "0")}-1`;
@@ -338,7 +338,7 @@ const getEmpresaDetalleData = async (
       .filter((m) => m.tipo_movimiento === "abono")
       .reduce((a, m) => a + Number(m.monto || 0), 0);
     const totalCargos = movsNormales
-      .filter((m) => m.tipo_movimiento === "cargo" && !m.pagado)
+      .filter((m) => m.tipo_movimiento === "cargo")
       .reduce((a, m) => a + Number(m.monto || 0), 0);
 
     // Saldo Final se calcula de forma pura basado en cargos y abonos reales en la cuenta corriente

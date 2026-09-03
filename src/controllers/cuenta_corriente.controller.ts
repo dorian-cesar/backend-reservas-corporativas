@@ -4,11 +4,20 @@ import { ICuentaCorrienteCreate } from "../interfaces/cuentaCorriente.interface"
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { Op } from "sequelize";
 import { Empresa } from "../models/empresa.model";
+import { sequelize } from "../database";
 
 export const listarMovimientos = async (req: Request, res: Response) => {
   try {
     const { empresa_id } = req.params;
-    const { tipo, pagado, desde, hasta, page = "1", limit = "10", ente_facturador } = req.query;
+    const {
+      tipo,
+      pagado,
+      desde,
+      hasta,
+      page = "1",
+      limit = "10",
+      ente_facturador,
+    } = req.query;
 
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 10;
@@ -24,7 +33,7 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       where.pagado = pagado === "true" || pagado === "1";
     }
 
-    // Filtro por fecha
+    // Filtro por fecha (opcional según lo que envíe el usuario en el frontend)
     if (desde || hasta) {
       where.fecha_movimiento = {};
 
@@ -54,7 +63,31 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       includeEmpresa.required = true;
     }
 
-    // Obtener total de registros
+    // 1. Obtener la cronología COMPLETA de movimientos para calcular el saldo dinámico matemático continuo
+    const todosMovimientosEmpresa = await CuentaCorriente.findAll({
+      where: { empresa_id },
+      order: [
+        ["fecha_movimiento", "ASC"],
+        ["id", "ASC"],
+      ],
+      include: ente_facturador ? [includeEmpresa] : undefined,
+    });
+
+    // Mapa de saldos dinámicos calculados cronológicamente desde el primer día
+    const saldosDinamicosMap = new Map<number, number>();
+    let runningBalance = 0;
+    for (const m of todosMovimientosEmpresa) {
+      const monto = Number(m.monto || 0);
+      if (m.tipo_movimiento === "cargo") {
+        runningBalance += monto;
+      } else if (m.tipo_movimiento === "abono") {
+        runningBalance -= monto;
+      }
+      saldosDinamicosMap.set(m.id, runningBalance);
+    }
+    const saldoActualEmpresa = runningBalance;
+
+    // 2. Obtener total de registros con los filtros de búsqueda
     const total = await CuentaCorriente.count({
       where,
       include: ente_facturador ? [includeEmpresa] : undefined,
@@ -62,10 +95,13 @@ export const listarMovimientos = async (req: Request, res: Response) => {
       col: "id",
     });
 
-    // Obtener movimientos con paginación
+    // 3. Obtener movimientos paginados para la vista (orden descendente)
     const movimientos = await CuentaCorriente.findAll({
       where,
-      order: [["fecha_movimiento", "DESC"]],
+      order: [
+        ["fecha_movimiento", "DESC"],
+        ["id", "DESC"],
+      ],
       limit: limitNum,
       offset: offset,
       include: [includeEmpresa],
@@ -115,6 +151,8 @@ export const listarMovimientos = async (req: Request, res: Response) => {
 
       mJSON.mes_operacion = mesOperacion;
       mJSON.periodo_operacion = periodoOperacion;
+      // Asignar el saldo dinámico continuo exacto
+      mJSON.saldo = saldosDinamicosMap.get(mJSON.id) ?? Number(mJSON.saldo || 0);
       return mJSON;
     });
 
@@ -124,6 +162,7 @@ export const listarMovimientos = async (req: Request, res: Response) => {
 
     res.json({
       movimientos: movimientosConMes,
+      saldo_actual: saldoActualEmpresa,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -160,8 +199,14 @@ export const crearMovimiento = async (
   res: Response,
 ) => {
   try {
-    const { empresa_id, tipo_movimiento, monto, descripcion, referencia, tipo_pago } =
-      req.body;
+    const {
+      empresa_id,
+      tipo_movimiento,
+      monto,
+      descripcion,
+      referencia,
+      tipo_pago,
+    } = req.body;
 
     // Obtener último saldo
     const ultimo = await CuentaCorriente.findOne({

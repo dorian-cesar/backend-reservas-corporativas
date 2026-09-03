@@ -75,19 +75,48 @@ export const obtenerResumenSaldoEmpresa = async (
     0
   );
 
-  // 3. Obtener la suma de deudas no pagadas en cargos de cuenta corriente
+  // 3. Obtener la suma de deudas en cargos de cuenta corriente considerando abonos post-reinicio
   const cargosImpagos = await CuentaCorriente.findAll({
     where: {
       empresa_id: empresaId,
       tipo_movimiento: "cargo",
       pagado: false,
+      fecha_movimiento: { [Op.gte]: new Date("2026-07-01T00:00:00.000Z") },
+      referencia: { [Op.notLike]: "%REINICIO%" },
+      descripcion: {
+        [Op.and]: [
+          { [Op.notLike]: "%reinicio%" },
+          { [Op.notLike]: "%Neteo%" },
+        ],
+      },
     },
   });
 
-  const deudaCcImpaga = cargosImpagos.reduce(
+  const abonosReales = await CuentaCorriente.findAll({
+    where: {
+      empresa_id: empresaId,
+      tipo_movimiento: "abono",
+      fecha_movimiento: { [Op.gte]: new Date("2026-07-01T00:00:00.000Z") },
+      referencia: { [Op.notLike]: "%REINICIO%" },
+      descripcion: {
+        [Op.and]: [
+          { [Op.notLike]: "%reinicio%" },
+          { [Op.notLike]: "%Neteo%" },
+        ],
+      },
+    },
+  });
+
+  const totalCargosImpagos = cargosImpagos.reduce(
     (sum, cargo) => sum + Number(cargo.monto || 0),
     0
   );
+  const totalAbonosReales = abonosReales.reduce(
+    (sum, abono) => sum + Number(abono.monto || 0),
+    0
+  );
+
+  const deudaCcImpaga = Math.max(0, totalCargosImpagos - totalAbonosReales);
 
   // El monto acumulado representa solo las ventas de tickets en el período activo
   const montoAcumuladoVentas = ventasPeriodoActivo;
