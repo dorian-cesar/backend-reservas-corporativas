@@ -15,18 +15,12 @@ export const ROLES_VALIDOS = [
 
 export type RolValido = (typeof ROLES_VALIDOS)[number];
 
-// Cache en memoria para verificación ultrarrápida (0 ms)
-let cachePermisosPorRol = new Map<string, Record<string, boolean>>();
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 60 * 1000; // 1 minuto de TTL automático
-
 export class PermisoService {
   /**
-   * Invalida la caché en memoria para forzar recarga fresca desde la BD
+   * Invalida la caché (mantenida por compatibilidad)
    */
   public static invalidarCache(): void {
-    cachePermisosPorRol.clear();
-    cacheTimestamp = 0;
+    // Sin caché: las consultas van directo a la base de datos en tiempo real
   }
 
   /**
@@ -41,16 +35,9 @@ export class PermisoService {
   }
 
   /**
-   * Obtiene un mapa clave -> booleano con todos los permisos asignados a un rol
+   * Obtiene un mapa clave -> booleano con todos los permisos asignados a un rol directamente de la BD
    */
   public static async obtenerPermisosRol(rol: string): Promise<Record<string, boolean>> {
-    const ahora = Date.now();
-
-    // Retornar de caché si está vigente
-    if (cachePermisosPorRol.has(rol) && ahora - cacheTimestamp < CACHE_TTL_MS) {
-      return cachePermisosPorRol.get(rol)!;
-    }
-
     const todos = await RolPermiso.findAll();
     const mapaPermisos: Record<string, boolean> = {};
 
@@ -78,9 +65,6 @@ export class PermisoService {
     } else if (mapaPermisos["empresa_modicar_morocidad_empresa"] !== undefined) {
       mapaPermisos["empresa_modificar_morosidad_empresa"] = mapaPermisos["empresa_modicar_morocidad_empresa"];
     }
-
-    cachePermisosPorRol.set(rol, mapaPermisos);
-    cacheTimestamp = ahora;
 
     return mapaPermisos;
   }
