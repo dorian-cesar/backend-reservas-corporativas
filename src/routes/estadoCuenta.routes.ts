@@ -2,15 +2,15 @@
 
 import { Router } from "express";
 import { listarEstadosCuenta, listarTicketsDeEstadoCuenta, aplicarDescuentoEstadoCuenta, revertirDescuentoEstadoCuenta, obtenerDescuentoEstadoCuenta, ejecutarEDPManual } from "../controllers/estadoCuenta.controller";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
+import { authenticateJWT, checkPermission } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor", "admincc"), listarEstadosCuenta);
-router.get("/:id/tickets", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor", "admincc"), listarTicketsDeEstadoCuenta)
-router.post("/ejecutar-edp-manual", authenticateJWT, authorizeRoles("superuser", "auditoria", "admincc"), ejecutarEDPManual);
-router.post("/:id/aplicar-descuento", authenticateJWT, authorizeRoles("superuser", "auditoria", "admincc"), aplicarDescuentoEstadoCuenta);
-router.post("/:id/revertir-descuento", authenticateJWT, authorizeRoles("superuser", "auditoria", "admincc"), revertirDescuentoEstadoCuenta);
-router.get("/:id/descuento", authenticateJWT, authorizeRoles("superuser", "auditoria", "admincc"), obtenerDescuentoEstadoCuenta);
+router.get("/", authenticateJWT, checkPermission("estados_de_pago_ver_informacion_de_estados_de_pago"), listarEstadosCuenta);
+router.get("/:id/tickets", authenticateJWT, checkPermission("estados_de_pago_ver_informacion_de_estados_de_pago"), listarTicketsDeEstadoCuenta)
+router.post("/ejecutar-edp-manual", authenticateJWT, checkPermission("estados_de_pago_crear_edp_manual"), ejecutarEDPManual);
+router.post("/:id/aplicar-descuento", authenticateJWT, checkPermission("estados_de_pago_aplicar_descuento_en_edp"), aplicarDescuentoEstadoCuenta);
+router.post("/:id/revertir-descuento", authenticateJWT, checkPermission("estados_de_pago_aplicar_descuento_en_edp"), revertirDescuentoEstadoCuenta);
+router.get("/:id/descuento", authenticateJWT, checkPermission("estados_de_pago_ver_informacion_de_estados_de_pago"), obtenerDescuentoEstadoCuenta);
 
 export default router;

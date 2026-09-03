@@ -7,50 +7,49 @@ import {
   exportarEstadoCuentaEmpresaDetalleExcel,
   exportarEstadoCuentaEmpresaDetallePDF,
 } from "../controllers/reports.controller";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
+import { authenticateJWT, checkPermission } from "../middleware/auth.middleware";
 
 const router = Router();
 
-// Todos los reportes globales son confidenciales y están restringidos a 'superuser'
 router.get(
   "/estado-cuenta-periodo",
   authenticateJWT,
-  authorizeRoles("superuser", "contralor", "admincc"),
+  checkPermission("reportes_seleccionar_tipo_de_reportes"),
   obtenerEstadoCuentaGlobalPeriodo,
 );
 
 router.get(
   "/estado-cuenta-periodo/export-excel",
   authenticateJWT,
-  authorizeRoles("superuser", "contralor", "admincc"),
+  checkPermission("reportes_exportar_en_excel"),
   exportarEstadoCuentaGlobalPeriodoExcel,
 );
 
 router.get(
   "/estado-cuenta-periodo/export-pdf",
   authenticateJWT,
-  authorizeRoles("superuser", "contralor", "admincc"),
+  checkPermission("reportes_exportar_en_pdf"),
   exportarEstadoCuentaGlobalPeriodoPDF,
 );
 
 router.get(
   "/estado-cuenta-empresa",
   authenticateJWT,
-  authorizeRoles("superuser", "contralor", "admincc"),
+  checkPermission("reportes_seleccionar_tipo_de_reportes"),
   obtenerEstadoCuentaEmpresaDetalle,
 );
 
 router.get(
   "/estado-cuenta-empresa/export-excel",
   authenticateJWT,
-  authorizeRoles("superuser", "contralor", "admincc"),
+  checkPermission("reportes_exportar_en_excel"),
   exportarEstadoCuentaEmpresaDetalleExcel,
 );
 
 router.get(
   "/estado-cuenta-empresa/export-pdf",
   authenticateJWT,
-  authorizeRoles("superuser", "contralor", "admincc"),
+  checkPermission("reportes_exportar_en_pdf"),
   exportarEstadoCuentaEmpresaDetallePDF,
 );
 

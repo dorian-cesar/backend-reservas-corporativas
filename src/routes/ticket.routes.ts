@@ -10,26 +10,26 @@ import {
     getTicketsByTicketNumber, getTicketsByEmpresa, getTicketsByUser,
     checkDisponibilidad,
 } from "../controllers/ticket.controller";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
+import { authenticateJWT, authorizeRoles, checkPermission } from "../middleware/auth.middleware";
 
 const router = Router();
 
 // Listar tickets
-router.get("/", authenticateJWT, authorizeRoles("superuser", "admin", "auditoria", "contralor"), getTickets);
+router.get("/", authenticateJWT, checkPermission("tickets_ver_informacion_de_tickets"), getTickets);
 
 // Crear ticket
 router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor"), create);
 
-// Buscar tickets por ticketNumber (solo rol 'user')
-router.get("/search", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), getTicketsByTicketNumber);
+// Buscar tickets por ticketNumber
+router.get("/search", authenticateJWT, checkPermission("tickets_ver_informacion_de_tickets"), getTicketsByTicketNumber);
 
 // Buscar tickets por empresa
-router.get("/empresa/:id_empresa", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), getTicketsByEmpresa);
+router.get("/empresa/:id_empresa", authenticateJWT, checkPermission("tickets_ver_informacion_de_tickets"), getTicketsByEmpresa);
 // Buscar tickets por id_User
-router.get("/usuario/:id_User", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), getTicketsByUser);
+router.get("/usuario/:id_User", authenticateJWT, checkPermission("tickets_ver_informacion_de_tickets"), getTicketsByUser);
 
 // ver disponibilidad 
-router.post("/disponibilidad", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor"), checkDisponibilidad)
+router.post("/disponibilidad", authenticateJWT, checkPermission("buscar_generar_buequeda_de_servicios", "tickets_ver_informacion_de_tickets"), checkDisponibilidad)
 
 // Actualizar ticket
 router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "contralor"), update);

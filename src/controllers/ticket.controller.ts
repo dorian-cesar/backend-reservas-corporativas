@@ -108,46 +108,7 @@ export const getTickets = async (req: Request, res: Response) => {
             return res.json(ticketsJSON);
         }
 
-        if (rol === "superuser") {
-            const tickets = await Ticket.findAll({
-                where: filters,
-                include: [
-                    {
-                        model: User,
-                        attributes: ['id', 'nombre', 'rut', 'email', 'empresa_id'],
-                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }]
-                    },
-                    {
-                        model: Pasajero,
-                        attributes: ['id', 'nombre', 'rut', 'correo'],
-                        include: [{ model: CentroCosto, attributes: ['id', 'nombre'], required: false }],
-                        required: false
-                    },
-                    {
-                        model: Empresa,
-                        attributes: ['id', 'nombre', 'rut'],
-                        required: false
-                    },
-                    {
-                        model: Reclamo,
-                        required: false
-                    }
-                ]
-            });
-
-            const ticketsJSON = tickets.map(ticket => {
-                const t = ticket.toJSON();
-                const cc = t.pasajero?.centroCosto || t.user?.centroCosto;
-                if (cc) {
-                    if (t.user && !t.user.centroCosto) t.user.centroCosto = cc;
-                    if (t.pasajero && !t.pasajero.centroCosto) t.pasajero.centroCosto = cc;
-                }
-                return t;
-            });
-            return res.json(ticketsJSON);
-        }
-
-        if (rol === "admin" && filters) {
+        if (["superuser", "admin", "auditoria", "contralor", "admincc"].includes(rol)) {
             const tickets = await Ticket.findAll({
                 where: filters,
                 include: [

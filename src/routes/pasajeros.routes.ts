@@ -7,15 +7,15 @@ import {
     deletePasajero,
     verificarPasajeroExistente
 } from "../controllers/pasajero.controller";
-import { authenticateJWT, authorizeRoles } from "../middleware/auth.middleware";
+import { authenticateJWT, checkPermission } from "../middleware/auth.middleware";
 
 const router = Router();
 
 router.get("/", getPasajeros);
-router.get("/verificar", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), verificarPasajeroExistente);
-router.get("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), getPasajeroById);
-router.post("/", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), createPasajero);
-router.put("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), updatePasajero);
-router.delete("/:id", authenticateJWT, authorizeRoles("superuser", "admin", "subusuario", "auditoria", "contralor"), deletePasajero);
+router.get("/verificar", authenticateJWT, checkPermission("pasajeros_ver_informacion_de_pasajeros"), verificarPasajeroExistente);
+router.get("/:id", authenticateJWT, checkPermission("pasajeros_ver_informacion_de_pasajeros"), getPasajeroById);
+router.post("/", authenticateJWT, checkPermission("pasajeros_crear_nuevo_pasajero"), createPasajero);
+router.put("/:id", authenticateJWT, checkPermission("pasajeros_modificar_datos_de_pasajero"), updatePasajero);
+router.delete("/:id", authenticateJWT, checkPermission("pasajeros_modificar_estado_de_pasajero"), deletePasajero);
 
 export default router;
