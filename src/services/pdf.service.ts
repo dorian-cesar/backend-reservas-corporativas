@@ -1061,9 +1061,34 @@ export const generateTicketPDFTemplate2 = async (
   return pdfBytes;
 };
 
+export const cleanWinAnsiText = (text: string | null | undefined): string => {
+  if (!text) return "";
+  return String(text)
+    .replace(/[\t\r\n\v\f]/g, " ")
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 export const generateEDPPDF = async (
   edpData: EDPPDFData,
 ): Promise<Uint8Array> => {
+  if (edpData.empresa) {
+    edpData.empresa.nombre = cleanWinAnsiText(edpData.empresa.nombre);
+    edpData.empresa.rut = cleanWinAnsiText(edpData.empresa.rut);
+    edpData.empresa.cuenta_corriente = cleanWinAnsiText(edpData.empresa.cuenta_corriente);
+  }
+  if (edpData.edp) {
+    edpData.edp.numero_edp = cleanWinAnsiText(edpData.edp.numero_edp);
+    edpData.edp.periodo_reservas = cleanWinAnsiText(edpData.edp.periodo_reservas);
+  }
+  if (Array.isArray(edpData.centros_costo)) {
+    edpData.centros_costo = edpData.centros_costo.map((cc) => ({
+      ...cc,
+      nombre: cleanWinAnsiText(cc.nombre),
+    }));
+  }
+
   const pdfDoc = await PDFDocument.create();
   const { width, height } = { width: 595, height: 842 };
 
@@ -1096,9 +1121,10 @@ export const generateEDPPDF = async (
     size: number,
     maxWidth: number,
   ): string => {
-    if (!text) return "";
-    if (targetFont.widthOfTextAtSize(text, size) <= maxWidth) return text;
-    let truncated = text;
+    const clean = cleanWinAnsiText(text);
+    if (!clean) return "";
+    if (targetFont.widthOfTextAtSize(clean, size) <= maxWidth) return clean;
+    let truncated = clean;
     while (
       truncated.length > 0 &&
       targetFont.widthOfTextAtSize(truncated + "...", size) > maxWidth

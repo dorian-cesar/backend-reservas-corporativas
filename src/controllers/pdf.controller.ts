@@ -312,11 +312,17 @@ export const generarPDFEstadoCuenta = async (req: Request, res: Response) => {
 
         // Agrupar por NOMBRE del CC desde el snapshot
         // (misma lógica que el cron: agrupa por nombre, no por ID)
-        const nombreCC =
+        const rawNombreCC =
           pasajero?.centroCosto?.nombre ||
           pasajero?.CentroCosto?.nombre ||
           pasajero?.centro_costo?.nombre ||
           "Sin asignar";
+        const nombreCC =
+          String(rawNombreCC)
+            .replace(/[\t\r\n\v\f]/g, " ")
+            .replace(/[^\x20-\x7E\xA0-\xFF]/g, "")
+            .replace(/\s+/g, " ")
+            .trim() || "Sin asignar";
         if (!centrosMapByNombre.has(nombreCC)) {
           centrosMapByNombre.set(nombreCC, {
             nombre: nombreCC,
