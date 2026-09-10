@@ -29,6 +29,7 @@ export const listarEmpresas = async (req: Request, res: Response) => {
     const limit = req.query.limit ? Number(req.query.limit) : null;
     const search = req.query.search ? String(req.query.search).trim() : null;
     const ente_facturador = req.query.ente_facturador ? String(req.query.ente_facturador).trim() : null;
+    const owner = req.query.owner ? String(req.query.owner).trim() : null;
 
     const includeInactives = req.query.includeInactives === "true";
 
@@ -40,6 +41,10 @@ export const listarEmpresas = async (req: Request, res: Response) => {
 
     if (ente_facturador) {
       whereCondition.ente_facturador = ente_facturador;
+    }
+
+    if (owner && (owner === "Pullman" || owner === "Wit")) {
+      whereCondition.owner = owner;
     }
 
     if (search) {
@@ -228,6 +233,7 @@ export const crearEmpresa = async (
     morosidad,
     tipo_facturacion,
     ente_facturador,
+    owner,
     contacto_fact_nombre,
     contacto_fact_email,
     contacto_fact_email_cc,
@@ -272,6 +278,7 @@ export const crearEmpresa = async (
         morosidad,
         tipo_facturacion: tipo_facturacion || "Masiva",
         ente_facturador,
+        owner: (owner === "Wit" || owner === "Pullman") ? owner : "Pullman",
         contacto_fact_nombre,
         contacto_fact_email,
         contacto_fact_email_cc,
@@ -343,6 +350,7 @@ export const actualizarEmpresa = async (
       morosidad,
       tipo_facturacion,
       ente_facturador,
+      owner,
       contacto_fact_nombre,
       contacto_fact_email,
       contacto_fact_email_cc,
@@ -374,6 +382,7 @@ export const actualizarEmpresa = async (
           morosidad,
           tipo_facturacion,
           ente_facturador,
+          owner: (owner === "Wit" || owner === "Pullman") ? owner : undefined,
           contacto_fact_nombre,
           contacto_fact_email,
           contacto_fact_email_cc,
@@ -554,7 +563,8 @@ export const exportEmpresas = async (req: Request, res: Response) => {
                 ejecutivo_com_nombre,
                 ejecutivo_com_email,
                 ejecutivo_com_telefono,
-                ente_facturador
+                ente_facturador,
+                owner
             FROM empresas
         `;
     const [rows] = await sequelize.query(query);
@@ -659,6 +669,7 @@ export const exportEmpresasExcel = async (req: Request, res: Response) => {
       { header: "Ejecutivo Com. Email", key: "ejecutivo_com_email", width: 25, align: "left" },
       { header: "Ejecutivo Com. Teléfono", key: "ejecutivo_com_telefono", width: 20, align: "left" },
       { header: "Ente Facturador", key: "ente_facturador", width: 25, align: "left" },
+      { header: "Owner", key: "owner", width: 15, align: "center" },
     ];
 
     sheet.columns = COLUMNS.map((c) => ({ key: c.key, width: c.width }));
@@ -721,6 +732,7 @@ export const exportEmpresasExcel = async (req: Request, res: Response) => {
         ejecutivo_com_email: empresa.ejecutivo_com_email || "",
         ejecutivo_com_telefono: empresa.ejecutivo_com_telefono || "",
         ente_facturador: empresa.ente_facturador || "-",
+        owner: empresa.owner || "Pullman",
       };
 
       const row = sheet.addRow(rowData);
@@ -735,9 +747,9 @@ export const exportEmpresasExcel = async (req: Request, res: Response) => {
         const colDef = COLUMNS[colIdx - 1];
         cell.fill = rowFill;
         cell.font = { size: 9 };
-        cell.alignment = { 
-          vertical: "middle", 
-          horizontal: (colDef?.align || "left") as ExcelJS.Alignment["horizontal"] 
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: (colDef?.align || "left") as ExcelJS.Alignment["horizontal"]
         };
         cell.border = {
           bottom: { style: "hair", color: { argb: "FFE9E9E9" } },

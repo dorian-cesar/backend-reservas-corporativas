@@ -39,6 +39,7 @@ export interface IEmpresa {
   descuento_pendiente_edp?: number;
   devolucion_pendiente_edp?: number;
   ente_facturador?: string;
+  owner?: "Pullman" | "Wit";
 }
 
 
@@ -46,6 +47,14 @@ export interface IEmpresa {
 export class Empresa extends Model<IEmpresa> {
   @Column({ type: DataType.INTEGER, autoIncrement: true, primaryKey: true })
   declare id: number;
+
+  @Column({
+    type: DataType.ENUM("Pullman", "Wit"),
+    allowNull: false,
+    defaultValue: "Pullman",
+    field: "owner",
+  })
+  declare owner: "Pullman" | "Wit";
 
   @Column({ type: DataType.STRING(20), allowNull: true })
   declare rut?: string;

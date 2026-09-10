@@ -26,6 +26,7 @@ export interface IEmpresaCreate {
     morosidad?: boolean;
     tipo_facturacion?: "Masiva" | "Especial";
     ente_facturador?: string;
+    owner?: "Pullman" | "Wit";
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;
     contacto_fact_email_cc?: string;
@@ -56,6 +57,7 @@ export interface IEmpresaUpdate {
     morosidad?: boolean;
     tipo_facturacion?: "Masiva" | "Especial";
     ente_facturador?: string;
+    owner?: "Pullman" | "Wit";
     contacto_fact_nombre?: string;
     contacto_fact_email?: string;
     contacto_fact_email_cc?: string;
