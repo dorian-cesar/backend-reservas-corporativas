@@ -31,6 +31,7 @@ export interface IUser {
   empresa_id?: number;
   centro_costo_id?: number;
   estado?: boolean;
+  owner?: "Pullman" | "Wit";
   created_at?: Date;
   updated_at?: Date;
   lastChangePassWord?: Date;
@@ -80,6 +81,14 @@ export class User extends Model<IUser> {
 
   @Column({ type: DataType.BOOLEAN, defaultValue: true })
   declare estado: boolean;
+
+  @Column({
+    type: DataType.ENUM("Pullman", "Wit"),
+    allowNull: false,
+    defaultValue: "Pullman",
+    field: "owner",
+  })
+  declare owner: "Pullman" | "Wit";
 
   @ForeignKey(() => CentroCosto)
   @Column({ type: DataType.INTEGER, allowNull: true })

@@ -98,6 +98,23 @@ export const connectDB = async () => {
       `);
       console.log("✅ Columna 'owner' agregada exitosamente a la base de datos.");
     }
+
+    // Verificar/crear la columna 'owner' en la tabla 'users' sin alterar ni borrar registros existentes
+    const [userColumns]: any = await sequelize.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'users' 
+        AND COLUMN_NAME = 'owner';
+    `);
+    if (userColumns.length === 0) {
+      console.log("➕ Agregando columna 'owner' a la tabla 'users'...");
+      await sequelize.query(`
+        ALTER TABLE users 
+        ADD COLUMN owner ENUM('Pullman', 'Wit') NOT NULL DEFAULT 'Pullman';
+      `);
+      console.log("✅ Columna 'owner' agregada exitosamente a la tabla 'users'.");
+    }
   } catch (error) {
     console.error("Unable to connect to the database:", error);
     process.exit(1);

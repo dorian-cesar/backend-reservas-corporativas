@@ -10,7 +10,7 @@ interface JwtPayload {
   rol: string;
   empresa_id?: number;
   centro_costo_id?: number;
-  // Puedes agregar más campos si tu token los incluye
+  owner?: "Pullman" | "Wit";
 }
 
 export interface AuthenticatedRequest extends Request {

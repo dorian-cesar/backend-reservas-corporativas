@@ -43,7 +43,9 @@ export const listarEmpresas = async (req: Request, res: Response) => {
       whereCondition.ente_facturador = ente_facturador;
     }
 
-    if (owner && (owner === "Pullman" || owner === "Wit")) {
+    if (rol !== "superuser") {
+      whereCondition.owner = user.owner || "Pullman";
+    } else if (owner && (owner === "Pullman" || owner === "Wit")) {
       whereCondition.owner = owner;
     }
 
@@ -258,6 +260,11 @@ export const crearEmpresa = async (
 
   const t = await sequelize.transaction();
   try {
+    const user = req.user as any;
+    const targetOwner = user?.rol === "superuser"
+      ? ((owner === "Wit" || owner === "Pullman") ? owner : "Pullman")
+      : (user?.owner || "Pullman");
+
     const empresa = await Empresa.create(
       {
         rut,
@@ -278,7 +285,7 @@ export const crearEmpresa = async (
         morosidad,
         tipo_facturacion: tipo_facturacion || "Masiva",
         ente_facturador,
-        owner: (owner === "Wit" || owner === "Pullman") ? owner : "Pullman",
+        owner: targetOwner,
         contacto_fact_nombre,
         contacto_fact_email,
         contacto_fact_email_cc,
@@ -332,6 +339,11 @@ export const actualizarEmpresa = async (
     const empresa = await Empresa.findByPk(id);
     if (!empresa) return res.status(404).json({ message: "No encontrada" });
 
+    const user = req.user as any;
+    if (user?.rol !== "superuser" && (empresa.owner || "Pullman") !== (user?.owner || "Pullman")) {
+      return res.status(403).json({ message: "No autorizado a modificar empresas de otra organización" });
+    }
+
     const {
       rut,
       nombre,
@@ -361,6 +373,10 @@ export const actualizarEmpresa = async (
       tramos,
     } = req.body;
 
+    const targetOwner = user?.rol === "superuser"
+      ? ((owner === "Wit" || owner === "Pullman") ? owner : empresa.owner)
+      : empresa.owner;
+
     const t = await sequelize.transaction();
     try {
       await empresa.update(
@@ -382,7 +398,7 @@ export const actualizarEmpresa = async (
           morosidad,
           tipo_facturacion,
           ente_facturador,
-          owner: (owner === "Wit" || owner === "Pullman") ? owner : undefined,
+          owner: targetOwner,
           contacto_fact_nombre,
           contacto_fact_email,
           contacto_fact_email_cc,

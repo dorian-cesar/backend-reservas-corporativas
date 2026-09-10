@@ -34,6 +34,10 @@ const allowedOrigins = [
   "https://www.pullmanviajes.cl",
   "https://pullmanviajes.cl",
   "https://reservas-corporativas.pullmanbus.cl",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:4000",
+  "http://127.0.0.1:3000",
 ];
 
 app.use(

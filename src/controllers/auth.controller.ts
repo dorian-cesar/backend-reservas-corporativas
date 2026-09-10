@@ -68,6 +68,7 @@ export const login = async (req: Request, res: Response) => {
         rol: user.rol,
         empresa_id: user.empresa_id,
         centro_costo_id: user.centro_costo_id,
+        owner: user.owner || "Pullman",
       };
 
       const token = signJwt(payload);
@@ -109,6 +110,7 @@ export const login = async (req: Request, res: Response) => {
         rol: user.rol,
         empresa_id: user.empresa_id,
         centro_costo_id: user.centro_costo_id,
+        owner: user.owner || "Pullman",
       };
 
       const token = signJwt(payload);
@@ -219,6 +221,7 @@ export const verifyTwoFactorCode = async (req: Request, res: Response) => {
       rol: user.rol,
       empresa_id: user.empresa_id,
       centro_costo_id: user.centro_costo_id,
+      owner: user.owner || "Pullman",
     };
 
     const token = signJwt(payload);

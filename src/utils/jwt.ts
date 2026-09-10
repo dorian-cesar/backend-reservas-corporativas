@@ -11,6 +11,7 @@ export interface JwtPayload {
     rol: string;
     empresa_id?: number;
     centro_costo_id?: number;
+    owner?: "Pullman" | "Wit";
 }
 
 export function signJwt(

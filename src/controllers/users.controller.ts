@@ -29,6 +29,10 @@ export const getUsers = async (req: Request, res: Response) => {
 
         let baseWhere: any = {};
 
+        if (rol !== "superuser") {
+            baseWhere.owner = user.owner || "Pullman";
+        }
+
         if (email) {
             baseWhere.email = email;
         }
@@ -291,10 +295,25 @@ export const create = async (
             targetEmpresaId = (req.user as any).empresa_id;
         }
 
+        let targetOwner: "Pullman" | "Wit" = "Pullman";
+        if (requestingUser.rol === "superuser") {
+            targetOwner = (req.body as any).owner || "Pullman";
+        } else {
+            targetOwner = requestingUser.owner || "Pullman";
+        }
+
         let userNewLogin = false;
         if (targetEmpresaId) {
             const empresa = await Empresa.findByPk(targetEmpresaId);
-            if (empresa && empresa.newLogin) userNewLogin = true;
+            if (empresa) {
+                if (requestingUser.rol !== "superuser") {
+                    const empresaOwner = empresa.owner || "Pullman";
+                    if (empresaOwner !== targetOwner) {
+                        return res.status(403).json({ message: "No puedes asignar usuarios a empresas de otra organización" });
+                    }
+                }
+                if (empresa.newLogin) userNewLogin = true;
+            }
         }
 
         const hashed = await bcrypt.hash(password, 10);
@@ -307,6 +326,7 @@ export const create = async (
             empresa_id: targetEmpresaId,
             centro_costo_id,
             estado: estado !== undefined ? estado : true,
+            owner: targetOwner,
             lastChangePassWord: new Date(),
             newLogin: userNewLogin
         });
@@ -336,6 +356,15 @@ export const update = async (
         });
 
         if (!user) return res.status(404).json({ message: "Usuario no existe" });
+
+        if (requestingUser.rol !== "superuser") {
+            const targetUserOwner = user.owner || "Pullman";
+            const reqUserOwner = requestingUser.owner || "Pullman";
+            if (targetUserOwner !== reqUserOwner) {
+                return res.status(403).json({ message: "No tienes permisos para modificar usuarios de otra organización" });
+            }
+            delete (data as any).owner;
+        }
 
         // Solo superuser puede asignar rol superuser
         if (data.rol === "superuser" && requestingUser.rol !== "superuser")
