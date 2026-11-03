@@ -24,7 +24,7 @@ import moment from "moment-timezone";
 function buildTicketFilters(query: any): Record<string | symbol, any> {
     const filters: Record<string | symbol, any> = {};
     const ticketFields = [
-        "id", "ticketNumber", "pnrNumber", "ticketStatus", "origin", "destination",
+        "id", "ticketNumber", "pnrNumber", "operador", "ticketStatus", "origin", "destination",
         "terminal_origen", "terminal_destino",
         "travelDate", "departureTime", "seatNumbers", "fare", "monto_boleto", "monto_devolucion",
         "confirmedAt", "id_User", "id_pasajero",
@@ -165,6 +165,7 @@ export const create = async (
         const {
             ticketNumber,
             pnrNumber,
+            operador,
             ticketStatus,
             origin,
             destination,
@@ -251,6 +252,7 @@ export const create = async (
         const ticket = await Ticket.create({
             ticketNumber,
             pnrNumber,
+            operador: operador || null,
             ticketStatus,
             origin,
             destination,

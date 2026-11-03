@@ -23,6 +23,7 @@ export interface ITicketCreate {
     id_User: number;
     id_pasajero?: number;
     id_empresa?: number; // NUEVO CAMPO
+    operador?: string;
 }
 
 /**
@@ -46,4 +47,5 @@ export interface ITicketUpdate {
     id_User?: number;
     id_pasajero?: number;
     id_empresa?: number; // NUEVO CAMPO
+    operador?: string;
 }
