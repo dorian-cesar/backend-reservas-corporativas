@@ -95,6 +95,15 @@ export const processEDPMailQueue = async (
           .map((e) => e.trim())
           .filter((e) => e.length > 0 && emailRegex.test(e));
 
+        // Copia fija obligatoria para facturación Pullman Bus en envíos automáticos
+        const EDP_COPY_EMAIL = "facturacion@pullmanbus.cl";
+        if (
+          !recipients.includes(EDP_COPY_EMAIL) &&
+          !ccRecipients.includes(EDP_COPY_EMAIL)
+        ) {
+          ccRecipients.push(EDP_COPY_EMAIL);
+        }
+
         if (recipients.length === 0) {
           console.log(
             `[EDP Mail Queue] Empresa ${empresa.nombre} (ID: ${empresa.id}) sin emails configurados — omitido`,
