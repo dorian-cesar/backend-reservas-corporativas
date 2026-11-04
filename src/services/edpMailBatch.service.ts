@@ -1,3 +1,8 @@
+import { EstadoCuenta } from "../models/estado_cuenta.model";
+import { Empresa } from "../models/empresa.model";
+import { EdpTicketSnapshot } from "../models/edp_ticket_snapshot.model";
+import { Ticket } from "../models/ticket.model";
+import { Op } from "sequelize";
 import { generateEDPPDF, EDPPDFData } from "./pdf.service";
 import { generateEDPExcelBuffer } from "./excel.service";
 import { sendEDPEmail } from "./mail.service";
@@ -245,4 +250,233 @@ export const processEDPMailQueue = async (
   console.log(
     `[EDP Mail Queue] Finalizado — ✅ ${enviados} enviados, ❌ ${fallidos} fallidos`,
   );
+};
+
+
+/**
+ * Reenvía manualmente el email de un Estado de Pago individual.
+ * Reconstruye el PDF y el Excel y actualiza la trazabilidad en la base de datos.
+ */
+export const resendSingleEDPEmail = async (
+  estadoCuentaId: number,
+): Promise<{ success: boolean; message: string; recipients?: string[]; cc?: string[] }> => {
+  const ec = await EstadoCuenta.findByPk(estadoCuentaId, {
+    include: [{ model: Empresa, required: true }],
+  });
+
+  if (!ec) {
+    throw new Error(`Estado de cuenta #${estadoCuentaId} no encontrado`);
+  }
+
+  const empresa = ec.empresa;
+  if (!empresa) {
+    throw new Error(`Empresa asociada al EDP #${estadoCuentaId} no encontrada`);
+  }
+
+  // 1. Obtener snapshots de tickets
+  const snapshots = await EdpTicketSnapshot.findAll({
+    where: { edp_id: ec.id },
+    order: [["id", "ASC"]],
+  });
+
+  let tickets: any[] = [];
+  if (snapshots.length > 0) {
+    tickets = snapshots
+      .map((s) => {
+        try {
+          return JSON.parse(s.ticket_data);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } else {
+    // Si no hay snapshot, buscar tickets de la BD
+    const fechaInicioDate = ec.fecha_inicio ? new Date(ec.fecha_inicio) : new Date(ec.fecha_generacion);
+    const fechaFinDate = ec.fecha_fin ? new Date(ec.fecha_fin) : new Date(ec.fecha_generacion);
+    tickets = await Ticket.findAll({
+      where: {
+        id_empresa: empresa.id,
+        created_at: { [Op.between]: [fechaInicioDate, fechaFinDate] },
+      },
+    });
+  }
+
+  // 2. Parsear detallePorCC
+  let detallePorCC: Record<string, { nombre: string; total_tickets: number; total_anulados: number; monto_facturado: number }> = {};
+  try {
+    detallePorCC = JSON.parse(ec.detalle_por_cc || "{}");
+  } catch {
+    detallePorCC = {};
+  }
+
+  const fechaInicioDate = ec.fecha_inicio ? new Date(ec.fecha_inicio) : new Date(ec.fecha_generacion);
+  const fechaFinDate = ec.fecha_fin ? new Date(ec.fecha_fin) : new Date(ec.fecha_generacion);
+
+  const devolucionesFueraPeriodoCount = await Ticket.count({
+    where: {
+      id_empresa: empresa.id,
+      ticketStatus: "Anulado",
+      confirmedAt: { [Op.lt]: fechaInicioDate },
+      updated_at: { [Op.between]: [fechaInicioDate, fechaFinDate] },
+    },
+  });
+
+  const porcentajeDescuento = Number(ec.porcentaje_descuento || 0);
+  const montoFacturado = Number(ec.monto_facturado || 0);
+  const montoConfirmados = tickets
+    .filter((t) => t.ticketStatus === "Confirmed")
+    .reduce((sum, t) => sum + (Number(t.monto_boleto) || 0), 0);
+
+  const montoDescuento = Math.round(montoConfirmados * (porcentajeDescuento / 100));
+  const devolucionesDentro = tickets
+    .filter((t) => t.ticketStatus === "Anulado")
+    .reduce((sum, t) => sum + (Number(t.monto_devolucion) || 0), 0);
+
+  // 3. Filtrar destinatarios válidos
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const recipients = [
+    empresa.contacto_fact_email,
+    empresa.ejecutivo_com_email,
+  ]
+    .map((e) => (e ? e.trim() : ""))
+    .filter((e) => e.length > 0 && emailRegex.test(e));
+
+  const ccRecipients = (empresa.contacto_fact_email_cc || "")
+    .split(/[,;]+/)
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0 && emailRegex.test(e));
+
+  const EDP_COPY_EMAIL = "facturacion@pullmanbus.cl";
+  if (!recipients.includes(EDP_COPY_EMAIL) && !ccRecipients.includes(EDP_COPY_EMAIL)) {
+    ccRecipients.push(EDP_COPY_EMAIL);
+  }
+
+  if (recipients.length === 0) {
+    await ec.update({
+      email_estado: "omitido",
+      email_motivo: "Sin email de facturación configurado o formato inválido",
+    });
+    return {
+      success: false,
+      message: `La empresa ${empresa.nombre} no tiene correos de facturación válidos configurados.`,
+    };
+  }
+
+  const fechaGeneracionStr = moment(ec.fecha_generacion).tz(TIMEZONE).format("DD-MM-YYYY");
+  const fechaInicioStr = moment(fechaInicioDate).tz(TIMEZONE).format("DD-MM-YYYY");
+  const fechaFinStr = moment(fechaFinDate).tz(TIMEZONE).format("DD-MM-YYYY");
+  const periodoReservas = `${fechaInicioStr} - ${fechaFinStr}`;
+
+  const centrosCosto = Object.values(detallePorCC)
+    .filter((cc) => cc.total_tickets - cc.total_anulados > 0)
+    .map((cc, idx) => ({
+      id: idx + 1,
+      nombre: cc.nombre,
+      cantidad_tickets: cc.total_tickets - cc.total_anulados,
+      monto_facturado: cc.monto_facturado,
+    }))
+    .sort((a, b) => b.monto_facturado - a.monto_facturado);
+
+  const ticketsConfirmados = Number(ec.total_tickets || 0) - Number(ec.total_tickets_anulados || 0);
+  const montoBruto = montoConfirmados > 0 ? montoConfirmados : centrosCosto.reduce((sum, cc) => sum + cc.monto_facturado, 0);
+  const montoI = Math.max(0, montoBruto - montoDescuento);
+  const montoFinal = Math.max(
+    0,
+    montoI - Number(ec.devoluciones_fuera_periodo || 0) - Number(ec.reclamos_descuento || 0),
+  );
+
+  const edpPDFData: EDPPDFData = {
+    edp: {
+      numero_edp: ec.id.toString(),
+      fecha_generacion: fechaGeneracionStr,
+      periodo_reservas: periodoReservas,
+    },
+    empresa: {
+      id: empresa.id,
+      nombre: empresa.nombre,
+      rut: empresa.rut ?? "No disponible",
+      cuenta_corriente: empresa.cuenta_corriente ?? null,
+    },
+    resumen: {
+      tickets_generados: Number(ec.total_tickets || 0),
+      tickets_anulados: Number(ec.total_tickets_anulados || 0),
+      suma_devoluciones: devolucionesDentro,
+      monto_bruto_facturado: montoBruto,
+      porcentaje_descuento: porcentajeDescuento,
+      etiqueta_descuento: porcentajeDescuento > 0 ? "Descuento por Tramos" : "Descuento Aplicado",
+      monto_descuento: montoDescuento,
+      monto_final: montoFinal,
+      monto_reclamos: Number(ec.reclamos_descuento || 0),
+      devoluciones_fuera_periodo: Number(ec.devoluciones_fuera_periodo || 0),
+      saldo_favor_restante: 0,
+    },
+    centros_costo: centrosCosto,
+    totales: {
+      cantidad_tickets: ticketsConfirmados,
+      monto_facturado: montoBruto,
+    },
+  };
+
+  const pdfBytes = await generateEDPPDF(edpPDFData);
+  const pdfBuffer = Buffer.from(pdfBytes);
+  const pdfFilename = `EDP-${empresa.nombre.replace(/\s+/g, "-").substring(0, 40)}-${ec.periodo}.pdf`;
+
+  const excelBuffer = await generateEDPExcelBuffer(
+    tickets,
+    empresa.nombre,
+    empresa.rut ?? "",
+    empresa.cuenta_corriente ?? "",
+    ec.periodo,
+    periodoReservas,
+    Number(ec.devoluciones_fuera_periodo || 0),
+    montoFinal,
+    porcentajeDescuento,
+    montoDescuento,
+    Number(ec.reclamos_descuento || 0),
+    fechaInicioDate.toISOString(),
+    fechaFinDate.toISOString(),
+    devolucionesFueraPeriodoCount,
+  );
+  const excelFilename = `tickets_edp_${ec.periodo}_${empresa.cuenta_corriente || empresa.id}.xlsx`;
+
+  try {
+    await sendEDPEmail({
+      recipients,
+      cc: ccRecipients,
+      empresaNombre: empresa.nombre,
+      rutEmpresa: empresa.rut ?? "No disponible",
+      cuentaCorriente: empresa.cuenta_corriente ?? "",
+      periodo: ec.periodo,
+      fechaGeneracion: fechaGeneracionStr,
+      periodoReservas,
+      totalTickets: Number(ec.total_tickets || 0),
+      totalAnulados: Number(ec.total_tickets_anulados || 0),
+      montoFacturado: montoFinal,
+      pdfBuffer,
+      pdfFilename,
+      excelBuffer,
+      excelFilename,
+    });
+
+    await ec.update({
+      email_estado: "enviado",
+      email_fecha_envio: new Date(),
+      email_destinatarios: [...recipients, ...ccRecipients].join(", "),
+      email_motivo: "Reenviado manualmente por supervisor",
+    });
+
+    return {
+      success: true,
+      message: `EDP #${ec.id} reenviado exitosamente a ${recipients.join(", ")} (CC: ${ccRecipients.join(", ")})`,
+      recipients,
+      cc: ccRecipients,
+    };
+  } catch (err: any) {
+    await ec.update({
+      email_estado: "fallido",
+      email_motivo: (err?.message || "Fallo en reintento SendGrid").substring(0, 255),
+    });
+    throw new Error(`Error al enviar correo por SendGrid: ${err?.message || err}`);
+  }
 };

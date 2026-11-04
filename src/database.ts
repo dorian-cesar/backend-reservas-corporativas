@@ -115,6 +115,45 @@ export const connectDB = async () => {
       `);
       console.log("✅ Columna 'owner' agregada exitosamente a la tabla 'users'.");
     }
+
+    // Verificar/crear columnas de tracking de emails en 'estados_cuenta'
+    const [edpColumns]: any = await sequelize.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'estados_cuenta' 
+        AND COLUMN_NAME IN ('email_estado', 'email_fecha_envio', 'email_destinatarios', 'email_motivo');
+    `);
+    const existingCols = edpColumns.map((c: any) => c.COLUMN_NAME);
+
+    if (!existingCols.includes("email_estado")) {
+      console.log("➕ Agregando columna 'email_estado' a la tabla 'estados_cuenta'...");
+      await sequelize.query(`
+        ALTER TABLE estados_cuenta 
+        ADD COLUMN email_estado ENUM('pendiente', 'enviado', 'omitido', 'fallido') NOT NULL DEFAULT 'pendiente';
+      `);
+    }
+    if (!existingCols.includes("email_fecha_envio")) {
+      console.log("➕ Agregando columna 'email_fecha_envio' a la tabla 'estados_cuenta'...");
+      await sequelize.query(`
+        ALTER TABLE estados_cuenta 
+        ADD COLUMN email_fecha_envio DATETIME NULL;
+      `);
+    }
+    if (!existingCols.includes("email_destinatarios")) {
+      console.log("➕ Agregando columna 'email_destinatarios' a la tabla 'estados_cuenta'...");
+      await sequelize.query(`
+        ALTER TABLE estados_cuenta 
+        ADD COLUMN email_destinatarios TEXT NULL;
+      `);
+    }
+    if (!existingCols.includes("email_motivo")) {
+      console.log("➕ Agregando columna 'email_motivo' a la tabla 'estados_cuenta'...");
+      await sequelize.query(`
+        ALTER TABLE estados_cuenta 
+        ADD COLUMN email_motivo VARCHAR(255) NULL;
+      `);
+    }
   } catch (error) {
     console.error("Unable to connect to the database:", error);
     process.exit(1);

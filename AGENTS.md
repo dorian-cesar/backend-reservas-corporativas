@@ -26,3 +26,4 @@ Antes de realizar o coordinar cualquier despliegue (deploy, pase a producción, 
 
 - Toda modificación al cálculo, auditoría o envío automático de Estados de Pago debe seguir los lineamientos de [MANUAL_ENVIO_EDPS_AUTOMATICOS.md](file:///c:/NodeJs/reservas%20corporativas/backend-reservas-corporativas/MANUAL_ENVIO_EDPS_AUTOMATICOS.md).
 - Todo envío automático de EDP a empresas masivas debe incluir de forma obligatoria la copia en `CC` a `facturacion@pullmanbus.cl`.
+

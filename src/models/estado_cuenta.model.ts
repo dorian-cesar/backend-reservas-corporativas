@@ -29,6 +29,10 @@ export interface IEstadoCuenta {
   suma_devoluciones?: number;
   reclamos_descuento?: number;
   devoluciones_fuera_periodo?: number;
+  email_estado?: "pendiente" | "enviado" | "omitido" | "fallido";
+  email_fecha_envio?: Date | null;
+  email_destinatarios?: string | null;
+  email_motivo?: string | null;
 }
 
 @Table({ tableName: "estados_cuenta", timestamps: false })
@@ -87,6 +91,22 @@ export class EstadoCuenta extends Model<IEstadoCuenta> {
 
   @Column({ type: DataType.DECIMAL(5, 2), allowNull: true })
   declare porcentaje_descuento?: number;
+
+  @Column({
+    type: DataType.ENUM("pendiente", "enviado", "omitido", "fallido"),
+    allowNull: false,
+    defaultValue: "pendiente",
+  })
+  declare email_estado: "pendiente" | "enviado" | "omitido" | "fallido";
+
+  @Column({ type: DataType.DATE, allowNull: true })
+  declare email_fecha_envio?: Date | null;
+
+  @Column({ type: DataType.TEXT, allowNull: true })
+  declare email_destinatarios?: string | null;
+
+  @Column({ type: DataType.STRING(255), allowNull: true })
+  declare email_motivo?: string | null;
 
   @BelongsTo(() => Empresa)
   declare empresa: Empresa;

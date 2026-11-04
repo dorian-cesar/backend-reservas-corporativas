@@ -1,3 +1,5 @@
+import ExcelJS from "exceljs";
+import { resendSingleEDPEmail } from "../services/edpMailBatch.service";
 import { Request, Response } from "express";
 import { EstadoCuenta } from "../models/estado_cuenta.model";
 import { CuentaCorriente } from "../models/cuenta_corriente.model";
@@ -1129,6 +1131,438 @@ export const obtenerDescuentoEstadoCuenta = async (
     return res.status(500).json({
       message: "Error al obtener información de descuento",
       error: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+};
+
+
+/**
+ * Reporte de control de envíos de EDPs por rango de fechas y estado
+ */
+export const obtenerReporteEnviosEDP = async (req: Request, res: Response) => {
+  try {
+    const {
+      desde,
+      hasta,
+      estado,
+      empresaId,
+      search,
+      owner,
+      page = "1",
+      limit = "20",
+    } = req.query;
+
+    const where: any = {};
+    const empresaWhere: any = {};
+
+    // 1. Filtro por rango de fechas (fecha_generacion)
+    if (desde || hasta) {
+      const fechaFiltro: any = {};
+      if (desde) {
+        fechaFiltro[Op.gte] = moment(desde as string).tz(TIMEZONE).startOf("day").toDate();
+      }
+      if (hasta) {
+        fechaFiltro[Op.lte] = moment(hasta as string).tz(TIMEZONE).endOf("day").toDate();
+      }
+      where.fecha_generacion = fechaFiltro;
+    }
+
+    // 2. Filtro por empresaId directa
+    if (empresaId) {
+      where.empresa_id = Number(empresaId);
+    }
+
+    // 3. Filtro por estado de email
+    if (estado && estado !== "todos") {
+      where.email_estado = estado;
+    }
+
+    // 4. Filtro por owner (multi-tenant)
+    if (owner && (owner === "Pullman" || owner === "Wit")) {
+      empresaWhere.owner = owner;
+    }
+
+    // 5. Búsqueda por término (RUT, nombre de empresa, o ID de EDP)
+    if (search && typeof search === "string" && search.trim().length > 0) {
+      const term = search.trim();
+      const isNumeric = !isNaN(Number(term));
+
+      if (isNumeric) {
+        where[Op.or] = [
+          { id: Number(term) },
+          { "$empresa.rut$": { [Op.like]: `%${term}%` } },
+          { "$empresa.nombre$": { [Op.like]: `%${term}%` } },
+        ];
+      } else {
+        where[Op.or] = [
+          { "$empresa.rut$": { [Op.like]: `%${term}%` } },
+          { "$empresa.nombre$": { [Op.like]: `%${term}%` } },
+        ];
+      }
+    }
+
+    // 6. Cálculo de KPIs en el rango de fechas base (sin filtrar por el estado seleccionado para mostrar métricas globales del rango)
+    const baseWhereForKPIs: any = {};
+    if (where.fecha_generacion) {
+      baseWhereForKPIs.fecha_generacion = where.fecha_generacion;
+    }
+    if (where.empresa_id) {
+      baseWhereForKPIs.empresa_id = where.empresa_id;
+    }
+
+    const allEdpsInRange = await EstadoCuenta.findAll({
+      where: baseWhereForKPIs,
+      include: [
+        {
+          model: Empresa,
+          as: "empresa",
+          where: Object.keys(empresaWhere).length > 0 ? empresaWhere : undefined,
+          attributes: ["id", "nombre", "rut", "owner"],
+        },
+      ],
+      attributes: ["id", "email_estado"],
+    });
+
+    const totalInRange = allEdpsInRange.length;
+    let enviados = 0;
+    let omitidos = 0;
+    let fallidos = 0;
+    let pendientes = 0;
+
+    allEdpsInRange.forEach((item) => {
+      const st = item.email_estado || "pendiente";
+      if (st === "enviado") enviados++;
+      else if (st === "omitido") omitidos++;
+      else if (st === "fallido") fallidos++;
+      else pendientes++;
+    });
+
+    const tasaExito = totalInRange > 0 ? Math.round((enviados / totalInRange) * 100) : 0;
+
+    // 7. Paginación y consulta de registros
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit as string, 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    const { count, rows } = await EstadoCuenta.findAndCountAll({
+      where,
+      include: [
+        {
+          model: Empresa,
+          as: "empresa",
+          where: Object.keys(empresaWhere).length > 0 ? empresaWhere : undefined,
+          attributes: [
+            "id",
+            "nombre",
+            "rut",
+            "cuenta_corriente",
+            "contacto_fact_email",
+            "contacto_fact_email_cc",
+            "ejecutivo_com_email",
+            "tipo_facturacion",
+            "owner",
+          ],
+        },
+      ],
+      order: [["id", "DESC"]],
+      limit: limitNum,
+      offset,
+    });
+
+    const totalPages = Math.ceil(count / limitNum);
+
+    return res.status(200).json({
+      kpis: {
+        total: totalInRange,
+        enviados,
+        omitidos,
+        fallidos,
+        pendientes,
+        tasaExito,
+      },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: count,
+        totalPages,
+      },
+      edps: rows.map((ec) => ({
+        id: ec.id,
+        empresa_id: ec.empresa_id,
+        empresa_nombre: ec.empresa?.nombre ?? "Sin Empresa",
+        empresa_rut: ec.empresa?.rut ?? "Sin RUT",
+        empresa_cuenta_corriente: ec.empresa?.cuenta_corriente ?? "",
+        empresa_tipo_facturacion: ec.empresa?.tipo_facturacion ?? "Masiva",
+        empresa_owner: ec.empresa?.owner ?? "Pullman",
+        contacto_fact_email: ec.empresa?.contacto_fact_email ?? "",
+        contacto_fact_email_cc: ec.empresa?.contacto_fact_email_cc ?? "",
+        periodo: ec.periodo,
+        fecha_inicio: ec.fecha_inicio,
+        fecha_fin: ec.fecha_fin,
+        fecha_generacion: ec.fecha_generacion,
+        total_tickets: ec.total_tickets,
+        total_tickets_anulados: ec.total_tickets_anulados,
+        monto_facturado: Number(ec.monto_facturado || 0),
+        pagado: ec.pagado,
+        email_estado: ec.email_estado || "pendiente",
+        email_fecha_envio: ec.email_fecha_envio,
+        email_destinatarios: ec.email_destinatarios,
+        email_motivo: ec.email_motivo,
+      })),
+    });
+  } catch (error) {
+    console.error("Error al obtener reporte de envíos EDP:", error);
+    return res.status(500).json({
+      message: "Error interno al generar el reporte de envíos",
+      error: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+};
+
+/**
+ * Exporta el reporte de envíos de EDPs a una planilla Excel corporativa
+ */
+export const exportarReporteEnviosExcel = async (req: Request, res: Response) => {
+  try {
+    const { desde, hasta, estado, empresaId, search, owner } = req.query;
+
+    const where: any = {};
+    const empresaWhere: any = {};
+
+    if (desde || hasta) {
+      const fechaFiltro: any = {};
+      if (desde) {
+        fechaFiltro[Op.gte] = moment(desde as string).tz(TIMEZONE).startOf("day").toDate();
+      }
+      if (hasta) {
+        fechaFiltro[Op.lte] = moment(hasta as string).tz(TIMEZONE).endOf("day").toDate();
+      }
+      where.fecha_generacion = fechaFiltro;
+    }
+
+    if (empresaId) where.empresa_id = Number(empresaId);
+    if (estado && estado !== "todos") where.email_estado = estado;
+    if (owner && (owner === "Pullman" || owner === "Wit")) empresaWhere.owner = owner;
+
+    if (search && typeof search === "string" && search.trim().length > 0) {
+      const term = search.trim();
+      const isNumeric = !isNaN(Number(term));
+      if (isNumeric) {
+        where[Op.or] = [
+          { id: Number(term) },
+          { "$empresa.rut$": { [Op.like]: `%${term}%` } },
+          { "$empresa.nombre$": { [Op.like]: `%${term}%` } },
+        ];
+      } else {
+        where[Op.or] = [
+          { "$empresa.rut$": { [Op.like]: `%${term}%` } },
+          { "$empresa.nombre$": { [Op.like]: `%${term}%` } },
+        ];
+      }
+    }
+
+    const edps = await EstadoCuenta.findAll({
+      where,
+      include: [
+        {
+          model: Empresa,
+          as: "empresa",
+          where: Object.keys(empresaWhere).length > 0 ? empresaWhere : undefined,
+          attributes: [
+            "id",
+            "nombre",
+            "rut",
+            "cuenta_corriente",
+            "contacto_fact_email",
+            "contacto_fact_email_cc",
+            "tipo_facturacion",
+          ],
+        },
+      ],
+      order: [["id", "DESC"]],
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Pullman Bus - Reservas Corporativas";
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet("Reporte Envíos EDP", {
+      views: [{ showGridLines: true }],
+    });
+
+    // Título Principal
+    sheet.mergeCells("A1:M1");
+    const titleCell = sheet.getCell("A1");
+    titleCell.value = "PULLMAN BUS - REPORTE DE CONTROL DE ENVÍO DE ESTADOS DE PAGO (EDP)";
+    titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
+    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F2B48" } };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    sheet.getRow(1).height = 30;
+
+    // Subtítulo con rango de fechas y generación
+    sheet.mergeCells("A2:M2");
+    const subCell = sheet.getCell("A2");
+    const fechaReporte = moment().tz(TIMEZONE).format("DD-MM-YYYY HH:mm");
+    subCell.value = `Rango Consultado: ${desde || "Histórico"} al ${hasta || "Hoy"} | Generado: ${fechaReporte}`;
+    subCell.font = { name: "Arial", size: 10, italic: true, color: { argb: "FF334155" } };
+    subCell.alignment = { horizontal: "center", vertical: "middle" };
+    sheet.getRow(2).height = 20;
+
+    sheet.addRow([]); // Espaciador
+
+    // Encabezados de Columna
+    const headers = [
+      "N° EDP",
+      "Razón Social Empresa",
+      "RUT",
+      "Cta. Corriente",
+      "Tipo Facturación",
+      "Período",
+      "Fecha Generación",
+      "Boletos Vigentes",
+      "Boletos Anulados",
+      "Monto Facturado (CLP)",
+      "Estado Envío",
+      "Fecha Envío",
+      "Destinatarios",
+      "Motivo / Observación",
+    ];
+
+    const headerRow = sheet.addRow(headers);
+    headerRow.height = 26;
+    headerRow.eachCell((cell) => {
+      cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A8A" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFCBD5E1" } },
+        bottom: { style: "medium", color: { argb: "FF0F172A" } },
+      };
+    });
+
+    // Filas de datos
+    edps.forEach((ec, idx) => {
+      const estado = ec.email_estado || "pendiente";
+      const fechaGenStr = ec.fecha_generacion
+        ? moment(ec.fecha_generacion).tz(TIMEZONE).format("DD-MM-YYYY")
+        : "";
+      const fechaEnvioStr = ec.email_fecha_envio
+        ? moment(ec.email_fecha_envio).tz(TIMEZONE).format("DD-MM-YYYY HH:mm")
+        : "-";
+
+      const row = sheet.addRow([
+        ec.id,
+        ec.empresa?.nombre || "Sin Empresa",
+        ec.empresa?.rut || "Sin RUT",
+        ec.empresa?.cuenta_corriente || "-",
+        ec.empresa?.tipo_facturacion || "Masiva",
+        ec.periodo,
+        fechaGenStr,
+        Number(ec.total_tickets || 0) - Number(ec.total_tickets_anulados || 0),
+        Number(ec.total_tickets_anulados || 0),
+        Number(ec.monto_facturado || 0),
+        estado.toUpperCase(),
+        fechaEnvioStr,
+        ec.email_destinatarios || "-",
+        ec.email_motivo || "-",
+      ]);
+
+      row.height = 22;
+      const isZebra = idx % 2 === 1;
+
+      row.eachCell((cell, colNumber) => {
+        cell.font = { name: "Arial", size: 9 };
+        if (isZebra) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+        }
+
+        // Formatos específicos por columna
+        if (colNumber === 1 || colNumber === 3 || colNumber === 4 || colNumber === 5 || colNumber === 6 || colNumber === 7 || colNumber === 12) {
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        } else if (colNumber === 8 || colNumber === 9) {
+          cell.alignment = { horizontal: "right", vertical: "middle" };
+          cell.numFmt = "#,##0";
+        } else if (colNumber === 10) {
+          cell.alignment = { horizontal: "right", vertical: "middle" };
+          cell.numFmt = "$#,##0";
+        } else if (colNumber === 11) {
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          // Colores de estado
+          if (estado === "enviado") {
+            cell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF166534" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
+          } else if (estado === "omitido") {
+            cell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF854D0E" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF9C3" } };
+          } else if (estado === "fallido") {
+            cell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF991B1B" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+          }
+        } else {
+          cell.alignment = { horizontal: "left", vertical: "middle" };
+        }
+
+        cell.border = {
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+      });
+    });
+
+    // Ajustar anchos automáticos
+    sheet.columns = [
+      { width: 10 }, // N° EDP
+      { width: 34 }, // Empresa
+      { width: 14 }, // RUT
+      { width: 14 }, // Cta Corriente
+      { width: 16 }, // Tipo Fact
+      { width: 12 }, // Periodo
+      { width: 16 }, // Fecha Gen
+      { width: 15 }, // Boletos Vigentes
+      { width: 15 }, // Boletos Anulados
+      { width: 20 }, // Monto Facturado
+      { width: 16 }, // Estado Envío
+      { width: 18 }, // Fecha Envío
+      { width: 36 }, // Destinatarios
+      { width: 36 }, // Motivo
+    ];
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=reporte_envios_edp_${moment().tz(TIMEZONE).format("YYYYMMDD_HHmm")}.xlsx`,
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Error al exportar reporte de envíos Excel:", error);
+    return res.status(500).json({
+      message: "Error al generar la planilla Excel",
+      error: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+};
+
+/**
+ * Reenvía manualmente el correo de un Estado de Pago individual
+ */
+export const reenviarEDPEmailIndividual = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({ message: "ID de Estado de Pago inválido" });
+    }
+
+    const resultado = await resendSingleEDPEmail(Number(id));
+    return res.status(200).json(resultado);
+  } catch (error) {
+    console.error(`Error al reenviar email para EDP #${req.params.id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : "Error desconocido al reenviar el correo",
     });
   }
 };

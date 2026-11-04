@@ -577,6 +577,16 @@ export const generarEstadosPagoEmpresas = async (
                 tickets: tickets.map((t) => (t.toJSON ? t.toJSON() : t)),
                 detallePorCC,
               });
+            } else if (empresa.tipo_facturacion !== "Masiva") {
+              await estadoCuenta.update({
+                email_estado: "omitido",
+                email_motivo: "Facturación Especial (gestión manual)",
+              });
+            } else if (!snapshotsGuardadosCorrectamente) {
+              await estadoCuenta.update({
+                email_estado: "omitido",
+                email_motivo: "Fallo de integridad de snapshots",
+              });
             }
 
             const ticketsActivosNuevos = await Ticket.findAll({

@@ -165,3 +165,4 @@ OpenSSH rechaza llaves que tienen permisos de lectura compartidos en Windows.
    ```bash
    pm2 restart reservas
    ```
+
