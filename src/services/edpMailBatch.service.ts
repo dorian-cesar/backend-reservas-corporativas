@@ -113,6 +113,15 @@ export const processEDPMailQueue = async (
           console.log(
             `[EDP Mail Queue] Empresa ${empresa.nombre} (ID: ${empresa.id}) sin emails configurados — omitido`,
           );
+          if (estadoCuentaId) {
+            await EstadoCuenta.update(
+              {
+                email_estado: "omitido",
+                email_motivo: "Sin emails destinatarios configurados",
+              },
+              { where: { id: estadoCuentaId } },
+            );
+          }
           return;
         }
 
@@ -188,48 +197,73 @@ export const processEDPMailQueue = async (
           },
         };
 
-        // 3. Generar PDF
-        const pdfBytes = await generateEDPPDF(edpPDFData);
-        const pdfBuffer = Buffer.from(pdfBytes);
-        const pdfFilename = `EDP-${empresa.nombre.replace(/\s+/g, "-").substring(0, 40)}-${item.periodo}.pdf`;
+        try {
+          // 3. Generar PDF
+          const pdfBytes = await generateEDPPDF(edpPDFData);
+          const pdfBuffer = Buffer.from(pdfBytes);
+          const pdfFilename = `EDP-${empresa.nombre.replace(/\s+/g, "-").substring(0, 40)}-${item.periodo}.pdf`;
 
-        // 4. Generar Excel
-        const excelBuffer = await generateEDPExcelBuffer(
-          tickets,
-          empresa.nombre,
-          empresa.rut ?? "",
-          empresa.cuenta_corriente ?? "",
-          item.periodo,
-          periodoReservas,
-          item.devolucionesFueraPeriodo,
-          montoFinal,
-          item.porcentajeDescuento,
-          montoDescuento,
-          item.reclamosDescuento,
-          item.fechaInicio ? new Date(item.fechaInicio).toISOString() : undefined,
-          item.fechaFin    ? new Date(item.fechaFin).toISOString()    : undefined,
-          item.devolucionesFueraPeriodoCount,
-        );
-        const excelFilename = `tickets_edp_${item.periodo}_${empresa.cuenta_corriente || empresa.id}.xlsx`;
+          // 4. Generar Excel
+          const excelBuffer = await generateEDPExcelBuffer(
+            tickets,
+            empresa.nombre,
+            empresa.rut ?? "",
+            empresa.cuenta_corriente ?? "",
+            item.periodo,
+            periodoReservas,
+            item.devolucionesFueraPeriodo,
+            montoFinal,
+            item.porcentajeDescuento,
+            montoDescuento,
+            item.reclamosDescuento,
+            item.fechaInicio ? new Date(item.fechaInicio).toISOString() : undefined,
+            item.fechaFin    ? new Date(item.fechaFin).toISOString()    : undefined,
+            item.devolucionesFueraPeriodoCount,
+          );
+          const excelFilename = `tickets_edp_${item.periodo}_${empresa.cuenta_corriente || empresa.id}.xlsx`;
 
-        // 5. Enviar email
-        await sendEDPEmail({
-          recipients,
-          cc: ccRecipients,
-          empresaNombre: empresa.nombre,
-          rutEmpresa: empresa.rut ?? "No disponible",
-          cuentaCorriente: empresa.cuenta_corriente ?? "",
-          periodo: item.periodo,
-          fechaGeneracion: fechaGeneracionStr,
-          periodoReservas,
-          totalTickets: item.totalTickets,
-          totalAnulados: item.totalTicketsAnulados,
-          montoFacturado: montoFinal,
-          pdfBuffer,
-          pdfFilename,
-          excelBuffer,
-          excelFilename,
-        });
+          // 5. Enviar email
+          await sendEDPEmail({
+            recipients,
+            cc: ccRecipients,
+            empresaNombre: empresa.nombre,
+            rutEmpresa: empresa.rut ?? "No disponible",
+            cuentaCorriente: empresa.cuenta_corriente ?? "",
+            periodo: item.periodo,
+            fechaGeneracion: fechaGeneracionStr,
+            periodoReservas,
+            totalTickets: item.totalTickets,
+            totalAnulados: item.totalTicketsAnulados,
+            montoFacturado: montoFinal,
+            pdfBuffer,
+            pdfFilename,
+            excelBuffer,
+            excelFilename,
+          });
+
+          if (estadoCuentaId) {
+            await EstadoCuenta.update(
+              {
+                email_estado: "enviado",
+                email_fecha_envio: new Date(),
+                email_destinatarios: [...recipients, ...ccRecipients].join(", "),
+                email_motivo: "Envío automático nocturno",
+              },
+              { where: { id: estadoCuentaId } },
+            );
+          }
+        } catch (err: any) {
+          if (estadoCuentaId) {
+            await EstadoCuenta.update(
+              {
+                email_estado: "fallido",
+                email_motivo: ((err && err.message) || "Error al procesar/enviar email").substring(0, 255),
+              },
+              { where: { id: estadoCuentaId } },
+            );
+          }
+          throw err;
+        }
       }),
     );
 
