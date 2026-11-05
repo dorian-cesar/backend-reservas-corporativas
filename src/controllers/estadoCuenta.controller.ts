@@ -1167,8 +1167,12 @@ export const obtenerReporteEnviosEDP = async (req: Request, res: Response) => {
       where.fecha_generacion = fechaFiltro;
     }
 
-    // 2. Filtro por empresaId directa
-    if (empresaId) {
+    // 2. Filtro por empresaId directa (aislamiento de multi-empresa para rol admin)
+    const userRole = (req as any).user?.rol;
+    const userEmpresaId = (req as any).user?.empresa_id;
+    if (userRole === "admin" && userEmpresaId) {
+      where.empresa_id = Number(userEmpresaId);
+    } else if (empresaId && empresaId !== "todas") {
       where.empresa_id = Number(empresaId);
     }
 
@@ -1340,7 +1344,13 @@ export const exportarReporteEnviosExcel = async (req: Request, res: Response) =>
       where.fecha_generacion = fechaFiltro;
     }
 
-    if (empresaId) where.empresa_id = Number(empresaId);
+    const excelUserRole = (req as any).user?.rol;
+    const excelUserEmpresaId = (req as any).user?.empresa_id;
+    if (excelUserRole === "admin" && excelUserEmpresaId) {
+      where.empresa_id = Number(excelUserEmpresaId);
+    } else if (empresaId && empresaId !== "todas") {
+      where.empresa_id = Number(empresaId);
+    }
     if (estado && estado !== "todos") where.email_estado = estado;
     if (owner && (owner === "Pullman" || owner === "Wit")) empresaWhere.owner = owner;
 
