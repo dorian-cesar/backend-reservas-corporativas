@@ -1,16 +1,18 @@
-# Manual Operativo y Técnico: Envío Automático de Estados de Pago (EDP) por Correo
+# Manual Operativo y Técnico: Envío y Auditoría de Estados de Pago (EDP) por Correo
 
-Este manual documenta de forma exhaustiva el funcionamiento, arquitectura, reglas de negocio, validaciones de seguridad, monitoreo y resolución de incidencias del **proceso de despacho automático de Estados de Pago (EDP)** a través de correo electrónico en la plataforma de Reservas Corporativas.
+Este manual documenta de forma exhaustiva el funcionamiento, arquitectura, reglas de negocio, validaciones de seguridad, persistencia en base de datos, módulos de interfaz web y resolución de incidencias del **proceso de despacho y trazabilidad de Estados de Pago (EDP)** a través de correo electrónico en la plataforma de Reservas Corporativas.
 
 ---
 
 ## 1. Visión General y Objetivos
 
-El sistema agrupa periódicamente todos los pasajes emitidos y anulados por las empresas clientes en un período contable determinado (mensual o quincenal). Al consolidar este ciclo, el sistema genera automáticamente:
+El sistema consolida periódicamente todos los pasajes emitidos y anulados por las empresas clientes en un período contable determinado (mensual o quincenal). Al liquidar este ciclo, el sistema genera de forma integrada:
 
-1. **Un registro formal de Estado de Pago (EDP)** en la base de datos con cargos a la cuenta corriente.
-2. **Un congelamiento inmutable (Snapshots)** de los datos del período para auditoría contable.
-3. **El despacho transaccional por correo electrónico** a los contactos de facturación y ejecutivos comerciales de la empresa, adjuntando el **PDF Consolidado** y la **Planilla Excel detallada**.
+1. **Un registro formal de Estado de Pago (EDP)** en la base de datos con aplicación de cargos contables a la cuenta corriente.
+2. **Un congelamiento inmutable (Snapshots)** de los datos del período para auditoría contable histórica.
+3. **El despacho transaccional por correo electrónico** a los contactos de facturación y ejecutivos comerciales de la empresa, adjuntando el **PDF Consolidado** y la **Planilla Excel detallada**, con copia obligatoria en `CC` a `facturacion@pullmanbus.cl`.
+4. **Trazabilidad completa en Base de Datos**: Registro en tiempo real del estado de entrega (`enviado`, `omitido`, `fallido`, `pendiente`), fecha/hora exacta, destinatarios y motivo de omisión o fallo.
+5. **Módulo de Gestión y Auditoría en Frontend ("Envíos EDP")**: Interfaz para supervisión en vivo con KPIs, filtros por fechas/estado/empresa, descarga en Excel y reenvío manual bajo demanda.
 
 ---
 
@@ -18,14 +20,17 @@ El sistema agrupa periódicamente todos los pasajes emitidos y anulados por las 
 
 | Componente | Archivo / Recurso | Rol en el Flujo |
 |---|---|---|
-| **Disparador Cron** | `src/cron/generarEstadosPagoEmpresas.run.ts` | Entry point para ejecución programada nocturna (Linux Crontab / Task Scheduler). |
-| **Orquestador Principal** | `src/cron/generarEstadosPagoEmpresas.ts` | Evalúa fechas de corte, calcula saldos, valida integridad y encola despachos. |
+| **Disparador Cron Nocturno** | `src/cron/generarEstadosPagoEmpresas.run.ts` | Entry point para ejecución programada nocturna a las 06:00 UTC (Linux Crontab). |
+| **Orquestador Principal** | `src/cron/generarEstadosPagoEmpresas.ts` | Evalúa fechas de corte, calcula saldos, valida integridad y encola despachos masivos. |
+| **Modelo y Trazabilidad BD** | `src/models/estado_cuenta.model.ts` | Define los campos `email_estado`, `email_fecha_envio`, `email_destinatarios`, `email_motivo`. |
 | **Snapshot Engine** | `src/models/edp_ticket_snapshot.model.ts` | Congela de forma inmutable los boletos y centros de costo asociados al EDP. |
-| **Mail Batch Dispatcher** | `src/services/edpMailBatch.service.ts` | Gestor de cola asíncrona, validación de destinatarios y control de lotes (chunks). |
+| **Mail Batch Dispatcher** | `src/services/edpMailBatch.service.ts` | Gestor de cola asíncrona, control de lotes (`CHUNK_SIZE = 25`), reenvío unitario y persistencia en BD. |
 | **Generador de PDF** | `src/services/pdf.service.ts` | Renderiza en memoria el informe ejecutivo consolidado por centros de costo. |
 | **Generador de Excel** | `src/services/excel.service.ts` | Construye en memoria la planilla Excel con el detalle línea a línea de tickets. |
-| **Servicio de Envío** | `src/services/mail.service.ts` | Conexión con SendGrid API, ensamblado del correo HTML y adjuntos en Base64. |
-| **Script de Reenvío** | `src/script/resendEDPEmailsToday.ts` | Herramienta operativa para reenvío masivo on-demand en caso de contingencia. |
+| **Servicio de Envío SMTP** | `src/services/mail.service.ts` | Conexión con SendGrid API, ensamblado del correo HTML y adjuntos en Base64. |
+| **Controlador de API** | `src/controllers/estadoCuenta.controller.ts` | Endpoints de reporte con KPIs, exportación Excel corporativo y reenvío manual. |
+| **Rutas de API** | `src/routes/estadoCuenta.routes.ts` | Expone `/reporte-envios`, `/reporte-envios/excel` y `/:id/reenviar-email`. |
+| **Vista Frontend** | `components/super-components/super-edp-mail-reports.tsx` | Componente interactivo de reportabilidad integrado en los paneles de administración. |
 
 ---
 
@@ -33,7 +38,7 @@ El sistema agrupa periódicamente todos los pasajes emitidos y anulados por las 
 
 ```mermaid
 flowchart TD
-    CRON["1. Inicio Cron Automático\n(generarEstadosPagoEmpresas)"] --> FILTRO_EMP["2. Filtrar Empresas Activas\n(fact_manual = false)"]
+    CRON["1. Inicio Cron Nocturno\n(03:00 AM Hora Chile)"] --> FILTRO_EMP["2. Filtrar Empresas Activas\n(fact_manual = false)"]
     
     subgraph Calculo ["Cálculo Financiero"]
         FILTRO_EMP --> PERIODO["Determinar Período y Fechas de Corte"]
@@ -44,146 +49,175 @@ flowchart TD
     subgraph Integridad ["Auditoría y Snapshots"]
         SAVE_EDP --> INSERT_SNAP["Guardar Snapshots en 'edp_ticket_snapshots'\n(Lotes de 500 con reintentos)"]
         INSERT_SNAP --> CHECK_COUNT{"¿COUNT(BD) == tickets.length?"}
-        CHECK_COUNT -- "No (Discrepancia)" --> LOG_ERR["Alerta ERROR_INTEGRIDAD\nSe bloquea envío por seguridad"]
-        CHECK_COUNT -- "Sí (OK)" --> COND_MAIL{"¿Cumple condiciones de despacho?"}
+        CHECK_COUNT -- "No (Discrepancia)" --> SNAP_FAIL["Marcar email_estado = 'omitido'\nMotivo: Fallo de integridad snapshots"]
+        CHECK_COUNT -- "Sí (OK)" --> COND_MAIL{"¿Empresa Masiva y con Movimiento?"}
     end
 
     subgraph ValidacionMail ["Validación de Despacho"]
-        COND_MAIL -- "ENABLE_EDP_EMAIL_DISPATCH = false\no Tipo != 'Masiva'\no Emails inválidos" --> OMITIR["EDP generado sin envío de correo"]
-        COND_MAIL -- "Cumple todos los requisitos" --> ENCOLAR["Encolar en edpCreatedForEmail"]
+        COND_MAIL -- "Tipo Facturación != 'Masiva'" --> ESP_OMIT["Marcar email_estado = 'omitido'\nMotivo: Facturación Especial"]
+        COND_MAIL -- "Monto = $0 y 0 tickets" --> ZERO_OMIT["EDP emitido sin despacho de correo"]
+        COND_MAIL -- "Cumple requisitos" --> ENCOLAR["Encolar en edpCreatedForEmail"]
     end
 
     subgraph BatchSendGrid ["Despacho en Lotes Asíncronos"]
         ENCOLAR --> CHUNKS["Procesar en lotes de 25 empresas\n(Promise.allSettled)"]
         CHUNKS --> ATTACHMENTS["Generar Adjuntos en Memoria:\n• PDF Consolidado (pdf.service.ts)\n• Excel Detallado (excel.service.ts)"]
-        ATTACHMENTS --> SENDGRID["Envío vía SendGrid (sendEDPEmail)\nDestinatarios Directos + CC"]
-        SENDGRID --> METRICAS["Log de Trazabilidad:\nTotal Enviados vs Total Fallidos"]
+        ATTACHMENTS --> SENDGRID["Envío vía SendGrid (sendEDPEmail)\nTo: Contactos Facturación | CC: facturacion@pullmanbus.cl"]
+        SENDGRID --> RESULT{"¿Resultado Envío?"}
+        RESULT -- "Éxito" --> DB_OK["BD: email_estado = 'enviado'\nRegistrar fecha/hora y destinatarios"]
+        RESULT -- "Rechazo / Error" --> DB_ERR["BD: email_estado = 'fallido'\nRegistrar mensaje de error"]
     end
 ```
 
 ---
 
-## 4. Requisitos y Condiciones Previas para el Envío
+## 4. Persistencia y Trazabilidad en Base de Datos
 
-Para que una empresa reciba efectivamente el correo automático con su Estado de Pago, el sistema evalúa estrictamente las siguientes compuertas lógicas:
+Cada fila en la tabla `estados_cuenta` posee trazabilidad auditada de su ciclo de comunicación a través de cuatro columnas dedicadas:
 
-### 4.1. Habilitación en Variables de Entorno (`.env`)
-El envío masivo requiere tener activa la bandera:
-```env
-ENABLE_EDP_EMAIL_DISPATCH=true
-```
-> [!NOTE]
-> Si la variable es `false` o no está definida, el cron generará los Estados de Pago, persistirá los datos y actualizará los saldos de la cuenta corriente, pero **omitirá el despacho de correos**.
+| Campo | Tipo | Valor por Defecto | Propósito y Valores Posibles |
+|---|:---:|:---:|---|
+| **`email_estado`** | `ENUM` | `'pendiente'` | • `'pendiente'`: EDP creado manualmente o aún en espera de despacho.<br>• `'enviado'`: Correo despachado con éxito por SendGrid.<br>• `'omitido'`: Despacho descartado por regla (empresa especial, sin correo o \$0).<br>• `'fallido'`: Error devuelto por la API de SendGrid o timeout. |
+| **`email_fecha_envio`** | `DATETIME` | `NULL` | Fecha y hora exacta (timestamp) en que SendGrid confirmó la recepción del mensaje. |
+| **`email_destinatarios`** | `TEXT` | `NULL` | Lista consolidada de direcciones `TO` y `CC` utilizadas en el despacho. |
+| **`email_motivo`** | `VARCHAR(255)` | `NULL` | Razón descriptiva (ej.: *"Facturación Especial (gestión manual)"*, *"Sin emails destinatarios configurados"*, *"Envío automático nocturno"* o descripción del error técnico). |
 
-### 4.2. Tipo de Facturación de la Empresa
-El sistema distingue dos modalidades de facturación en la tabla `empresas`:
-- **`tipo_facturacion = "Masiva"`:** **Apta para envío automático.** Corresponde a empresas cuyo flujo de facturación estándar es el despacho directo de reportes consolidados.
-- **`tipo_facturacion = "Especial"`:** **Se omite del despacho masivo.** Requiere tratamiento manual o formatos ad-hoc gestionados directamente por el área de facturación/contraloría.
+---
 
-### 4.3. Validación Estricta de Destinatarios (Regex)
-Los correos destinatarios se obtienen de las columnas de la tabla `empresas`:
-- **Destinatarios directos (`To`):** `contacto_fact_email` y `ejecutivo_com_email`.
-- **Destinatarios en copia (`Cc`):** `contacto_fact_email_cc` (soporta múltiples correos separados por comas o punto y coma).
+## 5. Requisitos y Reglas de Negocio del Despacho
 
-**Filtro aplicado:**
+### 5.1. Copia Mandatoria a Facturación Pullman Bus
+> [!IMPORTANT]
+> Todo envío automático o reenvío manual de Estado de Pago a empresas masivas incluye de forma obligatoria la copia en `CC` a:
+> **`facturacion@pullmanbus.cl`**
+
+### 5.2. Tipo de Facturación de la Empresa
+- **`tipo_facturacion = "Masiva"`**: Habilitada para despacho automático.
+- **`tipo_facturacion = "Especial"`**: Se omite automáticamente marcando `email_estado = 'omitido'` y motivo *"Facturación Especial (gestión manual)"*.
+
+### 5.3. Validación Estricta de Destinatarios (Regex)
+Los correos se obtienen de la ficha de la empresa:
+- **`TO` (Directos):** `contacto_fact_email` y `ejecutivo_com_email`.
+- **`CC` (Copia):** `contacto_fact_email_cc` (soporta múltiples direcciones separadas por comas o punto y coma) + `facturacion@pullmanbus.cl`.
+
+Filtro aplicado:
 ```typescript
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 ```
-Cualquier dirección que no cumpla con este formato (por ejemplo, celdas vacías, espacios o textos como `"Sin Informacion"` o `"no tiene"`) es descartada automáticamente. Si la empresa no cuenta con al menos un correo válido, se registra en consola y se omite el envío para esa empresa sin generar caídas en el proceso.
+Si la empresa no posee ninguna dirección válida que cumpla el patrón, el EDP se marca como `'omitido'` con el motivo *"Sin emails destinatarios configurados"*.
 
-### 4.4. Control de Integridad de Snapshots (Snapshots Check)
-Antes de autorizar el envío, el sistema ejecuta una verificación directa:
+### 5.4. Verificación de Integridad de Snapshots
+Antes de autorizar el envío:
 ```typescript
 const countBD = await EdpTicketSnapshot.count({ where: { edp_id: estadoCuenta.id } });
 const snapshotsGuardadosCorrectamente = countBD === tickets.length;
 ```
-* Si el conteo en base de datos es idéntico a la cantidad de tickets calculados, se autoriza el encolamiento.
-* Si existe la más mínima discrepancia, se emite una alerta crítica de logs y **se aborta el envío del correo** para evitar despachar al cliente cifras incompletas o discordantes.
+Si hay discordancia, el envío se suspende de inmediato y el EDP queda marcado como `'omitido'` por *"Fallo de integridad de snapshots"*.
 
 ---
 
-## 5. Generación de Archivos Adjuntos en Memoria
+## 6. Diferenciación Operativa: Proceso Nocturno vs Facturación Manual
 
-Para optimizar recursos y no depender de almacenamiento en disco temporal, los anexos se generan en caliente directamente como buffers de memoria:
-
-### 5.1. PDF Consolidado (`generateEDPPDF`)
-- **Archivo:** `src/services/pdf.service.ts`
-- **Nombre de archivo adjunto:** `EDP-[NombreEmpresa]-[Periodo].pdf`
-- **Contenido:**
-  - Identificación tributaria (RUT, Razón Social, Cuenta Corriente, N° EDP, Período de facturación).
-  - Resumen de boletos confirmados y anulados.
-  - Consumo bruto, porcentaje y monto de descuento por tramos comerciales aplicados.
-  - Devoluciones aplicadas y reclamos aceptados.
-  - Tabla consolidada por **Centros de Costo** con cantidad de pasajes y montos, ordenada de mayor a menor consumo.
-
-### 5.2. Planilla Excel de Detalle (`generateEDPExcelBuffer`)
-- **Archivo:** `src/services/excel.service.ts`
-- **Nombre de archivo adjunto:** `tickets_edp_[Periodo]_[CuentaCorriente].xlsx`
-- **Contenido:**
-  - Hoja de cálculo con el desglose unitario de cada boleto del período: número de ticket, código de reserva, nombre y RUT del pasajero, centro de costo imputado, fecha del viaje, servicio/asiento, origen, destino, tarifa unitaria, recargo comercial, estado del boleto y montos de devolución en caso de anulación.
-
----
-
-## 6. Despacho en Lotes Asíncronos (Batch Processing)
-
-El despacho de correos se gestiona en `src/services/edpMailBatch.service.ts`:
-
-1. **Tamaño del lote (`CHUNK_SIZE = 25`):** Las empresas listas para despacho se agrupan en lotes de hasta 25 empresas simultáneas.
-2. **Aislamiento de fallos con `Promise.allSettled`:**
-   - Si una empresa experimenta un rechazo por buzón lleno o rebote en SendGrid, **no detiene ni afecta el envío de las otras 24 empresas del lote**.
-3. **Control de límites y estabilidad:** Evita sobrepasar los límites de concurrencia y conexiones abiertas hacia la API de SendGrid.
-
----
-
-## 7. Monitoreo, Logs y Trazabilidad
-
-Durante la ejecución del cron o proceso de envío, se emiten logs con marca de tiempo en zona horaria chilena (`America/Santiago`):
-
-```text
-[2026-11-04T03:00:00.000Z] === INICIO generarEstadosPagoEmpresas (Hora Chile: 2026-11-04 00:00:00) ===
-[2026-11-04T03:00:02.000Z] Empresas encontradas: 45
-[2026-11-04T03:00:05.000Z] Procesando empresa ID: 12 (Empresa Ejemplo SpA)
-[2026-11-04T03:00:10.000Z] Snapshots guardados: 154 tickets. Verificación OK: true
-[2026-11-04T03:00:45.000Z] Iniciando envio de emails EDP para 38 EDPs...
-[EDP Mail Queue] Procesando 38 EDPs de tipo Masiva en lotes de 25...
-[EDP Mail Queue] Lote 1: 25 items
-[EDP Mail Queue] Lote 2: 13 items
-[EDP Mail Queue] Finalizado — ✅ 38 enviados, ❌ 0 fallidos
-[2026-11-04T03:01:15.000Z] === FIN generarEstadosPagoEmpresas ===
-```
-
----
-
-## 8. Guía de Solución de Problemas (Troubleshooting)
-
-### ¿Por qué una empresa no recibió el correo del EDP?
-
-| Causa Común | Verificación | Solución |
+| Característica | Proceso Nocturno Automático (Cron) | Facturación Manual desde el Panel |
 |---|---|---|
-| **Facturación Manual activada** | Campo `fact_manual = true` en tabla `empresas`. | Desactivar la casilla en la ficha de la empresa si requiere cobro automático. |
-| **Tipo de facturación Especial** | Campo `tipo_facturacion = "Especial"`. | Si debe recibir correos masivos, cambiar el tipo a `"Masiva"`. |
-| **Correo mal formateado o ausente** | `contacto_fact_email` vacío o con texto descriptivo como `"Sin Información"`. | Ingresar una dirección de correo válida con formato `nombre@dominio.cl`. |
-| **Fallo en comprobación de integridad** | El número de snapshots no coincidió con los tickets calculados (`countBD !== tickets.length`). | Revisar logs buscando `ERROR_INTEGRIDAD`. Ejecutar regeneración con `src/script/regenerateEDPSnapshots.ts`. |
-| **Bandera general inactiva** | `ENABLE_EDP_EMAIL_DISPATCH` está en `false` en el entorno. | Configurar `ENABLE_EDP_EMAIL_DISPATCH=true` en el `.env` del backend y reiniciar el servicio. |
+| **Disparador** | Crontab Linux (`0 6 * * *` UTC / 03:00 AM Chile). | Botón *"Generar Estado de Pago"* en la interfaz. |
+| **Endpoint / Archivo** | `dist/cron/generarEstadosPagoEmpresas.run.js` | `POST /api/estado-cuenta/generar` |
+| **Empresas evaluadas** | Todas las empresas con corte hoy y `fact_manual = false`. | Únicamente la empresa seleccionada por el usuario. |
+| **Despacho de Correo** | **Automático inmediato** vía `processEDPMailQueue`. | **No envía correo automáticamente** (Previene envíos involuntarios). |
+| **Estado Inicial** | Pasa directamente a `'enviado'` u `'omitido'`. | Queda en estado **`'pendiente'`**. |
+| **Acción Requerida** | Ninguna (Monitoreo pasivo en panel). | El supervisor revisa las cifras y hace clic en **"Reenviar"** para despachar. |
 
 ---
 
-## 9. Scripts Operativos de Contingencia
+## 7. Módulo de Reportería y Gestión en el Frontend ("Envíos EDP")
 
-En caso de requerir pruebas o recuperación tras una caída de red externa:
+La vista **"Envíos EDP"** (`SuperEdpMailReports`) centraliza la gestión y auditoría en tiempo real:
 
-- **Reenviar correos de EDP generados en la fecha:**
-  ```bash
-  npx ts-node src/script/resendEDPEmailsToday.ts
-  ```
-- **Probar envío de un correo individual de prueba:**
-  ```bash
-  npm run test:edp-email
-  # O bien:
-  npx ts-node src/script/testSendEDPEmailServer.ts
-  ```
-- **Reconstruir snapshots de un EDP sin histórico:**
-  ```bash
-  npx ts-node src/script/regenerateEDPSnapshots.ts
-  ```
+### 7.1. Tarjetas de Indicadores Clave (KPIs)
+- **Total Generados:** Cantidad de EDPs en el rango temporal seleccionado.
+- **Enviados con Éxito:** Total entregados vía SendGrid.
+- **Omitidos por Regla:** Total descartados justificadamente (Especiales, sin correo, \$0).
+- **Fallidos / Error:** Total con error de transporte SMTP.
+- **Tasa de Entrega:** Porcentaje de efectividad del despacho masivo.
 
+### 7.2. Herramientas de Filtrado y Búsqueda
+- **Rango de Fechas:** Filtro Desde / Hasta por fecha de generación contable.
+- **Estado de Envío:** Selector entre *Todos*, *Enviados*, *Omitidos*, *Fallidos* y *Pendientes*.
+- **Selector de Empresa:** Búsqueda rápida por Razón Social o RUT.
+- **Buscador de Texto:** Filtrado en tiempo real por número de EDP, RUT o destinatarios.
+- **Exportación Excel Corporativo:** Descarga directa de la planilla formateada con estilos oficiales Pullman Bus, formato de moneda chilena (`$ #,##0`), badges y totales.
+
+### 7.3. Botón de Reenvío On-Demand ("Reenviar")
+Permite a los supervisores reintentar el despacho de cualquier EDP en estado *Pendiente* o *Fallido*:
+- Despliega confirmación interactiva con SweetAlert2 mostrando empresa, monto y destinatarios.
+- Reconstruye en memoria el PDF y Excel exactos a partir de los snapshots inmutables.
+- Despacha a la empresa con copia a `facturacion@pullmanbus.cl`.
+- Actualiza en base de datos `email_estado = 'enviado'` con la fecha/hora actual y motivo *"Reenviado manualmente por supervisor"*.
+
+---
+
+## 8. Matriz de Roles y Control de Acceso
+
+| Rol | Panel / Ruta | Visualización de Reporte y Excel | Reenvío Manual ("Reenviar") | Alcance Multi-Empresa |
+|---|:---:|:---:|:---:|---|
+| **`superuser`** | `/superuser` | **Sí** | **Sí** | **Global** (Todas las empresas). |
+| **`contralor`** | `/controller` | **Sí** | **Sí** | **Global** (Todas las empresas). |
+| **`admincc`** | `/admincc` | **Sí** | **Sí** | **Global** (Todas las empresas). |
+| **`auditoria`** | `/auditoria` | **Sí** | Según permisos | **Global** (Todas las empresas). |
+| **`admin`** | `/admin` | **Sí** | No | **Aislado**: Bloqueado estrictamente a su propia empresa (`user.companyId`). |
+
+---
+
+## 9. Endpoints de la API Backend
+
+Todos los endpoints requieren autenticación mediante cabecera `Authorization: Bearer <token>`:
+
+### 1. `GET /api/estado-cuenta/reporte-envios`
+- **Permiso:** `estados_de_pago_ver_informacion_de_estados_de_pago`
+- **Query Params:** `desde`, `hasta`, `estado`, `empresaId`, `search`, `page`, `limit`.
+- **Respuesta:** Objeto con métricas (`kpis`), listado paginado (`edps`) y paginación (`pagination`).
+
+### 2. `GET /api/estado-cuenta/reporte-envios/excel`
+- **Permiso:** `estados_de_pago_ver_informacion_de_estados_de_pago`
+- **Query Params:** Mismos filtros que el listado.
+- **Respuesta:** Archivo binario `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` descargable.
+
+### 3. `POST /api/estado-cuenta/:id/reenviar-email`
+- **Permiso:** `estados_de_pago_crear_edp_manual`
+- **Respuesta:** `{ success: true, message: "EDP #... reenviado exitosamente a ...", recipients: [...], cc: [...] }`.
+
+---
+
+## 10. Guía de Solución de Problemas (Troubleshooting)
+
+### A. El EDP figura como "Pendiente" y no se envió por correo
+* **Causa 1:** El EDP fue creado mediante **Facturación Manual** desde el panel web.  
+  *Solución:* Presionar el botón **"Reenviar"** en la fila correspondiente para disparar el correo.
+* **Causa 2:** El EDP tiene monto \$0 y 0 tickets.  
+  *Comportamiento esperado:* El sistema no envía correos vacíos a los clientes.
+
+### B. El EDP figura como "Omitido"
+* **Causa 1 (Facturación Especial):** La empresa tiene `tipo_facturacion = 'Especial'`.  
+  *Solución:* Si debe recibir correos masivos, cambiar el tipo a `'Masiva'` en el mantenedor de empresas.
+* **Causa 2 (Sin correos configurados):** La empresa no tiene correos válidos en `contacto_fact_email`.  
+  *Solución:* Actualizar la ficha de la empresa con un correo válido y presionar **"Reenviar"**.
+* **Causa 3 (Fallo de integridad):** Discrepancia en snapshots.  
+  *Solución:* Ejecutar el script `src/script/regenerateEDPSnapshots.ts` para reparar los snapshots.
+
+### C. El EDP figura como "Fallido"
+* **Causa:** Rechazo devuelto por SendGrid (dirección bloqueada, rebote duro o error de red).
+* **Solución:** Leer el detalle del error en la columna *Motivo / Detalle*, corregir la casilla de correo del cliente y presionar **"Reenviar"**.
+
+---
+
+## 11. Comandos de Verificación en Servidor
+
+Para revisar los logs del último envío nocturno en la consola de AWS Lightsail:
+
+```bash
+# Ver las últimas líneas del registro del cron nocturno
+tail -n 80 /home/bitnami/cron-estados.log
+
+# Ver logs de la API en vivo
+pm2 logs reservas --lines 50 --nostream
+```
