@@ -52,6 +52,8 @@ export interface ITicketBase {
   id_empresa?: number | null;
   operador?: string | null;
   es_anulado_periodo_anterior?: boolean;
+  es_reclamo_periodo_anterior?: boolean;
+  monto_descuento_reclamo?: number;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -112,6 +114,8 @@ export class Ticket extends Model<ITicket> {
   declare operador?: string | null;
 
   declare es_anulado_periodo_anterior?: boolean;
+  declare es_reclamo_periodo_anterior?: boolean;
+  declare monto_descuento_reclamo?: number;
 
   @ForeignKey(() => User)
   @Column({ type: DataType.INTEGER, allowNull: false })

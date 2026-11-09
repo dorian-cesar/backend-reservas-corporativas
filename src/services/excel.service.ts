@@ -156,23 +156,29 @@ export const generateEDPExcelBuffer = async (
   /** Tickets anulados cuyo confirmedAt está FUERA del período (período anterior) */
   let countAnuladosFuera = 0;
   let countReclamados = 0;
+  /** Tickets reclamados cuyo confirmedAt está FUERA del período (período anterior) */
+  let countReclamadosFuera = 0;
 
   let montoConfirmados = 0;
   /** Devoluciones de anulados DENTRO del período */
   let montoAnuladosDentro = 0;
   /** Devoluciones de anulados FUERA del período */
   let montoAnuladosFuera = 0;
+  let montoReclamadosFuera = 0;
   let montoReclamadosDescuento = 0;
 
   tickets.forEach((ticket, idx) => {
     const esAnulado = ticket.ticketStatus === "Anulado";
     const esAnuladoPeriodoAnterior = Boolean((ticket as any).es_anulado_periodo_anterior);
+    const esReclamoPeriodoAnterior = Boolean((ticket as any).es_reclamo_periodo_anterior);
     const tieneReclamoAceptado =
       ticket.reclamos &&
       ticket.reclamos.some((r) => r.estado === "Aceptado");
 
     const estadoLabel = esAnuladoPeriodoAnterior
       ? "Anulado (Período Anterior)"
+      : esReclamoPeriodoAnterior
+      ? "Reclamado (Período Anterior)"
       : tieneReclamoAceptado && !esAnulado
       ? "Reclamado"
       : ticket.ticketStatus;
@@ -180,8 +186,10 @@ export const generateEDPExcelBuffer = async (
     const montoOriginal = Number(ticket.monto_boleto || 0);
     const devolucion = esAnulado
       ? Number(ticket.monto_devolucion || ticket.monto_boleto || 0)
+      : (esReclamoPeriodoAnterior || tieneReclamoAceptado)
+      ? Number(ticket.monto_devolucion || (ticket as any).monto_descuento_reclamo || ticket.monto_boleto || 0)
       : Number(ticket.monto_devolucion || 0);
-    const montoNeto = montoOriginal - devolucion;
+    const montoNeto = Math.max(0, montoOriginal - devolucion);
 
     totalMontoOriginal += montoOriginal;
     totalDevolucion += devolucion;
@@ -205,10 +213,14 @@ export const generateEDPExcelBuffer = async (
         countAnuladosFuera++;
         montoAnuladosFuera += devolucion;
       }
+    } else if (esReclamoPeriodoAnterior) {
+      countReclamadosFuera++;
+      montoReclamadosFuera += montoOriginal;
+      countReclamados++;
+      montoReclamadosDescuento += devolucion;
     } else if (tieneReclamoAceptado) {
       countReclamados++;
-      const devReclamo = Number(ticket.monto_devolucion || ticket.monto_boleto || 0);
-      montoReclamadosDescuento += devReclamo;
+      montoReclamadosDescuento += devolucion;
       countConfirmados++;
       montoConfirmados += montoOriginal;
     } else {
@@ -274,8 +286,13 @@ export const generateEDPExcelBuffer = async (
       ? `${countAnuladosDentro} anulados en período · ${countAnuladosFuera} anulados período anterior`
       : `${countAnuladosDentro} anulados`;
 
+  const descReclamados =
+    countReclamadosFuera > 0
+      ? `${countReclamados - countReclamadosFuera} reclamados en período · ${countReclamadosFuera} reclamados período anterior`
+      : `${countReclamados} reclamados`;
+
   const totalRow = sheet.addRow({
-    ticketNumber: `TOTALES (${tickets.length} tickets | ${countConfirmados} confirmados · ${descAnulados} · ${countReclamados} reclamados)`,
+    ticketNumber: `TOTALES (${tickets.length} tickets | ${countConfirmados} confirmados · ${descAnulados} · ${descReclamados})`,
     montoOriginal: formatCLP(totalMontoOriginal),
     devolucion: formatCLP(totalDevolucion),
     montoNeto: formatCLP(totalMontoNeto),
@@ -334,8 +351,8 @@ export const generateEDPExcelBuffer = async (
   const legendRows = [
     {
       concepto: "A. Total Tickets Generados",
-      conteo: `${tickets.length - countAnuladosFuera} tickets`,
-      monto: formatCLP(totalMontoOriginal - montoAnuladosFuera),
+      conteo: `${tickets.length - countAnuladosFuera - countReclamadosFuera} tickets`,
+      monto: formatCLP(totalMontoOriginal - montoAnuladosFuera - montoReclamadosFuera),
       descripcion: "Total de pasajes emitidos en el período de reservas.",
       isHighlighted: false,
     },

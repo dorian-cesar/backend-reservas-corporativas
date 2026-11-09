@@ -574,6 +574,73 @@ export const generarExcelEstadoCuenta = async (req: Request, res: Response) => {
       }
     }
 
+    // Incluir boletos con reclamos resueltos de período anterior al final de la lista si aplica
+    if (
+      Number(estadoData.reclamos_descuento || 0) > 0 &&
+      estadoData.fecha_inicio &&
+      estadoData.fecha_fin &&
+      !tickets.some((t: any) => t.es_reclamo_periodo_anterior)
+    ) {
+      try {
+        let inicioConsulta = parseDateString(estadoData.fecha_inicio);
+        let finConsulta = parseDateString(estadoData.fecha_fin);
+        finConsulta.setHours(23, 59, 59, 999);
+        const offsetMinutes = new Date().getTimezoneOffset();
+        inicioConsulta = new Date(inicioConsulta.getTime() - offsetMinutes * 60 * 1000);
+        finConsulta = new Date(finConsulta.getTime() - offsetMinutes * 60 * 1000);
+
+        const rawReclamosFuera = await Ticket.findAll({
+          where: {
+            id_empresa: estadoData.empresa_id,
+            confirmedAt: { [Op.lt]: inicioConsulta },
+          },
+          include: [
+            {
+              model: Reclamo,
+              required: true,
+              where: {
+                estado: "Aceptado",
+                fecha_resolucion: { [Op.between]: [inicioConsulta, finConsulta] },
+              },
+            },
+            { model: User, required: false },
+            {
+              model: Pasajero,
+              required: false,
+              include: [{ model: CentroCosto, required: false }],
+            },
+          ],
+          order: [["confirmedAt", "ASC"]],
+        });
+
+        const reclamosFueraPlain = rawReclamosFuera.map((t) => {
+          const plain: any = t.get ? t.get({ plain: true }) : t;
+          plain.es_reclamo_periodo_anterior = true;
+          plain.monto_devolucion = plain.monto_boleto;
+          plain.monto_descuento_reclamo = plain.monto_boleto;
+          return plain;
+        });
+
+        tickets = [...tickets, ...reclamosFueraPlain];
+      } catch (errReclamosFuera) {
+        console.warn("⚠️ No se pudieron incluir boletos reclamados fuera de período en Excel:", errReclamosFuera);
+      }
+    }
+
+    // Enriquecer boletos que tienen reclamos aceptados
+    tickets = tickets.map((t: any) => {
+      const tieneReclamoAceptado =
+        Array.isArray(t.reclamos) &&
+        t.reclamos.some((r: any) => r.estado === "Aceptado");
+      if (tieneReclamoAceptado) {
+        t.monto_descuento_reclamo = Number(t.monto_boleto) || 0;
+        if (!t.monto_devolucion || Number(t.monto_devolucion) === 0) {
+          t.monto_devolucion = t.monto_descuento_reclamo;
+        }
+      }
+      return t;
+    });
+
     const periodoReservas =
       estadoData.fecha_inicio && estadoData.fecha_fin
         ? `${estadoData.fecha_inicio.substring(0, 10)} - ${estadoData.fecha_fin.substring(0, 10)}`

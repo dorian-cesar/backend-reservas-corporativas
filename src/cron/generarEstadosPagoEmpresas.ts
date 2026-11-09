@@ -264,6 +264,31 @@ export const generarEstadosPagoEmpresas = async (
           0,
         );
 
+        // Buscar tickets de período anterior con reclamos aceptados en este período
+        const ticketsReclamosFueraPeriodo = await Ticket.findAll({
+          where: {
+            id_empresa: empresaId,
+            confirmedAt: {
+              [Op.lt]: inicio,
+            },
+          },
+          include: [
+            {
+              model: Reclamo,
+              required: true,
+              where: {
+                estado: "Aceptado",
+                fecha_resolucion: { [Op.between]: [inicio, fin] },
+              },
+            },
+            {
+              model: Pasajero,
+              required: false,
+              include: [{ model: CentroCosto, required: false }],
+            },
+          ],
+        });
+
         let porcentajeDescuento = 0;
         let descuento = 0;
         let monto_facturado = 0;
@@ -457,13 +482,30 @@ export const generarEstadosPagoEmpresas = async (
             });
 
             // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con reintentos y verificación
-            // Se incluyen los tickets del período y al final los anulados de período anterior
+            // Se incluyen los tickets del período, los anulados de período anterior y los reclamados de período anterior
             let snapshotsGuardadosCorrectamente = false;
             const todosTicketsParaSnapshot = [
-              ...tickets,
+              ...tickets.map((t) => {
+                const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+                const tieneReclamo = Array.isArray(j.reclamos) && j.reclamos.some((r: any) => r.estado === "Aceptado");
+                if (tieneReclamo) {
+                  j.monto_descuento_reclamo = Number(j.monto_boleto) || 0;
+                  if (!j.monto_devolucion || Number(j.monto_devolucion) === 0) {
+                    j.monto_devolucion = j.monto_descuento_reclamo;
+                  }
+                }
+                return j;
+              }),
               ...ticketsAnuladosFueraPeriodo.map((t) => {
                 const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
                 j.es_anulado_periodo_anterior = true;
+                return j;
+              }),
+              ...ticketsReclamosFueraPeriodo.map((t) => {
+                const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+                j.es_reclamo_periodo_anterior = true;
+                j.monto_devolucion = j.monto_boleto;
+                j.monto_descuento_reclamo = j.monto_boleto;
                 return j;
               }),
             ];

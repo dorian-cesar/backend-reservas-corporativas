@@ -246,6 +246,31 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
       0,
     );
 
+    // Buscar tickets de período anterior con reclamos resueltos en este período
+    const ticketsReclamosFueraPeriodo = await Ticket.findAll({
+      where: {
+        id_empresa: empresa_id,
+        confirmedAt: {
+          [Op.lt]: inicioConsulta,
+        },
+      },
+      include: [
+        {
+          model: Reclamo,
+          required: true,
+          where: {
+            estado: "Aceptado",
+            fecha_resolucion: { [Op.between]: [inicioConsulta, finConsulta] },
+          },
+        },
+        {
+          model: Pasajero,
+          required: false,
+          include: [{ model: CentroCosto, required: false }],
+        },
+      ],
+    });
+
     // Generar detalle por centro de costo agrupado por nombre
     const detallePorCC: Record<
       string,
@@ -346,12 +371,29 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
     });
 
     // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con reintentos y verificación
-    // Se incluyen los tickets del período actual y al final los anulados de período anterior
+    // Se incluyen los tickets del período actual, los anulados de período anterior y los reclamados de período anterior
     const todosTicketsParaSnapshot = [
-      ...tickets,
+      ...tickets.map((t) => {
+        const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+        const tieneReclamo = Array.isArray(j.reclamos) && j.reclamos.some((r: any) => r.estado === "Aceptado");
+        if (tieneReclamo) {
+          j.monto_descuento_reclamo = Number(j.monto_boleto) || 0;
+          if (!j.monto_devolucion || Number(j.monto_devolucion) === 0) {
+            j.monto_devolucion = j.monto_descuento_reclamo;
+          }
+        }
+        return j;
+      }),
       ...ticketsAnuladosFueraPeriodo.map((t) => {
         const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
         j.es_anulado_periodo_anterior = true;
+        return j;
+      }),
+      ...ticketsReclamosFueraPeriodo.map((t) => {
+        const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+        j.es_reclamo_periodo_anterior = true;
+        j.monto_devolucion = j.monto_boleto;
+        j.monto_descuento_reclamo = j.monto_boleto;
         return j;
       }),
     ];
@@ -614,30 +656,36 @@ export const listarTicketsDeEstadoCuenta = async (
     const estadoData = estado.toJSON();
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Cargar boletos de período anterior anulados dentro de este período
-    // Aparecen al FINAL de la lista conforme al ítem E del PDF
+    // Cargar boletos de período anterior anulados o con reclamo dentro de este período
+    // Aparecen al FINAL de la lista conforme a los ítems E y F del PDF
     // ─────────────────────────────────────────────────────────────────────────
     let ticketsFueraPeriodo: any[] = [];
+    let ticketsReclamosFueraPeriodo: any[] = [];
+
+    let inicioConsultaPeriodo: Date | null = null;
+    let finConsultaPeriodo: Date | null = null;
+    if (estadoData.fecha_inicio && estadoData.fecha_fin) {
+      inicioConsultaPeriodo = parseDateString(estadoData.fecha_inicio);
+      finConsultaPeriodo = parseDateString(estadoData.fecha_fin);
+      finConsultaPeriodo.setHours(23, 59, 59, 999);
+      const offsetMinutes = new Date().getTimezoneOffset();
+      inicioConsultaPeriodo = new Date(inicioConsultaPeriodo.getTime() - offsetMinutes * 60 * 1000);
+      finConsultaPeriodo = new Date(finConsultaPeriodo.getTime() - offsetMinutes * 60 * 1000);
+    }
+
     if (
       Number(estadoData.devoluciones_fuera_periodo || 0) > 0 &&
-      estadoData.fecha_inicio &&
-      estadoData.fecha_fin &&
+      inicioConsultaPeriodo &&
+      finConsultaPeriodo &&
       estadoData.empresa_id
     ) {
       try {
-        let inicioConsulta = parseDateString(estadoData.fecha_inicio);
-        let finConsulta = parseDateString(estadoData.fecha_fin);
-        finConsulta.setHours(23, 59, 59, 999);
-        const offsetMinutes = new Date().getTimezoneOffset();
-        inicioConsulta = new Date(inicioConsulta.getTime() - offsetMinutes * 60 * 1000);
-        finConsulta = new Date(finConsulta.getTime() - offsetMinutes * 60 * 1000);
-
         const rawFuera = await Ticket.findAll({
           where: {
             id_empresa: estadoData.empresa_id,
             ticketStatus: "Anulado",
-            confirmedAt: { [Op.lt]: inicioConsulta },
-            updated_at: { [Op.between]: [inicioConsulta, finConsulta] },
+            confirmedAt: { [Op.lt]: inicioConsultaPeriodo },
+            updated_at: { [Op.between]: [inicioConsultaPeriodo, finConsultaPeriodo] },
           },
           include: [
             {
@@ -681,6 +729,80 @@ export const listarTicketsDeEstadoCuenta = async (
       }
     }
 
+    if (
+      Number(estadoData.reclamos_descuento || 0) > 0 &&
+      inicioConsultaPeriodo &&
+      finConsultaPeriodo &&
+      estadoData.empresa_id
+    ) {
+      try {
+        const rawReclamosFuera = await Ticket.findAll({
+          where: {
+            id_empresa: estadoData.empresa_id,
+            confirmedAt: { [Op.lt]: inicioConsultaPeriodo },
+          },
+          include: [
+            {
+              model: Reclamo,
+              required: true,
+              where: {
+                estado: "Aceptado",
+                fecha_resolucion: { [Op.between]: [inicioConsultaPeriodo, finConsultaPeriodo] },
+              },
+            },
+            {
+              model: User,
+              attributes: ["id", "nombre", "rut", "email"],
+              required: false,
+            },
+            {
+              model: Empresa,
+              attributes: ["id", "nombre", "rut", "cuenta_corriente"],
+              required: false,
+            },
+            {
+              model: Pasajero,
+              required: false,
+              attributes: [
+                "id",
+                "nombre",
+                "rut",
+                "correo",
+                "telefono",
+                "id_centro_costo",
+              ],
+              include: [{ model: CentroCosto, required: false }],
+            },
+          ],
+          order: [["confirmedAt", "ASC"]],
+        });
+
+        ticketsReclamosFueraPeriodo = rawReclamosFuera.map((t) => {
+          const json = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+          json.es_reclamo_periodo_anterior = true;
+          json.monto_devolucion = json.monto_boleto;
+          json.monto_descuento_reclamo = json.monto_boleto;
+          return json;
+        });
+      } catch (errReclamosFuera) {
+        console.warn("⚠️ No se pudieron cargar boletos con reclamos de período anterior:", errReclamosFuera);
+      }
+    }
+
+    const enrichTicketWithReclamo = (ticket: any) => {
+      if (!ticket) return ticket;
+      const tieneReclamoAceptado =
+        Array.isArray(ticket.reclamos) &&
+        ticket.reclamos.some((r: any) => r.estado === "Aceptado");
+      if (tieneReclamoAceptado) {
+        ticket.monto_descuento_reclamo = Number(ticket.monto_boleto) || 0;
+        if (!ticket.monto_devolucion || Number(ticket.monto_devolucion) === 0) {
+          ticket.monto_devolucion = ticket.monto_descuento_reclamo;
+        }
+      }
+      return ticket;
+    };
+
     // ─────────────────────────────────────────────────────────────────────────
     // CASO 1: El EDP tiene snapshots congelados en la tabla edp_ticket_snapshots
     // ─────────────────────────────────────────────────────────────────────────
@@ -689,16 +811,23 @@ export const listarTicketsDeEstadoCuenta = async (
     });
 
     if (snapshotsCount > 0) {
-      // Verificar si los snapshots ya contienen boletos de período anterior
-      const alreadyHasFuera = await EdpTicketSnapshot.findOne({
+      // Verificar si los snapshots ya contienen boletos de período anterior (anulados y reclamados)
+      const alreadyHasAnuladosFuera = await EdpTicketSnapshot.findOne({
         where: {
           edp_id: id,
           ticket_data: { [Op.like]: '%"es_anulado_periodo_anterior":true%' },
         },
       });
+      const alreadyHasReclamosFuera = await EdpTicketSnapshot.findOne({
+        where: {
+          edp_id: id,
+          ticket_data: { [Op.like]: '%"es_reclamo_periodo_anterior":true%' },
+        },
+      });
 
-      // Si los snapshots aún no los tienen guardados, los anexamos al final
-      const fueraParaAnexar = alreadyHasFuera ? [] : ticketsFueraPeriodo;
+      const anuladosParaAnexar = alreadyHasAnuladosFuera ? [] : ticketsFueraPeriodo;
+      const reclamosParaAnexar = alreadyHasReclamosFuera ? [] : ticketsReclamosFueraPeriodo;
+      const fueraParaAnexar = [...anuladosParaAnexar, ...reclamosParaAnexar];
       const totalGeneral = snapshotsCount + fueraParaAnexar.length;
 
       if (page && limit) {
@@ -736,7 +865,8 @@ export const listarTicketsDeEstadoCuenta = async (
                 return null;
               }
             })
-            .filter(Boolean);
+            .filter(Boolean)
+            .map(enrichTicketWithReclamo);
 
           resultItems.push(...snapshotItems);
         }
@@ -776,7 +906,8 @@ export const listarTicketsDeEstadoCuenta = async (
             return null;
           }
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        .map(enrichTicketWithReclamo);
 
       return res.json([...allSnapshotItems, ...fueraParaAnexar]);
     }
@@ -871,10 +1002,14 @@ export const listarTicketsDeEstadoCuenta = async (
     };
 
     const baseTickets = await Ticket.findAll(queryOptions);
-    const baseTicketsJSON = baseTickets.map((t) =>
-      t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t))
-    );
-    const allCombined = [...baseTicketsJSON, ...ticketsFueraPeriodo];
+    const baseTicketsJSON = baseTickets
+      .map((t) => (t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t))))
+      .map(enrichTicketWithReclamo);
+    const allCombined = [
+      ...baseTicketsJSON,
+      ...ticketsFueraPeriodo,
+      ...ticketsReclamosFueraPeriodo,
+    ];
     const total = allCombined.length;
 
     if (page && limit) {
