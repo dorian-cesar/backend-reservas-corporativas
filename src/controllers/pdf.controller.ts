@@ -528,6 +528,52 @@ export const generarExcelEstadoCuenta = async (req: Request, res: Response) => {
       tickets = ticketsInstances.map((t) => t.get({ plain: true }));
     }
 
+    // Incluir boletos anulados de período anterior al final de la lista si aplica
+    if (
+      Number(estadoData.devoluciones_fuera_periodo || 0) > 0 &&
+      estadoData.fecha_inicio &&
+      estadoData.fecha_fin &&
+      !tickets.some((t: any) => t.es_anulado_periodo_anterior)
+    ) {
+      try {
+        let inicioConsulta = parseDateString(estadoData.fecha_inicio);
+        let finConsulta = parseDateString(estadoData.fecha_fin);
+        finConsulta.setHours(23, 59, 59, 999);
+        const offsetMinutes = new Date().getTimezoneOffset();
+        inicioConsulta = new Date(inicioConsulta.getTime() - offsetMinutes * 60 * 1000);
+        finConsulta = new Date(finConsulta.getTime() - offsetMinutes * 60 * 1000);
+
+        const rawFuera = await Ticket.findAll({
+          where: {
+            id_empresa: estadoData.empresa_id,
+            ticketStatus: "Anulado",
+            confirmedAt: { [Op.lt]: inicioConsulta },
+            updated_at: { [Op.between]: [inicioConsulta, finConsulta] },
+          },
+          include: [
+            { model: User, required: false },
+            {
+              model: Pasajero,
+              required: false,
+              include: [{ model: CentroCosto, required: false }],
+            },
+            { model: Reclamo, required: false },
+          ],
+          order: [["updated_at", "ASC"]],
+        });
+
+        const fueraPlain = rawFuera.map((t) => {
+          const plain: any = t.get ? t.get({ plain: true }) : t;
+          plain.es_anulado_periodo_anterior = true;
+          return plain;
+        });
+
+        tickets = [...tickets, ...fueraPlain];
+      } catch (errFuera) {
+        console.warn("⚠️ No se pudieron incluir boletos fuera de período en Excel:", errFuera);
+      }
+    }
+
     const periodoReservas =
       estadoData.fecha_inicio && estadoData.fecha_fin
         ? `${estadoData.fecha_inicio.substring(0, 10)} - ${estadoData.fecha_fin.substring(0, 10)}`

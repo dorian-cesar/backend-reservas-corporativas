@@ -51,6 +51,7 @@ export interface ITicketBase {
   id_pasajero?: number;
   id_empresa?: number | null;
   operador?: string | null;
+  es_anulado_periodo_anterior?: boolean;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -109,6 +110,8 @@ export class Ticket extends Model<ITicket> {
 
   @Column({ type: DataType.STRING(100), allowNull: true })
   declare operador?: string | null;
+
+  declare es_anulado_periodo_anterior?: boolean;
 
   @ForeignKey(() => User)
   @Column({ type: DataType.INTEGER, allowNull: false })

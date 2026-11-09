@@ -457,9 +457,19 @@ export const generarEstadosPagoEmpresas = async (
             });
 
             // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con reintentos y verificación
+            // Se incluyen los tickets del período y al final los anulados de período anterior
             let snapshotsGuardadosCorrectamente = false;
-            if (tickets.length > 0) {
-              const snapshotRows = tickets.map((t) => {
+            const todosTicketsParaSnapshot = [
+              ...tickets,
+              ...ticketsAnuladosFueraPeriodo.map((t) => {
+                const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+                j.es_anulado_periodo_anterior = true;
+                return j;
+              }),
+            ];
+
+            if (todosTicketsParaSnapshot.length > 0) {
+              const snapshotRows = todosTicketsParaSnapshot.map((t) => {
                 const json = t.toJSON
                   ? t.toJSON()
                   : JSON.parse(JSON.stringify(t));
@@ -519,14 +529,14 @@ export const generarEstadosPagoEmpresas = async (
                   where: { edp_id: estadoCuenta.id },
                 });
 
-                if (countBD === tickets.length && todoCorrectoEnLotes) {
+                if (countBD === snapshotRows.length && todoCorrectoEnLotes) {
                   snapshotsGuardadosCorrectamente = true;
                   console.log(
-                    `✅ [EDP Snapshot Cron] Confirmado: ${countBD}/${tickets.length} snapshots guardados perfectamente en BD para EDP ID ${estadoCuenta.id}.`,
+                    `✅ [EDP Snapshot Cron] Confirmado: ${countBD}/${snapshotRows.length} snapshots guardados perfectamente en BD para EDP ID ${estadoCuenta.id}.`,
                   );
                 } else {
                   console.error(
-                    `❌ [EDP Snapshot Cron] ERROR DE INTEGRIDAD: Se esperaban ${tickets.length} snapshots para EDP ID ${estadoCuenta.id}, pero hay ${countBD} en BD. Se omitirá el envío de correo para este EDP.`,
+                    `❌ [EDP Snapshot Cron] ERROR DE INTEGRIDAD: Se esperaban ${snapshotRows.length} snapshots para EDP ID ${estadoCuenta.id}, pero hay ${countBD} en BD. Se omitirá el envío de correo para este EDP.`,
                   );
                 }
               } catch (errCount: any) {

@@ -346,8 +346,18 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
     });
 
     // Guardar snapshot de cada ticket en la tabla edp_ticket_snapshots con reintentos y verificación
-    if (tickets.length > 0) {
-      const snapshotRows = tickets.map((t) => {
+    // Se incluyen los tickets del período actual y al final los anulados de período anterior
+    const todosTicketsParaSnapshot = [
+      ...tickets,
+      ...ticketsAnuladosFueraPeriodo.map((t) => {
+        const j = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+        j.es_anulado_periodo_anterior = true;
+        return j;
+      }),
+    ];
+
+    if (todosTicketsParaSnapshot.length > 0) {
+      const snapshotRows = todosTicketsParaSnapshot.map((t) => {
         const json = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
         if (json.pasajero) {
           const cc =
@@ -403,13 +413,13 @@ export const ejecutarEDPManual = async (req: Request, res: Response) => {
           where: { edp_id: estadoCuenta.id },
         });
 
-        if (countBD === tickets.length && todoCorrectoEnLotes) {
+        if (countBD === snapshotRows.length && todoCorrectoEnLotes) {
           console.log(
-            `✅ [EDP Snapshot Manual] Confirmado: ${countBD}/${tickets.length} snapshots guardados perfectamente en BD para EDP ID ${estadoCuenta.id}.`
+            `✅ [EDP Snapshot Manual] Confirmado: ${countBD}/${snapshotRows.length} snapshots guardados perfectamente en BD para EDP ID ${estadoCuenta.id}.`
           );
         } else {
           console.error(
-            `❌ [EDP Snapshot Manual] ERROR DE INTEGRIDAD: Se esperaban ${tickets.length} snapshots para EDP ID ${estadoCuenta.id}, pero hay ${countBD} en BD.`
+            `❌ [EDP Snapshot Manual] ERROR DE INTEGRIDAD: Se esperaban ${snapshotRows.length} snapshots para EDP ID ${estadoCuenta.id}, pero hay ${countBD} en BD.`
           );
         }
       } catch (errCount: any) {
@@ -604,6 +614,74 @@ export const listarTicketsDeEstadoCuenta = async (
     const estadoData = estado.toJSON();
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Cargar boletos de período anterior anulados dentro de este período
+    // Aparecen al FINAL de la lista conforme al ítem E del PDF
+    // ─────────────────────────────────────────────────────────────────────────
+    let ticketsFueraPeriodo: any[] = [];
+    if (
+      Number(estadoData.devoluciones_fuera_periodo || 0) > 0 &&
+      estadoData.fecha_inicio &&
+      estadoData.fecha_fin &&
+      estadoData.empresa_id
+    ) {
+      try {
+        let inicioConsulta = parseDateString(estadoData.fecha_inicio);
+        let finConsulta = parseDateString(estadoData.fecha_fin);
+        finConsulta.setHours(23, 59, 59, 999);
+        const offsetMinutes = new Date().getTimezoneOffset();
+        inicioConsulta = new Date(inicioConsulta.getTime() - offsetMinutes * 60 * 1000);
+        finConsulta = new Date(finConsulta.getTime() - offsetMinutes * 60 * 1000);
+
+        const rawFuera = await Ticket.findAll({
+          where: {
+            id_empresa: estadoData.empresa_id,
+            ticketStatus: "Anulado",
+            confirmedAt: { [Op.lt]: inicioConsulta },
+            updated_at: { [Op.between]: [inicioConsulta, finConsulta] },
+          },
+          include: [
+            {
+              model: User,
+              attributes: ["id", "nombre", "rut", "email"],
+              required: false,
+            },
+            {
+              model: Empresa,
+              attributes: ["id", "nombre", "rut", "cuenta_corriente"],
+              required: false,
+            },
+            {
+              model: Reclamo,
+              required: false,
+            },
+            {
+              model: Pasajero,
+              required: false,
+              attributes: [
+                "id",
+                "nombre",
+                "rut",
+                "correo",
+                "telefono",
+                "id_centro_costo",
+              ],
+              include: [{ model: CentroCosto, required: false }],
+            },
+          ],
+          order: [["updated_at", "ASC"]],
+        });
+
+        ticketsFueraPeriodo = rawFuera.map((t) => {
+          const json = t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t));
+          json.es_anulado_periodo_anterior = true;
+          return json;
+        });
+      } catch (errFuera) {
+        console.warn("⚠️ No se pudieron cargar boletos anulados de período anterior:", errFuera);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // CASO 1: El EDP tiene snapshots congelados en la tabla edp_ticket_snapshots
     // ─────────────────────────────────────────────────────────────────────────
     const snapshotsCount = await EdpTicketSnapshot.count({
@@ -611,38 +689,96 @@ export const listarTicketsDeEstadoCuenta = async (
     });
 
     if (snapshotsCount > 0) {
-      const queryOpts: any = {
-        where: { edp_id: id },
-        order: [["id", "ASC"]],
-      };
+      // Verificar si los snapshots ya contienen boletos de período anterior
+      const alreadyHasFuera = await EdpTicketSnapshot.findOne({
+        where: {
+          edp_id: id,
+          ticket_data: { [Op.like]: '%"es_anulado_periodo_anterior":true%' },
+        },
+      });
+
+      // Si los snapshots aún no los tienen guardados, los anexamos al final
+      const fueraParaAnexar = alreadyHasFuera ? [] : ticketsFueraPeriodo;
+      const totalGeneral = snapshotsCount + fueraParaAnexar.length;
 
       if (page && limit) {
-        queryOpts.limit = limit;
-        queryOpts.offset = (page - 1) * limit;
-      }
+        const pageOffset = (page - 1) * limit;
 
-      const rows = await EdpTicketSnapshot.findAll(queryOpts);
-      const ticketObjects = rows.map((r) => {
-        try {
-          return JSON.parse(r.ticket_data);
-        } catch {
-          return null;
+        if (pageOffset >= totalGeneral) {
+          return res.json({
+            data: [],
+            pagination: {
+              total: totalGeneral,
+              page,
+              limit,
+              totalPages: Math.ceil(totalGeneral / limit) || 1,
+            },
+          });
         }
-      }).filter(Boolean);
 
-      if (page && limit) {
+        let resultItems: any[] = [];
+
+        // 1. Elementos que provienen de los snapshots
+        if (pageOffset < snapshotsCount) {
+          const snapshotLimit = Math.min(limit, snapshotsCount - pageOffset);
+          const rows = await EdpTicketSnapshot.findAll({
+            where: { edp_id: id },
+            order: [["id", "ASC"]],
+            limit: snapshotLimit,
+            offset: pageOffset,
+          });
+
+          const snapshotItems = rows
+            .map((r) => {
+              try {
+                return JSON.parse(r.ticket_data);
+              } catch {
+                return null;
+              }
+            })
+            .filter(Boolean);
+
+          resultItems.push(...snapshotItems);
+        }
+
+        // 2. Si todavía queda espacio en la página actual y la ventana llega al final (anexados)
+        const itemsFaltantes = limit - resultItems.length;
+        if (itemsFaltantes > 0 && fueraParaAnexar.length > 0) {
+          const fueraOffset = Math.max(0, pageOffset - snapshotsCount);
+          const sliceFuera = fueraParaAnexar.slice(
+            fueraOffset,
+            fueraOffset + itemsFaltantes
+          );
+          resultItems.push(...sliceFuera);
+        }
+
         return res.json({
-          data: ticketObjects,
+          data: resultItems,
           pagination: {
-            total: snapshotsCount,
+            total: totalGeneral,
             page,
             limit,
-            totalPages: Math.ceil(snapshotsCount / limit) || 1,
+            totalPages: Math.ceil(totalGeneral / limit) || 1,
           },
         });
       }
 
-      return res.json(ticketObjects);
+      // Sin paginación (exportación completa CSV / XLSX)
+      const rows = await EdpTicketSnapshot.findAll({
+        where: { edp_id: id },
+        order: [["id", "ASC"]],
+      });
+      const allSnapshotItems = rows
+        .map((r) => {
+          try {
+            return JSON.parse(r.ticket_data);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      return res.json([...allSnapshotItems, ...fueraParaAnexar]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -734,40 +870,40 @@ export const listarTicketsDeEstadoCuenta = async (
       order: [["confirmedAt", "DESC"]],
     };
 
-    const total = estadoData.total_tickets;
+    const baseTickets = await Ticket.findAll(queryOptions);
+    const baseTicketsJSON = baseTickets.map((t) =>
+      t.toJSON ? t.toJSON() : JSON.parse(JSON.stringify(t))
+    );
+    const allCombined = [...baseTicketsJSON, ...ticketsFueraPeriodo];
+    const total = allCombined.length;
 
     if (page && limit) {
-      if (offset !== undefined && offset >= total) {
+      const pageOffset = (page - 1) * limit;
+      if (pageOffset >= total) {
         return res.json({
           data: [],
           pagination: {
             total,
             page,
             limit,
-            totalPages: Math.ceil(total / limit),
+            totalPages: Math.ceil(total / limit) || 1,
           },
         });
       }
 
-      const remaining = offset !== undefined ? total - offset : total;
-      queryOptions.limit = Math.min(limit, remaining);
-      queryOptions.offset = offset;
-
-      const tickets = await Ticket.findAll(queryOptions);
-
+      const paginatedData = allCombined.slice(pageOffset, pageOffset + limit);
       return res.json({
-        data: tickets,
+        data: paginatedData,
         pagination: {
           total,
           page,
           limit,
-          totalPages: Math.ceil(total / limit),
+          totalPages: Math.ceil(total / limit) || 1,
         },
       });
     }
 
-    const tickets = await Ticket.findAll(queryOptions);
-    return res.json(tickets.slice(0, total));
+    return res.json(allCombined);
   } catch (error) {
     console.error("❌ Error al obtener tickets:", error);
     return res.status(500).json({

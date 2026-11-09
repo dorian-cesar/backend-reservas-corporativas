@@ -166,12 +166,16 @@ export const generateEDPExcelBuffer = async (
 
   tickets.forEach((ticket, idx) => {
     const esAnulado = ticket.ticketStatus === "Anulado";
+    const esAnuladoPeriodoAnterior = Boolean((ticket as any).es_anulado_periodo_anterior);
     const tieneReclamoAceptado =
       ticket.reclamos &&
       ticket.reclamos.some((r) => r.estado === "Aceptado");
 
-    const estadoLabel =
-      tieneReclamoAceptado && !esAnulado ? "Reclamado" : ticket.ticketStatus;
+    const estadoLabel = esAnuladoPeriodoAnterior
+      ? "Anulado (Período Anterior)"
+      : tieneReclamoAceptado && !esAnulado
+      ? "Reclamado"
+      : ticket.ticketStatus;
 
     const montoOriginal = Number(ticket.monto_boleto || 0);
     const devolucion = esAnulado
@@ -188,8 +192,9 @@ export const generateEDPExcelBuffer = async (
       const confirmedTs = ticket.confirmedAt
         ? new Date(ticket.confirmedAt).getTime()
         : null;
-      const dentroPeriodo =
-        pInicio && pFin && confirmedTs
+      const dentroPeriodo = esAnuladoPeriodoAnterior
+        ? false
+        : pInicio && pFin && confirmedTs
           ? confirmedTs >= pInicio && confirmedTs <= pFin
           : true; // si no hay fechas, asumir dentro
 
@@ -264,8 +269,13 @@ export const generateEDPExcelBuffer = async (
   const countAnulados = countAnuladosDentro + countAnuladosFuera;
   const montoAnuladosDevolucion = montoAnuladosDentro;
 
+  const descAnulados =
+    countAnuladosFuera > 0
+      ? `${countAnuladosDentro} anulados en período · ${countAnuladosFuera} anulados período anterior`
+      : `${countAnuladosDentro} anulados`;
+
   const totalRow = sheet.addRow({
-    ticketNumber: `TOTALES (${tickets.length} tickets | ${countConfirmados} confirmados · ${countAnuladosDentro} anulados · ${countReclamados} reclamados)`,
+    ticketNumber: `TOTALES (${tickets.length} tickets | ${countConfirmados} confirmados · ${descAnulados} · ${countReclamados} reclamados)`,
     montoOriginal: formatCLP(totalMontoOriginal),
     devolucion: formatCLP(totalDevolucion),
     montoNeto: formatCLP(totalMontoNeto),
@@ -324,8 +334,8 @@ export const generateEDPExcelBuffer = async (
   const legendRows = [
     {
       concepto: "A. Total Tickets Generados",
-      conteo: `${tickets.length} tickets`,
-      monto: formatCLP(totalMontoOriginal),
+      conteo: `${tickets.length - countAnuladosFuera} tickets`,
+      monto: formatCLP(totalMontoOriginal - montoAnuladosFuera),
       descripcion: "Total de pasajes emitidos en el período de reservas.",
       isHighlighted: false,
     },

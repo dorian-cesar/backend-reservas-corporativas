@@ -15,7 +15,9 @@
     "update-centros": "ts-node src/script/update-centros-costo-from-csv.ts",
     "generar-cuentas-corrientes": "ts-node src/script/generarCuentasCorrientes.ts",
     "generar-estado-cuenta": "ts-node src/script/generarEDPManual.ts",
-    "test:edp-email": "ts-node src/script/testSendEDPEmailServer.ts"
+    "test:edp-email": "ts-node src/script/testSendEDPEmailServer.ts",
+    "reporte:edp": "ts-node src/script/generarReporteGlobalEDP.ts",
+    "pdfs:desde-excel": "ts-node src/script/generarPDFsDesdeExcel.ts"
   },
   "author": "Tu Nombre",
   "license": "MIT",
